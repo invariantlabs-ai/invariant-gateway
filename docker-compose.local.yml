@@ -1,26 +1,4 @@
 services:
-  traefik:
-    image: traefik:v2.0
-    container_name: "explorer-proxy-local-traefik"
-    command:
-      - --providers.docker=true
-      # Enable the API handler in insecure mode,
-      # which means that the Traefik API will be available directly
-      # on the entry point named traefik.
-      - --api.insecure=true
-      # Define Traefik entry points to port [80] for http and port [443] for https.
-      - --entrypoints.invariant-explorer-proxy-web.address=0.0.0.0:80
-      - --log.level=INFO
-    networks:
-      - invariant-explorer-proxy-web
-    ports:
-      - '${PORT_HTTP:-80}:80'
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik-http.entrypoints=invariant-explorer-proxy-web"
-
   explorer-proxy:
     build:
       context: ./proxy
@@ -31,18 +9,17 @@ services:
     environment:
       - DEV_MODE=true
     networks:
-      - internal
-      - invariant-explorer-proxy-web
+      - invariant-explorer-web
     ports:
-      - "8001:8000"
+      - "8002:8000"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.explorer-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
-      - "traefik.http.routers.explorer-proxy-api.entrypoints=invariant-explorer-proxy-web"
+      - "traefik.http.routers.explorer-proxy-api.priority=2"
+      - "traefik.http.routers.explorer-proxy-api.entrypoints=invariant-explorer-web"
       - "traefik.http.services.explorer-proxy-api.loadbalancer.server.port=8000"
-      - "traefik.docker.network=invariant-explorer-proxy-web"
+      - "traefik.docker.network=invariant-explorer-web"
 
 networks:
-  invariant-explorer-proxy-web:
+  invariant-explorer-web:
     external: true
-  internal:
