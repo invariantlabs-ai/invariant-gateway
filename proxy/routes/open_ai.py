@@ -1,4 +1,4 @@
-"""Proxy service to forward requests to the appropriate language model provider"""
+"""Proxy service to forward requests to the OpenAI APIs"""
 
 import gzip
 import json
@@ -47,7 +47,7 @@ async def openai_proxy(
     dataset_name: str,
     endpoint: str,
 ):
-    """Proxy call to a language model provider"""
+    """Proxy calls to the OpenAI APIs"""
     if endpoint not in ALLOWED_OPEN_AI_ENDPOINTS:
         raise HTTPException(status_code=404, detail=NOT_SUPPORTED_ENDPOINT)
 
