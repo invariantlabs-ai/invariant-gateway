@@ -13,7 +13,6 @@ def push_trace(
     messages: List[Dict[str, Any]],
     dataset_name: str,
     invariant_authorization: str,
-    api_url: str = DEFAULT_API_URL,
 ) -> Dict[str, str]:
     """Pushes traces to the dataset on the Invariant Explorer.
 
@@ -21,7 +20,6 @@ def push_trace(
         messages (List[Dict[str, Any]]): List of messages to push.
         dataset_name (str): Name of the dataset.
         invariant_authorization (str): Authorization token.
-        api_url (str): URL of the Invariant Explorer API.
 
     Returns:
         Dict[str, str]: Response containing the trace ID.
