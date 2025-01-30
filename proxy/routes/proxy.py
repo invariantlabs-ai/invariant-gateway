@@ -22,17 +22,20 @@ IGNORED_HEADERS = [
 ]
 proxy = APIRouter()
 
+MISSING_INVARIANT_AUTH_HEADER = "Missing invariant-authorization header"
+MISSING_AUTH_HEADER = "Missing authorization header"
+NOT_SUPPORTED_ENDPOINT = "Not supported OpenAI endpoint"
+FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset"
+
 
 def validate_headers(
     invariant_authorization: str = Header(None), authorization: str = Header(None)
 ):
     """Require the invariant-authorization and authorization headers to be present"""
     if invariant_authorization is None:
-        raise HTTPException(
-            status_code=400, detail="Missing invariant-authorization header"
-        )
+        raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_HEADER)
     if authorization is None:
-        raise HTTPException(status_code=400, detail="Missing authorization header")
+        raise HTTPException(status_code=400, detail=MISSING_AUTH_HEADER)
 
 
 @proxy.post(
@@ -46,13 +49,11 @@ async def openai_proxy(
 ):
     """Proxy call to a language model provider"""
     if endpoint not in ALLOWED_OPEN_AI_ENDPOINTS:
-        raise HTTPException(status_code=404, detail="Not supported OpenAI endpoint")
+        raise HTTPException(status_code=404, detail=NOT_SUPPORTED_ENDPOINT)
 
-    headers = dict(request.headers)
-
-    # Remove extra headers
-    for h in IGNORED_HEADERS:
-        headers.pop(h, None)
+    headers = {
+        k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
+    }
     headers["accept-encoding"] = "identity"
 
     request_body = await request.body()
@@ -67,28 +68,22 @@ async def openai_proxy(
         response = await client.send(open_ai_request)
         try:
             json_response = response.json()
+            # push messages to the Invariant Explorer
+            # use both the request and response messages
+            messages = json.loads(request_body).get("messages", [])
+            messages += [
+                choice["message"] for choice in json_response.get("choices", [])
+            ]
             _ = push_trace(
                 dataset_name=dataset_name,
-                # Extract messages from the request body and response
-                messages=[
-                    json.loads(request_body)["messages"]
-                    + [
-                        dict(choice["message"])
-                        for choice in json_response.get("choices", [])
-                    ]
-                ],
+                messages=messages,
                 invariant_authorization=request.headers.get("invariant-authorization"),
             )
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail="Failed to push trace to the dataset"
-            ) from e
+            raise HTTPException(status_code=500, detail=FAILED_TO_PUSH_TRACE) from e
 
         # Detect if original request expects gzip encoding
-        original_accept_encoding = request.headers.get("accept-encoding", "")
-        should_gzip = "gzip" in original_accept_encoding.lower()
-
-        if should_gzip:
+        if "gzip" in request.headers.get("accept-encoding", "").lower():
             # Compress the response using gzip
             gzip_buffer = BytesIO()
             with gzip.GzipFile(mode="wb", fileobj=gzip_buffer) as gz:
