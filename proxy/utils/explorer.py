@@ -33,6 +33,4 @@ def push_trace(
         )
         return {"trace_id": push_trace_response.id[0]}
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail="Failed to push traces to the dataset"
-        ) from e
+        raise HTTPException(status_code=500, detail=str(e)) from e

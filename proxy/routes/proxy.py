@@ -25,7 +25,7 @@ proxy = APIRouter()
 MISSING_INVARIANT_AUTH_HEADER = "Missing invariant-authorization header"
 MISSING_AUTH_HEADER = "Missing authorization header"
 NOT_SUPPORTED_ENDPOINT = "Not supported OpenAI endpoint"
-FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset"
+FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
 
 
 def validate_headers(
@@ -76,11 +76,13 @@ async def openai_proxy(
             ]
             _ = push_trace(
                 dataset_name=dataset_name,
-                messages=messages,
+                messages=[messages],
                 invariant_authorization=request.headers.get("invariant-authorization"),
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=FAILED_TO_PUSH_TRACE) from e
+            raise HTTPException(
+                status_code=500, detail=FAILED_TO_PUSH_TRACE + str(e)
+            ) from e
 
         # Detect if original request expects gzip encoding
         if "gzip" in request.headers.get("accept-encoding", "").lower():
@@ -91,6 +93,8 @@ async def openai_proxy(
             compressed_response = gzip_buffer.getvalue()
 
             response_headers = dict(response.headers)
+            response_headers.pop("Content-Encoding", None)
+            response_headers.pop("Content-Length", None)
             response_headers["Content-Encoding"] = "gzip"
             response_headers["Content-Length"] = str(len(compressed_response))
 
