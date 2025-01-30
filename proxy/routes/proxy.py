@@ -6,6 +6,7 @@ from io import BytesIO
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from utils.explorer import push_trace
 
 ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions", "moderations"}
 IGNORED_HEADERS = [
@@ -35,12 +36,11 @@ def validate_headers(
 
 
 @proxy.post(
-    "/{username}/{dataset_name}/openai/{endpoint:path}",
+    "/{dataset_name}/openai/{endpoint:path}",
     dependencies=[Depends(validate_headers)],
 )
 async def openai_proxy(
     request: Request,
-    username: str,
     dataset_name: str,
     endpoint: str,
 ):
@@ -49,28 +49,40 @@ async def openai_proxy(
         raise HTTPException(status_code=404, detail="Not supported OpenAI endpoint")
 
     headers = dict(request.headers)
-    print("🔹 Original Headers:", json.dumps(headers, indent=2))
 
     # Remove extra headers
     for h in IGNORED_HEADERS:
         headers.pop(h, None)
     headers["accept-encoding"] = "identity"
 
-    body_bytes = await request.body()
+    request_body = await request.body()
 
     async with httpx.AsyncClient() as client:
         open_ai_request = client.build_request(
             "POST",
             f"https://api.openai.com/v1/{endpoint}",
-            content=body_bytes,
+            content=request_body,
             headers=headers,
         )
-        print("🔹 Forwarded Headers:", json.dumps(headers, indent=2))
         response = await client.send(open_ai_request)
-        # Log response details
-        print(f"⬅️ Response Status: {response.status_code}")
-        print(f"⬅️ Response Headers: {json.dumps(dict(response.headers), indent=2)}")
-        raw_response = response.content
+        try:
+            json_response = response.json()
+            _ = push_trace(
+                dataset_name=dataset_name,
+                # Extract messages from the request body and response
+                messages=[
+                    json.loads(request_body)["messages"]
+                    + [
+                        dict(choice["message"])
+                        for choice in json_response.get("choices", [])
+                    ]
+                ],
+                invariant_authorization=request.headers.get("invariant-authorization"),
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail="Failed to push trace to the dataset"
+            ) from e
 
         # Detect if original request expects gzip encoding
         original_accept_encoding = request.headers.get("accept-encoding", "")
@@ -80,7 +92,7 @@ async def openai_proxy(
             # Compress the response using gzip
             gzip_buffer = BytesIO()
             with gzip.GzipFile(mode="wb", fileobj=gzip_buffer) as gz:
-                gz.write(raw_response)
+                gz.write(response.content)
             compressed_response = gzip_buffer.getvalue()
 
             response_headers = dict(response.headers)
@@ -93,7 +105,7 @@ async def openai_proxy(
                 headers=response_headers,
             )
         return Response(
-            content=raw_response,
+            content=response.content,
             status_code=response.status_code,
             headers=dict(response.headers),
         )
