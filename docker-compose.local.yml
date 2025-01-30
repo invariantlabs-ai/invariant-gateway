@@ -15,7 +15,6 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.explorer-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
-      - "traefik.http.routers.explorer-proxy-api.priority=2"
       - "traefik.http.routers.explorer-proxy-api.entrypoints=invariant-explorer-web"
       - "traefik.http.services.explorer-proxy-api.loadbalancer.server.port=8000"
       - "traefik.docker.network=invariant-explorer-web"
