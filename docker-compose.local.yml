@@ -10,8 +10,7 @@ services:
       - DEV_MODE=true
     networks:
       - invariant-explorer-web
-    ports:
-      - "8002:8000"
+    ports: []
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.explorer-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"

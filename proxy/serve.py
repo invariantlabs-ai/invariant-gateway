@@ -2,17 +2,16 @@
 
 import fastapi
 import uvicorn
-from proxy import proxy
+from routes.proxy import proxy
 
-v1 = fastapi.FastAPI()
+app = fastapi.FastAPI()
 
-# install the API routes
-v1.mount("/proxy", proxy)
+router = fastapi.APIRouter(prefix="/api/v1")
 
-# mount the API under /api/v1
-proxy_app = fastapi.FastAPI()
-proxy_app.mount("/api/v1", v1)
+router.include_router(proxy, prefix="/proxy", tags=["proxy"])
 
-# serve the API
+app.include_router(router)
+
+# Serve the API
 if __name__ == "__main__":
-    uvicorn.run(proxy_app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

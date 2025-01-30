@@ -6,4 +6,7 @@ WORKDIR /srv/proxy
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . /srv/proxy
 
+# Ensure run.sh is executable
+RUN chmod +x /srv/proxy/run.sh
+
 ENTRYPOINT ./run.sh
