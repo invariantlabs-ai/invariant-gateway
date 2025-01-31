@@ -1,8 +1,6 @@
 """Proxy service to forward requests to the OpenAI APIs"""
 
-import gzip
 import json
-from io import BytesIO
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -84,27 +82,13 @@ async def openai_proxy(
                 status_code=500, detail=FAILED_TO_PUSH_TRACE + str(e)
             ) from e
 
-        # Detect if original request expects gzip encoding
-        if "gzip" in request.headers.get("accept-encoding", "").lower():
-            # Compress the response using gzip
-            gzip_buffer = BytesIO()
-            with gzip.GzipFile(mode="wb", fileobj=gzip_buffer) as gz:
-                gz.write(response.content)
-            compressed_response = gzip_buffer.getvalue()
+        response_headers = dict(response.headers)
+        response_headers.pop("Content-Encoding", None)
+        response_headers.pop("Content-Length", None)
 
-            response_headers = dict(response.headers)
-            response_headers.pop("Content-Encoding", None)
-            response_headers.pop("Content-Length", None)
-            response_headers["Content-Encoding"] = "gzip"
-            response_headers["Content-Length"] = str(len(compressed_response))
-
-            return Response(
-                content=compressed_response,
-                status_code=response.status_code,
-                headers=response_headers,
-            )
         return Response(
-            content=response.content,
+            content=json.dumps(response.json()),
             status_code=response.status_code,
-            headers=dict(response.headers),
+            media_type="application/json",
+            headers=response_headers,
         )
