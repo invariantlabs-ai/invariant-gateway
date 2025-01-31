@@ -8,7 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from utils.explorer import push_trace
 
-ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions", "moderations"}
+ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions"}
 IGNORED_HEADERS = [
     "accept-encoding",
     "host",
