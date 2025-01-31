@@ -28,6 +28,7 @@ def push_trace(
     api_key = invariant_authorization.split("Bearer ")[1]
     client = Client(api_url=api_url, api_key=api_key)
     try:
+        # TODO: Change this to the async version once that is available
         push_trace_response = client.create_request_and_push_trace(
             messages=messages, dataset=dataset_name
         )
