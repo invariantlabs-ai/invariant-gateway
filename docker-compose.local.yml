@@ -1,5 +1,6 @@
 services:
   explorer-proxy:
+    container_name: explorer-proxy
     build:
       context: ./proxy
       dockerfile: ../proxy/Dockerfile.proxy
