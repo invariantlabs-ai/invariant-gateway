@@ -8,6 +8,10 @@ services:
       - .env
     environment:
       - DEV_MODE=true
+    volumes:
+      - type: bind
+        source: ./proxy
+        target: /srv/proxy
     networks:
       - invariant-explorer-web
     ports: []
