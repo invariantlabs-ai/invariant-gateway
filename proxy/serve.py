@@ -6,7 +6,11 @@ from routes.anthropic import proxy as anthropic_proxy
 from routes.open_ai import proxy as open_ai_proxy
 from starlette_compress import CompressMiddleware
 
-app = fastapi.FastAPI()
+app = fastapi.app = fastapi.FastAPI(
+    docs_url="/api/v1/proxy/docs",
+    redoc_url="/api/v1/proxy/redoc",
+    openapi_url="/api/v1/proxy/openapi.json",
+)
 app.add_middleware(CompressMiddleware)
 
 router = fastapi.APIRouter(prefix="/api/v1")
