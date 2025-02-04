@@ -56,6 +56,8 @@ async def openai_proxy(
 
     request_body = await request.body()
 
+    print("request_body", request_body)
+
     async with httpx.AsyncClient() as client:
         open_ai_request = client.build_request(
             "POST",
