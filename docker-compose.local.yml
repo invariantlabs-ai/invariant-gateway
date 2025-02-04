@@ -1,5 +1,6 @@
 services:
   explorer-proxy:
+    container_name: explorer-proxy
     build:
       context: ./proxy
       dockerfile: ../proxy/Dockerfile.proxy
@@ -8,6 +9,10 @@ services:
       - .env
     environment:
       - DEV_MODE=true
+    volumes:
+      - type: bind
+        source: ./proxy
+        target: /srv/proxy
     networks:
       - invariant-explorer-web
     ports: []
