@@ -11,14 +11,14 @@ PUSH_ENDPOINT = "/api/v1/push/trace"
 
 
 async def push_trace(
-    messages: List[Dict[str, Any]],
+    messages: List[List[Dict[str, Any]]],
     dataset_name: str,
     invariant_authorization: str,
 ) -> Dict[str, str]:
     """Pushes traces to the dataset on the Invariant Explorer.
 
     Args:
-        messages (List[Dict[str, Any]]): List of messages to push.
+        messages (List[List[Dict[str, Any]]]): List of messages to push.
         dataset_name (str): Name of the dataset.
         invariant_authorization (str): Authorization token from the
                                        invariant-authorization header.
@@ -27,8 +27,12 @@ async def push_trace(
         Dict[str, str]: Response containing the trace ID.
     """
     api_url = os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/")
-
-    request = PushTracesRequest(messages=messages, dataset=dataset_name)
+    # Remove any None values from the messages
+    update_messages = [
+        [{k: v for k, v in msg.items() if v is not None} for msg in msg_list]
+        for msg_list in messages
+    ]
+    request = PushTracesRequest(messages=update_messages, dataset=dataset_name)
     async with httpx.AsyncClient() as client:
         explorer_push_request = client.build_request(
             "POST",
