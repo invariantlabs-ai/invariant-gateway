@@ -1,0 +1,4 @@
+openai
+pytest
+pytest-asyncio
+pytest-playwright

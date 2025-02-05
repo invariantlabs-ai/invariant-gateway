@@ -20,6 +20,27 @@ down() {
   docker compose -f docker-compose.local.yml down
 }
 
+
+tests() {
+    # Run tests
+    pip install invariant-ai
+    invariant explorer up -d --build
+
+    until curl -X GET -I http://127.0.0.1/api/v1 --fail --silent --output /dev/null; do
+      echo "Backend API not available yet - checking health..."
+      sleep 2
+    done
+
+    echo "Backend API is available. Running tests..."
+
+    docker build -t 'explorer-proxy-test' -f ./tests/Dockerfile.test ./tests
+
+    docker run \
+    --mount type=bind,source=./tests,target=/tests \
+    --network host \
+    explorer-proxy-test $@
+}
+
 # -----------------------------
 # Command dispatcher
 # -----------------------------
@@ -35,5 +56,13 @@ case "$1" in
     ;;
   "logs")
     docker compose -f docker-compose.local.yml logs -f
+    ;;
+  "tests")
+    shift
+    tests $@
+    ;;
+  *)
+    echo "Usage: $0 [up|build|down|logs|tests]"
+    exit 1
     ;;
 esac
