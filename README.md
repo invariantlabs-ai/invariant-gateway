@@ -2,7 +2,7 @@
 
 Invariant Proxy is a lightweight Docker service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic). It captures and forwards agent interactions to the [Invariant Explorer](https://explorer.invariantlabs.ai/), enabling seamless debugging, visualization and exploration of traces.
 
-[Invariant Proxy Diagram](resources/images/invariant-proxy-diagram.png)
+![Invariant Proxy Diagram](resources/images/invariant-proxy-diagram.png)
 
 ## **Why Use Invariant Proxy?**
 - ✅ **Intercept AI interactions** for better debugging and analysis.
