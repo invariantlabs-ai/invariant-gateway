@@ -1,14 +1,14 @@
-# **Explorer Proxy**
+# **Invariant Proxy**
 
-Explorer Proxy is a lightweight Docker service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic). It captures and forwards agent interactions to the [Invariant Explorer](https://explorer.invariantlabs.ai/), enabling seamless visualization and exploration of traces.
+Invariant Proxy is a lightweight Docker service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic). It captures and forwards agent interactions to the [Invariant Explorer](https://explorer.invariantlabs.ai/), enabling seamless debugging, visualization and exploration of traces.
 
-## **Why Use Explorer Proxy?**
+## **Why Use Invariant Proxy?**
 - ✅ **Intercept AI interactions** for better debugging and analysis.
-- ✅ **Seamlessly forward API requests** to OpenAI, Anthropic, and other LLM providers.
-- ✅ **Automatically store and organize traces** in Invariant Explorer.
+- ✅ **Seamlessly forward API requests** to OpenAI, Anthropic, and other LLM providers (supports streaming responses too).
+- ✅ **Automatically store and organize traces** in the Invariant Explorer.
 
 ## **Getting Started**
-To integrate Explorer Proxy with your AI agent, you’ll need to modify how your client interacts with LLM providers.
+To integrate the Proxy with your AI agent, you’ll need to modify how your client interacts with LLM providers.
 
 ### **🔹 OpenAI Integration**
 1. **Get an API Key**  
