@@ -1,0 +1,8 @@
+FROM mcr.microsoft.com/playwright/python:v1.50.0-noble
+
+RUN mkdir -p /tests
+COPY ./requirements.txt /tests/requirements.txt
+WORKDIR /tests
+RUN pip install --no-cache-dir -r requirements.txt
+
+ENTRYPOINT ["pytest", "-s", "-vv"]
