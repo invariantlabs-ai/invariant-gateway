@@ -25,8 +25,8 @@ tests() {
   echo "Setting up test environment..."
 
   # Ensure test network exists
-  docker network inspect invariant-explorer-web-test >/dev/null 2>&1 || \
-    docker network create invariant-explorer-web-test
+  docker network inspect invariant-proxy-web-test >/dev/null 2>&1 || \
+    docker network create invariant-proxy-web-test
 
   # Setup the explorer.test.yml file
   CONFIG_DIR="/tmp/invariant-proxy-test/configs"

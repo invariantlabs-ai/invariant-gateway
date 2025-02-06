@@ -10,16 +10,16 @@ services:
       # on the entry point named traefik.
       - --api.insecure=true
       # Define Traefik entry points to port [80] for http and port [443] for https.
-      - --entrypoints.invariant-explorer-web-test.address=0.0.0.0:80
+      - --entrypoints.invariant-proxy-web-test.address=0.0.0.0:80
     networks:
-      - invariant-explorer-web-test
+      - invariant-proxy-web-test
     ports:
       - '${PORT_HTTP:-80}:80'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik-http.entrypoints=invariant-explorer-web-test"
+      - "traefik.http.routers.traefik-http.entrypoints=invariant-proxy-web-test"
 
   explorer-proxy:
     container_name: explorer-proxy-test
@@ -39,14 +39,14 @@ services:
         source: ../proxy
         target: /srv/proxy
     networks:
-      - invariant-explorer-web-test
+      - invariant-proxy-web-test
     ports: []
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.explorer-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
-      - "traefik.http.routers.explorer-proxy-api.entrypoints=invariant-explorer-web-test"
+      - "traefik.http.routers.explorer-proxy-api.entrypoints=invariant-proxy-web-test"
       - "traefik.http.services.explorer-proxy-api.loadbalancer.server.port=8000"
-      - "traefik.docker.network=invariant-explorer-web-test"
+      - "traefik.docker.network=invariant-proxy-web-test"
     healthcheck:
       test: curl -X GET -I http://localhost:8000/api/v1/proxy/health --fail
       interval: 1s
@@ -73,15 +73,15 @@ services:
       - PORT_API=80
     networks:
       - internal
-      - invariant-explorer-web-test
+      - invariant-proxy-web-test
     volumes:
       - /tmp/invariant-proxy-test/configs/explorer.test.yml:/config/explorer.config.yml
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.explorer-test-api.rule=(Host(`localhost`) && PathPrefix(`/api/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/`))"
-      - "traefik.http.routers.explorer-test-api.entrypoints=invariant-explorer-web-test"
+      - "traefik.http.routers.explorer-test-api.entrypoints=invariant-proxy-web-test"
       - "traefik.http.services.explorer-test-api.loadbalancer.server.port=8000"
-      - "traefik.docker.network=invariant-explorer-web-test"
+      - "traefik.docker.network=invariant-proxy-web-test"
     healthcheck:
       test: curl -X GET -I http://localhost:8000/api/v1 --fail
       interval: 1s
@@ -105,6 +105,6 @@ services:
       retries: 5
 
 networks:
-  invariant-explorer-web-test:
+  invariant-proxy-web-test:
     external: true
   internal:
