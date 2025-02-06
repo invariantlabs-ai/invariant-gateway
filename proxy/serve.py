@@ -15,6 +15,13 @@ app.add_middleware(CompressMiddleware)
 
 router = fastapi.APIRouter(prefix="/api/v1")
 
+
+@router.get("/proxy/health", tags=["health_check"], include_in_schema=False)
+async def get_proxy_info():
+    """Health check"""
+    return {"message": "Hello v1/proxy"}
+
+
 router.include_router(open_ai_proxy, prefix="/proxy", tags=["open_ai_proxy"])
 
 router.include_router(anthropic_proxy, prefix="/proxy", tags=["anthropic_proxy"])
