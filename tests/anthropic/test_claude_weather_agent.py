@@ -99,7 +99,7 @@ class WeatherAgent:
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 weather_agent = WeatherAgent(anthropic_api_key)
     
-def test_weather_agent():    
+def test_proxy_response():    
     # Example queries
     queries = [
         "What's the weather like in Zurich city?",
