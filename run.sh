@@ -22,20 +22,45 @@ down() {
 
 
 tests() {
-    # Run tests
-    pip install invariant-ai
-    invariant explorer up -d --build
+  echo "Setting up test environment..."
 
-    until curl -X GET -I http://127.0.0.1/api/v1 --fail --silent --output /dev/null; do
-      echo "Backend API not available yet - checking health..."
-      sleep 2
-    done
+  # Ensure test network exists
+  docker network inspect invariant-explorer-web-test >/dev/null 2>&1 || \
+    docker network create invariant-explorer-web-test
 
-    echo "Backend API is available. Running tests..."
+  # Setup the explorer.test.yml file
+  CONFIG_DIR="/tmp/invariant-proxy-test/configs"
+  FILE="$CONFIG_DIR/explorer.test.yml"
+  mkdir -p "$CONFIG_DIR"
+  # Download the file
+  curl -L -o "$FILE" https://raw.githubusercontent.com/invariantlabs-ai/explorer/main/configs/explorer.test.yml
+  # Verify if the file exists
+  if [ ! -f "$FILE" ]; then
+    echo "Error: File $FILE not found. Issue with download."
+    exit 1
+  fi
+  echo "File successfully downloaded: $FILE"
 
-    docker build -t 'explorer-proxy-test' -f ./tests/Dockerfile.test ./tests
+  # Start containers
+  docker compose -f tests/docker-compose.test.yml down
+  docker compose -f tests/docker-compose.test.yml build
+  docker compose -f tests/docker-compose.test.yml up -d
 
-    docker run \
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' explorer-proxy-test-app-api)" = "healthy" ]; do
+    echo "explorer-proxy-test-app-api container starting..."
+    sleep 2
+  done
+
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' explorer-proxy-test)" = "healthy" ]; do
+    echo "explorer-proxy-test container starting..."
+    sleep 2
+  done
+
+  echo "app-api and proxy are available. Running tests..."
+
+  docker build -t 'explorer-proxy-test' -f ./tests/Dockerfile.test ./tests
+
+  docker run \
     --mount type=bind,source=./tests,target=/tests \
     --network host \
     explorer-proxy-test $@
