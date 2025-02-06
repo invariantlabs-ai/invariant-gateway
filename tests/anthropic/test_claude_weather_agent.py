@@ -1,11 +1,10 @@
 import anthropic
-from typing import Dict, Optional, List
+from typing import Dict
 import os
 from tavily import TavilyClient
 import anthropic
 from httpx import Client
 import os
-import pytest
 # from invariant import testing
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
@@ -63,11 +62,9 @@ class WeatherAgent:
                 max_tokens=1024,
                 messages=messages
             )
-            print("response content:",response.content[0].text)
 
             # If there's tool call, Extract the tool call parameters from the response
             if len(response.content) > 1 and response.content[1].type == "tool_use":
-                print("response tools:",response.content[1].input)
                 tool_call_params = response.content[1].input
                 tool_call_result = self.get_weather(tool_call_params["location"])
                 tool_call_id = response.content[1].id
@@ -106,9 +103,9 @@ def test_proxy_response():
         "Tell me the forecast for New York",
         "How's the weather in London next week?"
     ]
-    
+    cities = ["Zurich", "New York", "London"]
     # Process each query
-    for query in queries:
+    for index,query in enumerate(queries):
         response = weather_agent.get_response(query)
-        print(f"Response: {response}")
         assert response is not None
+        assert cities[index] in response
