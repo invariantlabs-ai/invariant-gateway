@@ -36,3 +36,6 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
 
 ### **🔹 Anthropic Integration**
 Coming Soon!
+
+### Run
+./run.sh up

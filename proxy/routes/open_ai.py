@@ -300,7 +300,6 @@ async def push_to_explorer(
     # Combine the messages from the request body and the choices from the OpenAI response
     messages = request_body.get("messages", [])
     messages += [choice["message"] for choice in merged_response.get("choices", [])]
-
     _ = await push_trace(
         dataset_name=dataset_name,
         messages=[messages],
