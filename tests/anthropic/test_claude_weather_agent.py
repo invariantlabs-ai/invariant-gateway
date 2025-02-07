@@ -7,10 +7,11 @@ from httpx import Client
 import os
 # from invariant import testing
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+import datetime
 
 class WeatherAgent:
     def __init__(self, api_key: str):
-        dataset_name = "claude_weather_agent_test7"
+        dataset_name = "claude_weather_agent_test" + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         invariant_api_key = os.environ.get("INVARIANT_API_KEY")
         self.client = anthropic.Anthropic(
             http_client=Client(

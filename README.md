@@ -38,6 +38,4 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
 Coming Soon!
 
 ### Run
-docker compose -f docker-compose.local.yml down 
-&& docker compose -f docker-compose.local.yml up -d --build 
-&& docker logs explorer-proxy-explorer-proxy-1 -f
+./run.sh up

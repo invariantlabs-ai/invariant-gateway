@@ -89,18 +89,14 @@ async def push_to_explorer(
     """Pushes the full trace to the Invariant Explorer"""
     # Combine the messages from the request body and Anthropic response
     messages = request_body.get("messages", [])
-    if merged_response is not list:
-        merged_response = [merged_response]
-    messages += merged_response
+    messages += [merged_response]
 
-    # Only push the trace to explorer if the last message is an end turn message
-    if messages[-1].get("stop_reason") in END_REASONS:
-        messages = anthropic_to_invariant_messages(messages)
-        _ = await push_trace(
-            dataset_name=dataset_name,
-            messages=[messages],
-            invariant_authorization=invariant_authorization,
-        )
+    messages = anthropic_to_invariant_messages(messages)
+    _ = await push_trace(
+        dataset_name=dataset_name,
+        messages=[messages],
+        invariant_authorization=invariant_authorization,
+    )
 
 async def handle_non_streaming_response(
     response: httpx.Response,
@@ -110,12 +106,14 @@ async def handle_non_streaming_response(
 ):
     """Handles non-streaming Anthropic responses"""
     json_response = response.json()
-    await push_to_explorer(
-        dataset_name,
-        json_response,
-        request_body_json,
-        invariant_authorization,
-    )
+    # Only push the trace to explorer if the last message is an end turn message
+    if json_response.get("stop_reason") in END_REASONS:
+        await push_to_explorer(
+            dataset_name,
+            json_response,
+            request_body_json,
+            invariant_authorization,
+        )
 
 def anthropic_to_invariant_messages(
     messages: list[dict], keep_empty_tool_response: bool = False
