@@ -18,7 +18,8 @@ pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
-async def test_chat_completion_without_streaming(context, explorer_api_url, proxy_url):
+@pytest.mark.parametrize("do_stream", [True, False])
+async def test_chat_completion(context, explorer_api_url, proxy_url, do_stream):
     """Test the chat completions proxy calls without tool calling."""
     dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
 
@@ -34,14 +35,20 @@ async def test_chat_completion_without_streaming(context, explorer_api_url, prox
     chat_response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": "What is the capital of France?"}],
+        stream=do_stream,
     )
 
     # Verify the chat response
-    assert "PARIS" in chat_response.choices[0].message.content.upper()
-    expect_assistant_message = {
-        "role": chat_response.choices[0].message.role,
-        "content": chat_response.choices[0].message.content,
-    }
+    if not do_stream:
+        assert "PARIS" in chat_response.choices[0].message.content.upper()
+        expected_assistant_message = chat_response.choices[0].message.content
+    else:
+        full_response = ""
+        for chunk in chat_response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                full_response += chunk.choices[0].delta.content
+        assert "PARIS" in full_response.upper()
+        expected_assistant_message = full_response
 
     # Fetch the trace ids for the dataset
     traces_response = await context.request.get(
@@ -58,9 +65,13 @@ async def test_chat_completion_without_streaming(context, explorer_api_url, prox
     trace = await trace_response.json()
 
     # Verify the trace messages
-    assert len(trace["messages"]) == 2
-    assert trace["messages"][0] == {
-        "role": "user",
-        "content": "What is the capital of France?",
-    }
-    assert trace["messages"][1] == expect_assistant_message
+    assert trace["messages"] == [
+        {
+            "role": "user",
+            "content": "What is the capital of France?",
+        },
+        {
+            "role": "assistant",
+            "content": expected_assistant_message,
+        },
+    ]
