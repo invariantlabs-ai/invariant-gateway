@@ -58,11 +58,16 @@ tests() {
 
   echo "app-api and proxy are available. Running tests..."
 
+  # Make call to signup endpoint
+  curl -k -X POST http://127.0.0.1/api/v1/user/signup
+
   docker build -t 'explorer-proxy-test' -f ./tests/Dockerfile.test ./tests
 
   docker run \
     --mount type=bind,source=./tests,target=/tests \
-    --network host \
+    --network invariant-proxy-web-test \
+    -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+    --env-file ./tests/.env.test \
     explorer-proxy-test $@
 }
 

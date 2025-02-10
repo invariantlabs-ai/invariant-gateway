@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .py[oc]
 data/
+tests/results/
 
 # Coverage and build artifacts
 .coverage

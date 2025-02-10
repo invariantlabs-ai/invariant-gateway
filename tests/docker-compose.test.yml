@@ -83,7 +83,7 @@ services:
       - "traefik.http.services.explorer-test-api.loadbalancer.server.port=8000"
       - "traefik.docker.network=invariant-proxy-web-test"
     healthcheck:
-      test: curl -X GET -I http://localhost:8000/api/v1 --fail
+      test: curl -X GET -I http://localhost:8000/api/v1/ --fail
       interval: 1s
       timeout: 5s
 
