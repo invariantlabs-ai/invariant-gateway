@@ -38,6 +38,10 @@ async def test_chat_completion_without_streaming(context, explorer_api_url, prox
 
     # Verify the chat response
     assert "PARIS" in chat_response.choices[0].message.content.upper()
+    expect_assistant_message = {
+        "role": chat_response.choices[0].message.role,
+        "content": chat_response.choices[0].message.content,
+    }
 
     # Fetch the trace ids for the dataset
     traces_response = await context.request.get(
@@ -59,5 +63,4 @@ async def test_chat_completion_without_streaming(context, explorer_api_url, prox
         "role": "user",
         "content": "What is the capital of France?",
     }
-    assert trace["messages"][1]["role"] == "assistant"
-    assert "PARIS" in trace["messages"][1]["content"].upper()
+    assert trace["messages"][1] == expect_assistant_message
