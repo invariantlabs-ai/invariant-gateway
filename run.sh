@@ -18,6 +18,7 @@ build() {
 down() {
   # Bring down local services
   docker compose -f docker-compose.local.yml down
+  docker compose -f tests/docker-compose.test.yml down
 }
 
 
