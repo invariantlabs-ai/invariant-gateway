@@ -5,6 +5,7 @@ import json
 import httpx
 from typing import Any
 from utils.explorer import push_trace
+from starlette.responses import StreamingResponse
 # from .open_ai import push_to_explorer
 
 proxy = APIRouter()
@@ -20,6 +21,7 @@ IGNORED_HEADERS = [
     "x-forwarded-proto",
     "x-forwarded-server",
     "x-real-ip",
+    "content-length"
 ]
 
 MISSING_INVARIANT_AUTH_HEADER = "Missing invariant-authorization header"
@@ -31,6 +33,13 @@ END_REASONS = [
     "max_tokens",
     "stop_sequence"
 ]
+
+MESSAGE_START = "message_start"
+MESSGAE_DELTA = "message_delta"
+MESSAGE_STOP = "message_stop"
+CONTENT_BLOCK_START = "content_block_start"
+CONTENT_BLOCK_DELTA = "content_block_delta"
+CONTENT_BLOCK_STOP = "content_block_stop"
 
 def validate_headers(
         invariant_authorization: str = Header(None), x_api_key: str = Header(None)
@@ -56,6 +65,7 @@ async def anthropic_proxy(
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
+    headers["accept-encoding"] = "identity"
 
     request_body = await request.body()
 
@@ -63,18 +73,26 @@ async def anthropic_proxy(
 
     anthropic_url = f"https://api.anthropic.com/{endpoint}"
     client = httpx.AsyncClient()
-
+    
     anthropic_request = client.build_request(
         "POST", 
         anthropic_url, 
         headers=headers, 
         data=request_body
     )
-
     invariant_authorization = request.headers.get("invariant-authorization")
 
-    async with client:
+    response = await client.send(anthropic_request)
+
+    if request_body_json.get("stream"):
+        return await handle_streaming_response(client, anthropic_request, dataset_name, invariant_authorization)
+    else:
         response = await client.send(anthropic_request)
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to fetch response: {response.text}",
+            )
         await handle_non_streaming_response(
             response, dataset_name, request_body_json, invariant_authorization
         )
@@ -85,13 +103,14 @@ async def push_to_explorer(
     merged_response: dict[str, Any],
     request_body: dict[str, Any],
     invariant_authorization: str,
+    reformat: bool = True,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     # Combine the messages from the request body and Anthropic response
     messages = request_body.get("messages", [])
     messages += [merged_response]
-
-    messages = anthropic_to_invariant_messages(messages)
+    if reformat:
+        messages = anthropic_to_invariant_messages(messages)
     _ = await push_trace(
         dataset_name=dataset_name,
         messages=[messages],
@@ -114,6 +133,83 @@ async def handle_non_streaming_response(
             request_body_json,
             invariant_authorization,
         )
+
+async def handle_streaming_response(
+        client: httpx.AsyncClient,
+        anthropic_request: httpx.Request,
+        dataset_name: str,
+        invariant_authorization: str
+) -> StreamingResponse:
+
+    format_invariant_response = []
+    
+    async def event_generator() -> Any:
+        async with client.stream(
+            "POST",
+            anthropic_request.url,
+            headers=anthropic_request.headers,
+            content=anthropic_request.content,
+        ) as response:
+            if response.status_code != 200:
+                yield json.dumps(
+                    {"error": f"Failed to fetch response: {response.status_code}"}
+                ).encode()
+                return
+            async for chunk in response.aiter_bytes():
+                yield chunk
+
+                process_chunk_text(
+                    chunk,
+                    format_invariant_response
+                )
+
+            if len(format_invariant_response) > 0 and format_invariant_response[-1].get("stop_reason") in END_REASONS:
+                await push_to_explorer(
+                    dataset_name,
+                    format_invariant_response[-1],
+                    json.loads(anthropic_request.content),
+                    invariant_authorization,
+                    reformat = False
+                )
+    
+    generator = event_generator()
+        
+    return StreamingResponse(generator, media_type="text/event-stream")
+
+
+def process_chunk_text(chunk, format_invariant_response):
+    """
+    Process the chunk of text and update the format_invariant_response
+    Example of chunk list:
+    chunk_list = [b'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_012KWB6kiKvzx7r1SKs5nGA1","type":"message","role":"assistant","model":"claude-3-5-sonnet-20241022","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":20,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":5}}        }\n\nevent: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}       }\n\n'
+        ,b'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" making it an attractive destination for both business"}               }\n\n'
+        , b'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and leisure."}   }\n\n'
+        , b'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n'
+        , b'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":301}      }\n\n'
+        , b'event: message_stop\ndata: {"type":"message_stop"       }\n\n']
+    """
+
+    text_decode = chunk.decode().strip()
+    for text_block in text_decode.split("\n\n"):
+        text_data = text_block.split("\ndata:")[1]
+        text_json = json.loads(text_data)
+        update_format_invariant_response(text_json, format_invariant_response)
+
+def update_format_invariant_response(text_json, format_invariant_response):
+    if text_json.get("type") == MESSAGE_START:
+        message = text_json.get("message")
+        format_invariant_response.append({
+            "id": message.get("id"),
+            "role": message.get("role"),
+            "content": "",
+            "model": message.get("model"),
+            "stop_reason": message.get("stop_reason"),
+            "stop_sequence": message.get("stop_sequence"),
+        })
+    elif text_json.get("type") == CONTENT_BLOCK_DELTA and len(format_invariant_response) > 0:
+        format_invariant_response[-1]["content"] += text_json.get("delta").get("text")
+    elif text_json.get("type") == MESSGAE_DELTA and len(format_invariant_response) > 0:
+        format_invariant_response[-1]["stop_reason"] = text_json.get("delta").get("stop_reason")
 
 def anthropic_to_invariant_messages(
     messages: list[dict], keep_empty_tool_response: bool = False
