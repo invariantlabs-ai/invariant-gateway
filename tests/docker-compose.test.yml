@@ -94,10 +94,6 @@ services:
       - .env.test
     networks:
       - internal
-    volumes:
-      - type: bind
-        source: /tmp/invariant-explorer-test/data/database
-        target: /var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
