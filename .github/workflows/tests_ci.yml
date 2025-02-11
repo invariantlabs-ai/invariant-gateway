@@ -1,0 +1,22 @@
+name: Invariant proxy testing CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+        - name: Checkout
+          uses: actions/checkout@v1
+        - name: Run tests
+          env:
+            OPENAI_API_KEY: ${{ secrets.INVARIANT_TESTING_OPENAI_KEY }}
+          run: ./run.sh tests -s -vv --cov=proxy --cov-report=term
