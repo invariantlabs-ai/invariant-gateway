@@ -1,4 +1,6 @@
+anthropic
 openai
 pytest
 pytest-asyncio
 pytest-playwright
+tavily-python

@@ -26,7 +26,7 @@ proxy = APIRouter()
 MISSING_INVARIANT_AUTH_HEADER = "Missing invariant-authorization header"
 MISSING_AUTH_HEADER = "Missing authorization header"
 NOT_SUPPORTED_ENDPOINT = "Not supported OpenAI endpoint"
-FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
+FINISH_REASON_TO_PUSH_TRACE = ["stop", "length", "content_filter"]
 
 
 def validate_headers(
@@ -79,12 +79,11 @@ async def openai_proxy(
             request_body_json,
             invariant_authorization,
         )
-    else:
-        async with client:
-            response = await client.send(open_ai_request)
-            return await handle_non_streaming_response(
-                response, dataset_name, request_body_json, invariant_authorization
-            )
+    async with client:
+        response = await client.send(open_ai_request)
+        return await handle_non_streaming_response(
+            response, dataset_name, request_body_json, invariant_authorization
+        )
 
 
 async def stream_response(
@@ -226,6 +225,8 @@ def update_merged_response(
 
         existing_choice = merged_response["choices"][choice_mapping_by_index[index]]
         delta = choice.get("delta", {})
+        if choice.get("finish_reason"):
+            existing_choice["finish_reason"] = choice["finish_reason"]
 
         update_existing_choice_with_delta(
             existing_choice, delta, tool_call_mapping_by_index, choice_index=index
@@ -297,6 +298,13 @@ async def push_to_explorer(
     invariant_authorization: str,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
+    # Only push the trace to explorer if the message is an end turn message
+    if (
+        merged_response.get("choices")
+        and merged_response["choices"][0].get("finish_reason")
+        not in FINISH_REASON_TO_PUSH_TRACE
+    ):
+        return
     # Combine the messages from the request body and the choices from the OpenAI response
     messages = request_body.get("messages", [])
     messages += [choice["message"] for choice in merged_response.get("choices", [])]

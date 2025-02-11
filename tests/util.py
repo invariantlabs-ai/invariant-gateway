@@ -1,12 +1,23 @@
 """Util functions for tests"""
 
+import os
+
 import pytest
 from playwright.async_api import async_playwright
 
 
 @pytest.fixture
-def url():
-    return "http://127.0.0.1"
+def proxy_url():
+    if "INVARIANT_PROXY_API_URL" in os.environ:
+        return os.environ["INVARIANT_PROXY_API_URL"]
+    raise ValueError("Please set the INVARIANT_PROXY_API_URL environment variable")
+
+
+@pytest.fixture
+def explorer_api_url():
+    if "INVARIANT_API_URL" in os.environ:
+        return os.environ["INVARIANT_API_URL"]
+    raise ValueError("Please set the INVARIANT_API_URL environment variable")
 
 
 @pytest.fixture
