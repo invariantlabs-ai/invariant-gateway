@@ -5,7 +5,9 @@ from httpx import Client
 import os
 # from invariant import testing
 import datetime
-    
+import pytest
+
+@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"),reason="Anthropic API keys not set")
 def test_streaming_response_without_toolcall():    
     # Example queries
     dataset_name = "claude_streaming_agent_test" + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))

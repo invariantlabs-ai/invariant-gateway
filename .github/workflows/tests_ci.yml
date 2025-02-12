@@ -19,4 +19,5 @@ jobs:
         - name: Run tests
           env:
             OPENAI_API_KEY: ${{ secrets.INVARIANT_TESTING_OPENAI_KEY }}
+            ANTHROPIC_API_KEY: ${{ secrets.INVARIANT_TESTING_ANTHROPIC_KEY}}
           run: ./run.sh tests -s -vv

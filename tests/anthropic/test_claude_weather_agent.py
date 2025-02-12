@@ -5,24 +5,23 @@ from typing import Dict
 import anthropic
 import pytest
 from httpx import Client
-from tavily import TavilyClient
 
 
 class WeatherAgent:
-    def __init__(self, api_key: str):
-        self.tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+    def __init__(self):
         dataset_name = "claude_weather_agent_test" + str(
             datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         )
+        invariant_api_key = os.environ.get("INVARIANT_API_KEY")
         self.client = anthropic.Anthropic(
             http_client=Client(
-                headers={"Invariant-Authorization": "Bearer <some-api-key>"},
+                headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
             ),
             base_url=f"http://localhost/api/v1/proxy/{dataset_name}/anthropic",
         )
         self.get_weather_function = {
             "name": "get_weather",
-            "description": "Get the current weather in a given location",
+            "description": "Get the current weather in a given locatiofn",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -81,21 +80,17 @@ class WeatherAgent:
 
     def get_weather(self, location: str):
         """Get the current weather in a given location using latitude and longitude."""
-        query = f"What is the weather in {location}?"
-        response = self.tavily_client.search(query)
-        response_content = response["results"][0]["content"]
-        return response["results"][0]["title"] + ":\n" + response_content
+        response = f'''Weather in {location}:
+                    Good morning! Expect overcast skies with intermittent showers throughout the day. Temperatures will range from a cool 15°C in the early hours to around 19°C by mid-afternoon. Light winds from the northeast at about 10 km/h will keep conditions mild. It might be a good idea to carry an umbrella if you’re heading out. Stay dry and have a great day!
+                    '''
+        return response
 
 
-@pytest.mark.skipif(
-    not os.getenv("ANTHROPIC_API_KEY") or not os.getenv("TAVILY_API_KEY"),
-    reason="API keys not set",
-)
+@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"),reason="Anthropic API keys not set")
 def test_proxy_response():
     """Test the proxy response for the weather agent."""
     # Initialize agent with Anthropic API key
-    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-    weather_agent = WeatherAgent(anthropic_api_key)
+    weather_agent = WeatherAgent()
 
     # Example queries
     queries = [
@@ -107,5 +102,6 @@ def test_proxy_response():
     # Process each query
     for index, query in enumerate(queries):
         response = weather_agent.get_response(query)
+        print("response:",response)
         assert response is not None
         assert cities[index] in response

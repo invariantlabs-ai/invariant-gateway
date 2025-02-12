@@ -6,7 +6,6 @@ import httpx
 from typing import Any
 from utils.explorer import push_trace
 from starlette.responses import StreamingResponse
-# from .open_ai import push_to_explorer
 
 proxy = APIRouter()
 
