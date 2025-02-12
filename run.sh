@@ -68,7 +68,7 @@ tests() {
     --mount type=bind,source=./tests,target=/tests \
     --network invariant-proxy-web-test \
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-    -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+    -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\
     --env-file ./tests/.env.test \
     explorer-proxy-test $@
 }
