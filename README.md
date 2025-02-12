@@ -57,7 +57,11 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
    # Make API requests to Anthropic using the client as usual.
 
 ### Run
+```bash
 ./run.sh up
+```
 
 ### Run tests
+```bash
 ./run.sh tests
+```
