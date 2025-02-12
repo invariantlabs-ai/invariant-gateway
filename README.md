@@ -12,11 +12,13 @@ Invariant Proxy is a lightweight Docker service that acts as an intermediary bet
 ## **Getting Started**
 To integrate the Proxy with your AI agent, you’ll need to modify how your client interacts with LLM providers.
 
-### **🔹 OpenAI Integration**
-1. **Get an API Key**  
+1. **Setup an Invariant API Key**  
    Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to obtain an API key.
 
-2. **Modify OpenAI Client Setup**  
+### **🔹 OpenAI Integration**
+2. To setup an OpenAI API key follow the steps [here](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key).
+
+3. **Modify OpenAI Client Setup**  
    Instead of connecting directly to OpenAI, configure your `OpenAI` client to use the proxy.
 
    ```python
@@ -26,16 +28,44 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
    client = OpenAI(
        http_client=Client(
            headers={
-               "Invariant-Authorization": "Bearer <invariant-api-key>"
+               "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/<add-your-dataset-name-here>/openai",
+       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai",
    )
-
-   # Make API requests to OpenAI as usual.
+   # If a dataset with the given name already doesn't exist in Invariant Explorer, this will create the dataset
+   # before adding the traces to it.
+   # Make API requests to OpenAI using the client as usual.
 
 ### **🔹 Anthropic Integration**
-Coming Soon!
+2. To setup an Anthropic API key follow the steps [here](https://docs.anthropic.com/en/docs/initial-setup#set-your-api-key).
+
+3. **Modify Anthropic Client Setup**  
+   Instead of connecting directly to Anthropic, configure your `Anthropic` client to use the proxy.
+
+   ```python
+   from httpx import Client
+   from anthropic import Anthropic
+
+   client = Anthropic(
+       http_client=Client(
+           headers={
+               "Invariant-Authorization": "Bearer your-invariant-api-key"
+           },
+       ),
+       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/anthropic",
+   )
+   
+   # If a dataset with the given name already doesn't exist in Invariant Explorer, this will create the dataset
+   # before adding the traces to it.
+   # Make API requests to Anthropic using the client as usual.
 
 ### Run
+```bash
 ./run.sh up
+```
+
+### Run tests
+```bash
+./run.sh tests
+```
