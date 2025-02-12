@@ -1,12 +1,9 @@
 import anthropic
-from typing import Dict
 import os
-from tavily import TavilyClient
 import anthropic
 from httpx import Client
 import os
 # from invariant import testing
-tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 import datetime
     
 def test_streaming_response_without_toolcall():    
