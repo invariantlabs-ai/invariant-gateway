@@ -54,8 +54,9 @@ class WeatherAgent:
                 tools=[self.get_weather_function],
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=1024,
-                messages=messages,
+                messages=messages
             )
+
 
             # If there's tool call, Extract the tool call parameters from the response
             if len(response.content) > 1 and response.content[1].type == "tool_use":
