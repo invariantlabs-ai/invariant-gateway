@@ -28,12 +28,13 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
    client = OpenAI(
        http_client=Client(
            headers={
-               "Invariant-Authorization": "Bearer <invariant-api-key>"
+               "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/<add-your-dataset-name-here>/openai",
+       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai",
    )
-
+   # If a dataset with the given name already doesn't exist in Invariant Explorer, this will create the dataset
+   # before adding the traces to it.
    # Make API requests to OpenAI using the client as usual.
 
 ### **🔹 Anthropic Integration**
@@ -49,12 +50,14 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
    client = Anthropic(
        http_client=Client(
            headers={
-               "Invariant-Authorization": "Bearer <invariant-api-key>"
+               "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/<add-your-dataset-name-here>/anthropic",
+       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/anthropic",
    )
-
+   
+   # If a dataset with the given name already doesn't exist in Invariant Explorer, this will create the dataset
+   # before adding the traces to it.
    # Make API requests to Anthropic using the client as usual.
 
 ### Run
