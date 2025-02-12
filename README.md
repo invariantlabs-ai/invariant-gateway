@@ -12,11 +12,11 @@ Invariant Proxy is a lightweight Docker service that acts as an intermediary bet
 ## **Getting Started**
 To integrate the Proxy with your AI agent, you’ll need to modify how your client interacts with LLM providers.
 
-1. **Get an Invariant API Key**  
+1. **Setup an Invariant API Key**  
    Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to obtain an API key.
 
 ### **🔹 OpenAI Integration**
-2. To setup an OpenAI key follow the steps [here](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key).
+2. To setup an OpenAI API key follow the steps [here](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key).
 
 3. **Modify OpenAI Client Setup**  
    Instead of connecting directly to OpenAI, configure your `OpenAI` client to use the proxy.
@@ -37,7 +37,7 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
    # Make API requests to OpenAI using the client as usual.
 
 ### **🔹 Anthropic Integration**
-2. To setup an Anthropic key follow the steps [here](https://docs.anthropic.com/en/docs/initial-setup#set-your-api-key).
+2. To setup an Anthropic API key follow the steps [here](https://docs.anthropic.com/en/docs/initial-setup#set-your-api-key).
 
 3. **Modify Anthropic Client Setup**  
    Instead of connecting directly to Anthropic, configure your `Anthropic` client to use the proxy.
