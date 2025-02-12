@@ -5,10 +5,17 @@ from typing import Dict
 import anthropic
 import pytest
 from httpx import Client
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from util import *  # needed for pytest fixtures
+
+pytest_plugins = ("pytest_asyncio",)
 
 
 class WeatherAgent:
-    def __init__(self):
+    def __init__(self,proxy_url):
+        # proxy_url = "http://localhost"
         dataset_name = "claude_weather_agent_test" + str(
             datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         )
@@ -17,11 +24,11 @@ class WeatherAgent:
             http_client=Client(
                 headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
             ),
-            base_url=f"http://localhost/api/v1/proxy/{dataset_name}/anthropic",
+            base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/anthropic",
         )
         self.get_weather_function = {
             "name": "get_weather",
-            "description": "Get the current weather in a given locatiofn",
+            "description": "Get the current weather in a given location",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -87,11 +94,11 @@ class WeatherAgent:
         return response
 
 
-@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"),reason="Anthropic API keys not set")
-def test_proxy_response():
+@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
+def test_proxy_response(proxy_url):
     """Test the proxy response for the weather agent."""
     # Initialize agent with Anthropic API key
-    weather_agent = WeatherAgent()
+    weather_agent = WeatherAgent(proxy_url)
 
     # Example queries
     queries = [

@@ -6,9 +6,14 @@ import os
 # from invariant import testing
 import datetime
 import pytest
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"),reason="Anthropic API keys not set")
-def test_streaming_response_without_toolcall():    
+from util import *  # needed for pytest fixtures
+
+pytest_plugins = ("pytest_asyncio")
+@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
+def test_streaming_response_without_toolcall(proxy_url):    
     # Example queries
     dataset_name = "claude_streaming_agent_test" + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
     invariant_api_key = os.environ.get("INVARIANT_API_KEY")
@@ -19,7 +24,7 @@ def test_streaming_response_without_toolcall():
                 "Invariant-Authorization": f"Bearer {invariant_api_key}"
             },
     ),
-    base_url=f"http://localhost/api/v1/proxy/{dataset_name}/anthropic",
+    base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/anthropic",
     )
 
     cities = ["Zurich", "New York", "London"]

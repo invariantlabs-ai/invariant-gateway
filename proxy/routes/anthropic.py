@@ -52,7 +52,7 @@ def validate_headers(
 @proxy.post(
     "/{dataset_name}/anthropic/{endpoint:path}",
     dependencies=[Depends(validate_headers)],
-) 
+)
 async def anthropic_proxy(
     dataset_name: str,
     endpoint: str,
