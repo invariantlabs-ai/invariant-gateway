@@ -32,10 +32,32 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
        base_url="https://explorer.invariantlabs.ai/api/v1/proxy/<add-your-dataset-name-here>/openai",
    )
 
-   # Make API requests to OpenAI as usual.
+   # Make API requests to OpenAI using the client as usual.
 
 ### **🔹 Anthropic Integration**
-Coming Soon!
+1. **Get an API Key**  
+   Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to obtain an API key.
+
+2. **Modify Anthropic Client Setup**  
+   Instead of connecting directly to Anthropic, configure your `Anthropic` client to use the proxy.
+
+   ```python
+   from httpx import Client
+   from anthropic import Anthropic
+
+   client = Anthropic(
+       http_client=Client(
+           headers={
+               "Invariant-Authorization": "Bearer <invariant-api-key>"
+           },
+       ),
+       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/<add-your-dataset-name-here>/anthropic",
+   )
+
+   # Make API requests to Anthropic using the client as usual.
 
 ### Run
 ./run.sh up
+
+### Run tests
+./run.sh tests
