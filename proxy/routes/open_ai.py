@@ -327,13 +327,9 @@ async def handle_non_streaming_response(
         dataset_name, json_response, request_body_json, invariant_authorization
     )
 
-    response_headers = dict(response.headers)
-    response_headers.pop("Content-Encoding", None)
-    response_headers.pop("Content-Length", None)
-
     return Response(
         content=json.dumps(json_response),
         status_code=response.status_code,
         media_type="application/json",
-        headers=response_headers,
+        headers=dict(response.headers),
     )
