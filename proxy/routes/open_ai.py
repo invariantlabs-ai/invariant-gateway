@@ -6,20 +6,10 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
+from utils.constants import IGNORED_HEADERS
 from utils.explorer import push_trace
 
 ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions"}
-IGNORED_HEADERS = [
-    "accept-encoding",
-    "host",
-    "invariant-authorization",
-    "x-forwarded-for",
-    "x-forwarded-host",
-    "x-forwarded-port",
-    "x-forwarded-proto",
-    "x-forwarded-server",
-    "x-real-ip",
-]
 
 proxy = APIRouter()
 

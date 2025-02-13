@@ -1,50 +1,38 @@
 """Proxy service to forward requests to the Anthropic APIs"""
 
-from fastapi import APIRouter, Header, HTTPException, Depends, Request
 import json
-import httpx
 from typing import Any
+
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from utils.constants import IGNORED_HEADERS
 from utils.explorer import push_trace
-# from .open_ai import push_to_explorer
 
 proxy = APIRouter()
 
 ALLOWED_ANTHROPIC_ENDPOINTS = {"v1/messages"}
-IGNORED_HEADERS = [
-    "accept-encoding",
-    "host",
-    "invariant-authorization",
-    "x-forwarded-for",
-    "x-forwarded-host",
-    "x-forwarded-port",
-    "x-forwarded-proto",
-    "x-forwarded-server",
-    "x-real-ip",
-]
 
 MISSING_INVARIANT_AUTH_HEADER = "Missing invariant-authorization header"
 MISSING_ANTHROPIC_AUTH_HEADER = "Missing athropic authorization header"
 NOT_SUPPORTED_ENDPOINT = "Not supported OpenAI endpoint"
 FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
-END_REASONS = [
-    "end_turn",
-    "max_tokens",
-    "stop_sequence"
-]
+END_REASONS = ["end_turn", "max_tokens", "stop_sequence"]
+
 
 def validate_headers(
-        invariant_authorization: str = Header(None), x_api_key: str = Header(None)
+    invariant_authorization: str = Header(None), x_api_key: str = Header(None)
 ):
     """Require the invariant-authorization and authorization headers to be present"""
     if invariant_authorization is None:
         raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_HEADER)
     if x_api_key is None:
         raise HTTPException(status_code=400, detail=MISSING_ANTHROPIC_AUTH_HEADER)
-    
+
+
 @proxy.post(
     "/{dataset_name}/anthropic/{endpoint:path}",
     dependencies=[Depends(validate_headers)],
-) 
+)
 async def anthropic_proxy(
     dataset_name: str,
     endpoint: str,
@@ -65,10 +53,7 @@ async def anthropic_proxy(
     client = httpx.AsyncClient()
 
     anthropic_request = client.build_request(
-        "POST", 
-        anthropic_url, 
-        headers=headers, 
-        data=request_body
+        "POST", anthropic_url, headers=headers, data=request_body
     )
 
     invariant_authorization = request.headers.get("invariant-authorization")
@@ -79,6 +64,7 @@ async def anthropic_proxy(
             response, dataset_name, request_body_json, invariant_authorization
         )
         return response.json()
+
 
 async def push_to_explorer(
     dataset_name: str,
@@ -98,6 +84,7 @@ async def push_to_explorer(
         invariant_authorization=invariant_authorization,
     )
 
+
 async def handle_non_streaming_response(
     response: httpx.Response,
     dataset_name: str,
@@ -114,6 +101,7 @@ async def handle_non_streaming_response(
             request_body_json,
             invariant_authorization,
         )
+
 
 def anthropic_to_invariant_messages(
     messages: list[dict], keep_empty_tool_response: bool = False
@@ -133,6 +121,7 @@ def anthropic_to_invariant_messages(
 
     return output
 
+
 def handle_user_message(message, keep_empty_tool_response):
     output = []
     content = message["content"]
@@ -151,7 +140,9 @@ def handle_user_message(message, keep_empty_tool_response):
                     output.append(
                         {
                             "role": "tool",
-                            "content": {"is_error": True} if sub_message["is_error"] else {},
+                            "content": {"is_error": True}
+                            if sub_message["is_error"]
+                            else {},
                             "tool_id": sub_message["tool_use_id"],
                         }
                     )
@@ -160,6 +151,7 @@ def handle_user_message(message, keep_empty_tool_response):
     else:
         output.append({"role": "user", "content": content})
     return output
+
 
 def handle_assistant_message(message):
     output = []
