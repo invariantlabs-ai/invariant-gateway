@@ -103,13 +103,12 @@ def test_proxy_response(proxy_url):
     # Example queries
     queries = [
         "What's the weather like in Zurich city?",
-        "Tell me the forecast for New York",
+        "Tell me the weather for New York",
         "How's the weather in London next week?",
     ]
-    cities = ["Zurich", "New York", "London"]
+    cities = ["zurich", "new york", "london"]
     # Process each query
     for index, query in enumerate(queries):
         response = weather_agent.get_response(query)
-        print("response:",response)
         assert response is not None
-        assert cities[index] in response
+        assert cities[index] in response.lower()

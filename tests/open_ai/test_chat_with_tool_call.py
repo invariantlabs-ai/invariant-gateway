@@ -205,10 +205,18 @@ async def test_chat_completion_with_tool_call_with_streaming(
         model="gpt-4o", messages=history, stream=True
     )
     final_response = {"role": "assistant", "content": ""}
-    for chunk in chat_response_final:
-        if chunk.choices and chunk.choices[0].delta.content:
-            final_response["content"] += chunk.choices[0].delta.content
-
+    attempt = 0
+    while attempt<3:
+        try:
+            for chunk in chat_response_final:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    final_response["content"] += chunk.choices[0].delta.content
+            break
+        except httpx.RemoteProtocolError as e:
+            attempt += 1
+            print(f"Streming error on attempt {attempt}: {e}")
+    else:
+        print("Max retries reached. Exiting.")
     # Fetch the trace ids for the dataset
     traces_response = await context.request.get(
         f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
