@@ -1,4 +1,4 @@
-name: explorer-proxy-test
+name: explorer-proxy-test-stack
 services:
   traefik:
     image: traefik:v2.0
