@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
-from utils.constants import IGNORED_HEADERS
+from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from utils.explorer import push_trace
 
 ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions"}
@@ -54,7 +54,7 @@ async def openai_proxy(
     is_streaming = request_body_json.get("stream", False)
     invariant_authorization = request.headers.get("invariant-authorization")
 
-    client = httpx.AsyncClient()
+    client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     open_ai_request = client.build_request(
         "POST",
         f"https://api.openai.com/v1/{endpoint}",

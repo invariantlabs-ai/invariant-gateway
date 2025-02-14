@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from utils.constants import IGNORED_HEADERS
+from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from utils.explorer import push_trace
 
 proxy = APIRouter()
@@ -50,7 +50,7 @@ async def anthropic_proxy(
     request_body_json = json.loads(request_body)
 
     anthropic_url = f"https://api.anthropic.com/{endpoint}"
-    client = httpx.AsyncClient()
+    client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
 
     anthropic_request = client.build_request(
         "POST", anthropic_url, headers=headers, data=request_body

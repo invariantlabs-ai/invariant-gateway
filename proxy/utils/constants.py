@@ -11,3 +11,5 @@ IGNORED_HEADERS = [
     "x-forwarded-server",
     "x-real-ip",
 ]
+
+CLIENT_TIMEOUT = 60.0
