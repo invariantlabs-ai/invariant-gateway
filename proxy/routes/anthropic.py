@@ -71,7 +71,7 @@ async def anthropic_proxy(
     request_body_json = json.loads(request_body)
 
     anthropic_url = f"https://api.anthropic.com/{endpoint}"
-    client = httpx.AsyncClient()
+    client = httpx.AsyncClient(timeout=httpx.Timeout(60))
     
     anthropic_request = client.build_request(
         "POST", 
@@ -81,17 +81,19 @@ async def anthropic_proxy(
     )
     invariant_authorization = request.headers.get("invariant-authorization")
 
-    response = await client.send(anthropic_request)
-
+    print("is stream:", request_body_json.get("stream"))    
     if request_body_json.get("stream"):
         return await handle_streaming_response(client, anthropic_request, dataset_name, invariant_authorization)
     else:
-        response = await client.send(anthropic_request)
-        if response.status_code != 200:
+        print("anthropic_request:", anthropic_request)
+        try:    
+            response = await client.send(anthropic_request)
+        except httpx.HTTPStatusError as e:
             raise HTTPException(
                 status_code=response.status_code,
-                detail=f"Failed to fetch response: {response.text}",
+                detail=f"Failed to fetch response: {response.text}, got error{e}",
             )
+        print("response:", response.status_code)
         await handle_non_streaming_response(
             response, dataset_name, request_body_json, invariant_authorization
         )
@@ -108,6 +110,7 @@ async def push_to_explorer(
     # Combine the messages from the request body and Anthropic response
     messages = request_body.get("messages", [])
     messages += [merged_response]
+
     if reformat:
         messages = anthropic_to_invariant_messages(messages)
     _ = await push_trace(
@@ -168,7 +171,6 @@ async def handle_streaming_response(
                     formatted_invariant_response[-1],
                     json.loads(anthropic_request.content),
                     invariant_authorization,
-                    reformat = False
                 )
     
     generator = event_generator()
@@ -182,12 +184,14 @@ def process_chunk_text(chunk, formatted_invariant_response):
     Example of chunk list can be find in:
     ../../resources/streaming_chunk_text/anthropic.txt
     """
-
     text_decode = chunk.decode().strip()
     for text_block in text_decode.split("\n\n"):
-        text_data = text_block.split("\ndata:")[1]
-        text_json = json.loads(text_data)
-        update_formatted_invariant_response(text_json, formatted_invariant_response)
+        # might be empty block
+      
+        if len(text_block.split("\ndata:"))>1:
+            text_data = text_block.split("\ndata:")[1]
+            text_json = json.loads(text_data)
+            update_formatted_invariant_response(text_json, formatted_invariant_response)
 
 def update_formatted_invariant_response(text_json, formatted_invariant_response):
     if text_json.get("type") == MESSAGE_START:
@@ -200,8 +204,20 @@ def update_formatted_invariant_response(text_json, formatted_invariant_response)
             "stop_reason": message.get("stop_reason"),
             "stop_sequence": message.get("stop_sequence"),
         })
+    elif text_json.get("type") == CONTENT_BLOCK_START and text_json.get("content_block").get("type")=="tool_use":
+        content_block = text_json.get("content_block")
+        formatted_invariant_response.append(
+            {
+                "role": "tool",
+                "tool_id": content_block.get("id"),
+                "content": "",
+            }
+        )
     elif text_json.get("type") == CONTENT_BLOCK_DELTA:
-        formatted_invariant_response[-1]["content"] += text_json.get("delta").get("text")
+        if formatted_invariant_response[-1]["role"]=="assistant":
+            formatted_invariant_response[-1]["content"] += text_json.get("delta").get("text")
+        elif formatted_invariant_response[-1]["role"]=="tool":
+            formatted_invariant_response[-1]["content"] += text_json.get("delta").get("partial_json")
     elif text_json.get("type") == MESSGAE_DELTA:
         formatted_invariant_response[-1]["stop_reason"] = text_json.get("delta").get("stop_reason")
 
@@ -253,24 +269,27 @@ def handle_user_message(message, keep_empty_tool_response):
 
 def handle_assistant_message(message):
     output = []
-    for sub_message in message["content"]:
-        if sub_message["type"] == "text":
-            output.append({"role": "assistant", "content": sub_message.get("text")})
-        elif sub_message["type"] == "tool_use":
-            output.append(
-                {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "tool_id": sub_message.get("id"),
-                            "type": "function",
-                            "function": {
-                                "name": sub_message.get("name"),
-                                "arguments": sub_message.get("input"),
-                            },
-                        }
-                    ],
-                }
-            )
+    if isinstance(message["content"], list):
+        for sub_message in message["content"]:
+            if sub_message["type"] == "text":
+                output.append({"role": "assistant", "content": sub_message.get("text")})
+            elif sub_message["type"] == "tool_use":
+                output.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "tool_id": sub_message.get("id"),
+                                "type": "function",
+                                "function": {
+                                    "name": sub_message.get("name"),
+                                    "arguments": sub_message.get("input"),
+                                },
+                            }
+                        ],
+                    }
+                )
+    else:
+        output.append({"role": "assistant", "content": message["content"]})
     return output
