@@ -100,7 +100,6 @@ class WeatherAgent:
         while True:
             json_data = ""
             content = []
-            response = []
             with self.client.messages.stream(
                 tools=[self.get_weather_function],
                 model="claude-3-5-sonnet-20241022",
@@ -171,8 +170,8 @@ async def test_chat_completion_without_streaming(
 
     queries = [
         "What's the weather like in Zurich city?",
-        # "Tell me the weather for New York",
-        # "How's the weather in London next week?",
+        "Tell me the weather for New York",
+        "How's the weather in London next week?",
     ]
     cities = ["zurich", "new york", "london"]
     # Process each query
@@ -189,6 +188,8 @@ async def test_chat_completion_without_streaming(
         assert response[1].role == "assistant"
         assert response[1].stop_reason == "end_turn"
         assert cities[index] in response[1].content[0].text.lower()
+    
+
 
 
 @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
@@ -200,8 +201,8 @@ async def test_chat_completion_with_streaming(
 
     queries = [
         "What's the weather like in Zurich city?",
-        # "Tell me the weather for New York",
-        # "How's the weather in London next week?",
+        "Tell me the weather for New York",
+        "How's the weather in London next week?",
     ]
     cities = ["zurich", "new york", "london"]
 
