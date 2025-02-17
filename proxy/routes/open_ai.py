@@ -6,35 +6,21 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
+from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from utils.explorer import push_trace
 
 ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions"}
-IGNORED_HEADERS = [
-    "accept-encoding",
-    "host",
-    "invariant-authorization",
-    "x-forwarded-for",
-    "x-forwarded-host",
-    "x-forwarded-port",
-    "x-forwarded-proto",
-    "x-forwarded-server",
-    "x-real-ip",
-]
 
 proxy = APIRouter()
 
-MISSING_INVARIANT_AUTH_HEADER = "Missing invariant-authorization header"
+MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant api key"
 MISSING_AUTH_HEADER = "Missing authorization header"
 NOT_SUPPORTED_ENDPOINT = "Not supported OpenAI endpoint"
 FINISH_REASON_TO_PUSH_TRACE = ["stop", "length", "content_filter"]
 
 
-def validate_headers(
-    invariant_authorization: str = Header(None), authorization: str = Header(None)
-):
-    """Require the invariant-authorization and authorization headers to be present"""
-    if invariant_authorization is None:
-        raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_HEADER)
+def validate_headers(authorization: str = Header(None)):
+    """Require the authorization header to be present"""
     if authorization is None:
         raise HTTPException(status_code=400, detail=MISSING_AUTH_HEADER)
 
@@ -62,9 +48,32 @@ async def openai_proxy(
 
     # Check if the request is for streaming
     is_streaming = request_body_json.get("stream", False)
-    invariant_authorization = request.headers.get("invariant-authorization")
 
-    client = httpx.AsyncClient()
+    # The invariant-authorization header contains the Invariant API Key
+    # "invariant-authorization": "Bearer <Invariant API Key>"
+    # The authorization header contains the OpenAI API Key
+    # "authorization": "Bearer <OpenAI API Key>"
+    #
+    # For some clients, it is not possible to pass a custom header
+    # In such cases, the Invariant API Key is passed as part of the
+    # authorization header with the OpenAI API key.
+    # The header in that case becomes:
+    # "authorization": "Bearer <OpenAI API Key>|invariant-auth: <Invariant API Key>"
+    if request.headers.get(
+        "invariant-authorization"
+    ) is None and "|invariant-auth:" not in request.headers.get("authorization"):
+        raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
+
+    if request.headers.get("invariant-authorization"):
+        invariant_authorization = request.headers.get("invariant-authorization")
+    else:
+        authorization = request.headers.get("authorization")
+        api_keys = authorization.split("|invariant-auth: ")
+        invariant_authorization = f"Bearer {api_keys[1].strip()}"
+        # Update the authorization header to pass the OpenAI API Key to the OpenAI API
+        headers["authorization"] = f"{api_keys[0].strip()}"
+
+    client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     open_ai_request = client.build_request(
         "POST",
         f"https://api.openai.com/v1/{endpoint}",
@@ -327,13 +336,9 @@ async def handle_non_streaming_response(
         dataset_name, json_response, request_body_json, invariant_authorization
     )
 
-    response_headers = dict(response.headers)
-    response_headers.pop("Content-Encoding", None)
-    response_headers.pop("Content-Length", None)
-
     return Response(
         content=json.dumps(json_response),
         status_code=response.status_code,
         media_type="application/json",
-        headers=response_headers,
+        headers=dict(response.headers),
     )

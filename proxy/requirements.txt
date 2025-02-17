@@ -1,7 +1,5 @@
 fastapi==0.115.7
 httpx==0.28.1
-uvicorn==0.34.0
-invariant-sdk
+invariant-sdk>=0.0.10
 starlette-compress==1.4.0
-tavily-python
-anthropic
+uvicorn==0.34.0
