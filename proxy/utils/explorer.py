@@ -17,6 +17,11 @@ from invariant.analyzer import Policy
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
+class PromptPatch(Exception):
+    def __init__(self, patch=""):
+        self.patch = patch
+
+
 async def push_trace(
     messages: List[List[Dict[str, Any]]],
     dataset_name: str,
@@ -116,6 +121,13 @@ async def validate_guardrails(
         if "content" not in msg:
             msg["content"] = ""
 
+    # get first system prompt message
+    system_prompt = next(
+        (msg["content"] for msg in trace if msg["role"] == "system" and msg["content"]),
+        None,
+    )
+    system_prompt_content = system_prompt if system_prompt else ""
+
     annotations = []
 
     for guardrail in guardrails:
@@ -133,6 +145,11 @@ async def validate_guardrails(
                 action = label.split("action=")[1].split()[0]
                 if action == "block":
                     blocked = error
+            elif "patch=" in label:
+                print("label is", label)
+                patch = label.split("patch=", 1)[1]
+                if patch not in system_prompt_content:
+                    raise PromptPatch(patch)
 
             ranges = [range for range in error.ranges]
 
