@@ -7,7 +7,7 @@ import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
-from utils.explorer import push_trace
+from utils.explorer import error_label, push_trace, validate_guardrails
 
 ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions"}
 
@@ -308,20 +308,27 @@ async def push_to_explorer(
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     # Only push the trace to explorer if the message is an end turn message
+    only_push_if_blocked = False
+
     if (
         merged_response.get("choices")
         and merged_response["choices"][0].get("finish_reason")
         not in FINISH_REASON_TO_PUSH_TRACE
     ):
-        return
+        only_push_if_blocked = True
+
     # Combine the messages from the request body and the choices from the OpenAI response
     messages = request_body.get("messages", [])
     messages += [choice["message"] for choice in merged_response.get("choices", [])]
-    _ = await push_trace(
+
+    blocked, response = await push_trace(
         dataset_name=dataset_name,
         messages=[messages],
         invariant_authorization=invariant_authorization,
+        dry=only_push_if_blocked,
     )
+
+    return blocked[0]
 
 
 async def handle_non_streaming_response(
@@ -332,9 +339,18 @@ async def handle_non_streaming_response(
 ):
     """Handles non-streaming OpenAI responses"""
     json_response = response.json()
-    await push_to_explorer(
+    blocked = await push_to_explorer(
         dataset_name, json_response, request_body_json, invariant_authorization
     )
+
+    if blocked:
+        # json_response["c
+        json_response["choices"][-1]["finish_reason"] = "blocked"
+        json_response["choices"][-1]["message"]["content"] = (
+            f"[Agent execution blocked by guardrail: {error_label(blocked)}]"
+        )
+        # remove tool calls
+        json_response["choices"][-1]["message"]["tool_calls"] = None
 
     return Response(
         content=json.dumps(json_response),
