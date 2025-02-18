@@ -88,7 +88,7 @@ Enable the `Advanced Options` toggle under settings and update the `Base URL`:
 <img src="./resources/images/openhands-integration.png" height=300/>
 
 #### **Step 2: Adjust the API Key Format**
-Modify the API Key format in the settings modal:
+Set the API Key using the following format:
 
 ```text
 {your-llm-api-key}|invariant-auth: {your-invariant-api-key}
