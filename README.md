@@ -9,7 +9,7 @@ Invariant Proxy is a lightweight Docker service that acts as an intermediary bet
 ## **Why Use Invariant Proxy?**
 - ✅ **Intercept AI interactions** for better debugging and analysis.
 - ✅ **Seamlessly forward API requests** to OpenAI, Anthropic, and other LLM providers (**supports streaming responses too**).
-- ✅ **Works with AI Agents** like OpenHands, SWE-agent, etc.
+- ✅ **Works with AI Agent platforms and systems** like OpenHands, SWE-agent, etc.
 - ✅ **Automatically store and organize traces** in the Invariant Explorer.
 
 ---
