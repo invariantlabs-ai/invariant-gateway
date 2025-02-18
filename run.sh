@@ -65,7 +65,6 @@ tests() {
   docker build -t 'explorer-proxy-tests' -f ./tests/Dockerfile.test ./tests
 
   docker run \
-    -it \
     --mount type=bind,source=./tests,target=/tests \
     --network invariant-proxy-web-test \
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \

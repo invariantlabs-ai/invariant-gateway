@@ -15,7 +15,7 @@ proxy = APIRouter()
 ALLOWED_ANTHROPIC_ENDPOINTS = {"v1/messages"}
 
 MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant authorization header"
-MISSING_ANTHROPIC_AUTH_HEADER = "Missing anthropic authorization header"
+MISSING_ANTHROPIC_AUTH_HEADER = "Missing Anthropic authorization header"
 NOT_SUPPORTED_ENDPOINT = "Not supported Anthropic endpoint"
 FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
 END_REASONS = ["end_turn", "max_tokens", "stop_sequence"]
