@@ -8,7 +8,6 @@ from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesRespons
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
-
 async def push_trace(
     messages: List[List[Dict[str, Any]]],
     dataset_name: str,

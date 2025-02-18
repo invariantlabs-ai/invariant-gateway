@@ -6,7 +6,6 @@ import uuid
 
 import pytest
 from httpx import Client
-
 # add tests folder (parent) to sys.path
 from openai import OpenAI
 

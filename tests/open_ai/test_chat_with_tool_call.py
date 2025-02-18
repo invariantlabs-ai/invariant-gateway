@@ -7,7 +7,6 @@ import uuid
 
 import pytest
 from httpx import Client
-
 # add tests folder (parent) to sys.path
 from openai import OpenAI
 
@@ -205,6 +204,7 @@ async def test_chat_completion_with_tool_call_with_streaming(
         model="gpt-4o", messages=history, stream=True
     )
     final_response = {"role": "assistant", "content": ""}
+
     for chunk in chat_response_final:
         if chunk.choices and chunk.choices[0].delta.content:
             final_response["content"] += chunk.choices[0].delta.content
