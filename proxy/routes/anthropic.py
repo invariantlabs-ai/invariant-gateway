@@ -68,11 +68,9 @@ async def anthropic_proxy(
     )
     invariant_authorization = request.headers.get("invariant-authorization")
 
-    print("is stream:", request_body_json.get("stream"))    
     if request_body_json.get("stream"):
         return await handle_streaming_response(client, anthropic_request, dataset_name, invariant_authorization)
     else:
-        print("anthropic_request:", anthropic_request)
         try:    
             response = await client.send(anthropic_request)
         except httpx.HTTPStatusError as e:
@@ -80,7 +78,6 @@ async def anthropic_proxy(
                 status_code=response.status_code,
                 detail=f"Failed to fetch response: {response.text}, got error{e}",
             )
-        print("response:", response.status_code)
         await handle_non_streaming_response(
             response, dataset_name, request_body_json, invariant_authorization
         )

@@ -44,19 +44,10 @@ async def test_chat_completion(context, explorer_api_url, proxy_url, do_stream):
         expected_assistant_message = chat_response.choices[0].message.content
     else:
         full_response = ""
-        attempt = 0
-        while attempt<3:
-            try:
-                for chunk in chat_response:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        full_response += chunk.choices[0].delta.content
-                assert "PARIS" in full_response.upper()
-                break
-            except httpx.RemoteProtocolError as e:
-                attempt += 1
-                print(f"Streming error on attempt {attempt}: {e}")
-        else:
-            print("Max retries reached. Exiting.")
+        for chunk in chat_response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                full_response += chunk.choices[0].delta.content
+        assert "PARIS" in full_response.upper()
         expected_assistant_message = full_response
 
     # Fetch the trace ids for the dataset

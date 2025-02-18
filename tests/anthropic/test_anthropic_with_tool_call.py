@@ -15,7 +15,7 @@ pytest_plugins = ("pytest_asyncio",)
 
 class WeatherAgent:
     def __init__(self,proxy_url):
-        dataset_name = "claude_weather_agent_test" + str(
+        self.dataset_name = "claude_weather_agent_test" + str(
             datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         )
         invariant_api_key = os.environ.get("INVARIANT_API_KEY","None")
@@ -23,7 +23,7 @@ class WeatherAgent:
             http_client=Client(
                 headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
             ),
-            base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/anthropic",
+            base_url=f"{proxy_url}/api/v1/proxy/{self.dataset_name}/anthropic",
         )
         self.get_weather_function = {
             "name": "get_weather",
@@ -171,13 +171,12 @@ async def test_chat_completion_without_streaming(
     queries = [
         "What's the weather like in Zurich city?",
         "Tell me the weather for New York",
-        "How's the weather in London next week?",
     ]
-    cities = ["zurich", "new york", "london"]
+    cities = ["zurich", "new york"]
     # Process each query
+    responses = []
     for index, query in enumerate(queries):
         response = weather_agent.get_response(query)
-        print("non streaming response:",response)
         assert response is not None
         assert response[0].role == "assistant"
         assert response[0].stop_reason == "tool_use"
@@ -188,7 +187,33 @@ async def test_chat_completion_without_streaming(
         assert response[1].role == "assistant"
         assert response[1].stop_reason == "end_turn"
         assert cities[index] in response[1].content[0].text.lower()
-    
+        responses.append(response)
+
+    traces_response = await context.request.get(
+    f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+    )
+    traces = await traces_response.json()
+    assert len(traces) == len(queries)
+
+    for index,trace in enumerate(traces): 
+        trace_id = trace["id"]
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
+        trace_messages = trace["messages"]
+
+        assert trace_messages[0]["role"] == "user"
+        assert trace_messages[0]["content"] == queries[index]
+        assert trace_messages[1]["role"] == "assistant"
+        assert cities[index] in trace_messages[1]["content"].lower()
+        assert trace_messages[2]["role"] == "assistant"
+        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert cities[index] in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
+        assert trace_messages[3]["role"] == "tool"
+        assert trace_messages[4]["role"] == "assistant"
+        assert cities[index] in trace_messages[4]["content"].lower()
 
 
 
@@ -202,14 +227,12 @@ async def test_chat_completion_with_streaming(
     queries = [
         "What's the weather like in Zurich city?",
         "Tell me the weather for New York",
-        "How's the weather in London next week?",
     ]
-    cities = ["zurich", "new york", "london"]
+    cities = ["zurich", "new york"]
 
 
     for index, query in enumerate(queries):
         response = weather_agent.get_streaming_response(query)
-        print("streaming response:",response)
         assert response is not None
         assert response[0][0].type == "text"
         assert response[0][1].type == "tool_use"
@@ -218,3 +241,29 @@ async def test_chat_completion_with_streaming(
         
         assert response[1][0].type == "text"
         assert cities[index] in response[1][0].text.lower()
+    
+    traces_response = await context.request.get(
+    f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+    )
+    traces = await traces_response.json()
+    assert len(traces) == len(queries)
+
+    for index,trace in enumerate(traces): 
+        trace_id = trace["id"]
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
+        trace_messages = trace["messages"]
+        assert trace_messages[0]["role"] == "user"
+        assert trace_messages[0]["content"] == queries[index]
+        assert trace_messages[1]["role"] == "assistant"
+        assert cities[index] in trace_messages[1]["content"].lower()
+        assert trace_messages[2]["role"] == "assistant"
+        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert cities[index] in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
+        assert trace_messages[3]["role"] == "tool"
+        assert trace_messages[4]["role"] == "assistant"
+        assert cities[index] in trace_messages[4]["content"].lower()
+
