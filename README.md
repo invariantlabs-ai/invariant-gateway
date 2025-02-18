@@ -23,7 +23,8 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
 **Setup an Invariant API Key**
 1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to obtain an API key. This will allow the Proxy to push traces to [https://explorer.invariantlabs.ai](https://explorer.invariantlabs.ai), 
 
-### **🔹 OpenAI Integration**
+**🔹 OpenAI Integration**
+
 2. To setup an OpenAI API key follow the steps [here](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key).
 
 3. **Modify OpenAI Client Setup**  
@@ -45,7 +46,8 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
    # before adding the traces to it.
    # Make API requests to OpenAI using the client as usual.
 
-### **🔹 Anthropic Integration**
+**🔹 Anthropic Integration**
+
 2. To setup an Anthropic API key follow the steps [here](https://docs.anthropic.com/en/docs/initial-setup#set-your-api-key).
 
 3. **Modify Anthropic Client Setup**  
