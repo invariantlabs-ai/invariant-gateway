@@ -10,10 +10,18 @@ Invariant Proxy is a lightweight Docker service that acts as an intermediary bet
 - ✅ **Automatically store and organize traces** in the Invariant Explorer.
 
 ## **Getting Started**
+
+**Run the proxy locally**
+```bash
+bash run.sh build && bash run.sh up
+```
+
+This will start the Invariant Proxy on [http://localhost:8005/api/v1/proxy/](http://localhost:8005/api/v1/proxy/docs/).
+
 To integrate the Proxy with your AI agent, you’ll need to modify how your client interacts with LLM providers.
 
-1. **Setup an Invariant API Key**  
-   Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to obtain an API key.
+**Setup an Invariant API Key**
+1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to obtain an API key. This will allow the Proxy to push traces to [https://explorer.invariantlabs.ai](https://explorer.invariantlabs.ai), 
 
 ### **🔹 OpenAI Integration**
 2. To setup an OpenAI API key follow the steps [here](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key).
@@ -31,7 +39,7 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
                "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai",
+       base_url="http://localhost:8005/api/v1/proxy/{add-your-dataset-name-here}/openai",
    )
    # If a dataset with the given name already doesn't exist in Invariant Explorer, this will create the dataset
    # before adding the traces to it.
@@ -53,17 +61,12 @@ To integrate the Proxy with your AI agent, you’ll need to modify how your clie
                "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/anthropic",
+       base_url="http://localhost:8005/api/v1/proxy/{add-your-dataset-name-here}/anthropic",
    )
    
    # If a dataset with the given name already doesn't exist in Invariant Explorer, this will create the dataset
    # before adding the traces to it.
    # Make API requests to Anthropic using the client as usual.
-
-### Run
-```bash
-./run.sh up
-```
 
 ### Run tests
 ```bash
