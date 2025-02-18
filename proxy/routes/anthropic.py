@@ -14,12 +14,11 @@ proxy = APIRouter()
 
 ALLOWED_ANTHROPIC_ENDPOINTS = {"v1/messages"}
 
-MISSING_INVARIANT_AUTH_HEADER = "Missing invariant-authorization header"
-MISSING_ANTHROPIC_AUTH_HEADER = "Missing athropic authorization header"
+MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant authorization header"
+MISSING_ANTHROPIC_AUTH_HEADER = "Missing anthropic authorization header"
 NOT_SUPPORTED_ENDPOINT = "Not supported Anthropic endpoint"
 FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
 END_REASONS = ["end_turn", "max_tokens", "stop_sequence"]
-
 
 MESSAGE_START = "message_start"
 MESSGAE_DELTA = "message_delta"
@@ -29,11 +28,9 @@ CONTENT_BLOCK_DELTA = "content_block_delta"
 CONTENT_BLOCK_STOP = "content_block_stop"
 
 def validate_headers(
-    invariant_authorization: str = Header(None), x_api_key: str = Header(None)
+    x_api_key: str = Header(None)
 ):
-    """Require the invariant-authorization and authorization headers to be present"""
-    if invariant_authorization is None:
-        raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_HEADER)
+    """Require the headers to be present"""
     if x_api_key is None:
         raise HTTPException(status_code=400, detail=MISSING_ANTHROPIC_AUTH_HEADER)
 
@@ -55,6 +52,20 @@ async def anthropic_proxy(
     }
     headers["accept-encoding"] = "identity"
 
+    if request.headers.get(
+        "invariant-authorization"
+    ) is None and "|invariant-auth:" not in request.headers.get("authorization"):
+        raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
+
+    if request.headers.get("invariant-authorization"):
+        invariant_authorization = request.headers.get("invariant-authorization")
+    else:
+        authorization = request.headers.get("x-api-key")
+        api_keys = authorization.split("|invariant-auth: ")
+        invariant_authorization = f"Bearer {api_keys[1].strip()}"
+        # Update the authorization header to pass the OpenAI API Key to the OpenAI API
+        headers["x-api-key"] = f"{api_keys[0].strip()}"
+
     request_body = await request.body()
 
     request_body_json = json.loads(request_body)
@@ -66,7 +77,6 @@ async def anthropic_proxy(
     anthropic_request = client.build_request(
         "POST", anthropic_url, headers=headers, data=request_body
     )
-    invariant_authorization = request.headers.get("invariant-authorization")
 
     if request_body_json.get("stream"):
         return await handle_streaming_response(client, anthropic_request, dataset_name, invariant_authorization)
