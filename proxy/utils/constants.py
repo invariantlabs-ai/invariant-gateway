@@ -10,7 +10,6 @@ IGNORED_HEADERS = [
     "x-forwarded-proto",
     "x-forwarded-server",
     "x-real-ip",
-    "content-length"
 ]
 
 CLIENT_TIMEOUT = 60.0

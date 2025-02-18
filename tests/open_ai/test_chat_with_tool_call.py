@@ -204,7 +204,6 @@ async def test_chat_completion_with_tool_call_with_streaming(
         model="gpt-4o", messages=history, stream=True
     )
     final_response = {"role": "assistant", "content": ""}
-    attempt = 0
 
     for chunk in chat_response_final:
         if chunk.choices and chunk.choices[0].delta.content:

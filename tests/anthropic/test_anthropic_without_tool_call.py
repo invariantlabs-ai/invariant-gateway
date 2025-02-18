@@ -1,7 +1,6 @@
 import anthropic
 import os
 from httpx import Client
-# from invariant import testing
 import datetime
 import pytest
 import sys
@@ -35,7 +34,6 @@ async def test_chat_completion_without_streaming(
     responses = []
     for query in queries:
         response = client.messages.create(
-                # system=self.system_prompt,
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=1024,
                 messages=[{"role": "user", "content": query}],

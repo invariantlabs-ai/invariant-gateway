@@ -45,10 +45,6 @@ class WeatherAgent:
             },
         }
 
-        # self.system_prompt = """You are an assistant that can perform weather searches using function calls.
-        #     When a user asks for weather information, respond with a JSON object specifying
-        #     the function name `get_weather` and the arguments latitude and longitude are needed."""
-
     def get_response(self, user_query: str) -> Dict:
         """
         Get the response from the agent for a given user query for weather.
@@ -57,7 +53,6 @@ class WeatherAgent:
         response_list = []
         while True:
             response = self.client.messages.create(
-                # system=self.system_prompt,
                 tools=[self.get_weather_function],
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=1024,
