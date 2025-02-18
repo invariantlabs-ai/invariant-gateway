@@ -6,8 +6,8 @@ up() {
   # Start your local docker-compose services
   docker compose -f docker-compose.local.yml up -d
 
-  echo "Proxy started at http://localhost/api/v1/proxy/"
-  echo "See http://localhost/api/v1/proxy/docs for API documentation"
+  echo "Proxy started at http://localhost:8005/api/v1/proxy/"
+  echo "See http://localhost:8005/api/v1/proxy/docs for API documentation"
 }
 
 build() {

@@ -15,8 +15,10 @@ services:
         target: /srv/proxy
     networks:
       - invariant-explorer-web
-    ports: []
+    ports:
+      - "8005:8000" # Direct access without Traefik
     labels:
+    # For access via Traefik
       - "traefik.enable=true"
       - "traefik.http.routers.explorer-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
       - "traefik.http.routers.explorer-proxy-api.entrypoints=invariant-explorer-web"
