@@ -27,6 +27,8 @@ CONTENT_BLOCK_START = "content_block_start"
 CONTENT_BLOCK_DELTA = "content_block_delta"
 CONTENT_BLOCK_STOP = "content_block_stop"
 
+HEADER_AUTHORIZATION = "x-api-key"
+
 def validate_headers(
     x_api_key: str = Header(None)
 ):
@@ -54,17 +56,17 @@ async def anthropic_proxy(
 
     if request.headers.get(
         "invariant-authorization"
-    ) is None and "|invariant-auth:" not in request.headers.get("authorization"):
+    ) is None and "|invariant-auth:" not in request.headers.get(HEADER_AUTHORIZATION):
         raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
 
     if request.headers.get("invariant-authorization"):
         invariant_authorization = request.headers.get("invariant-authorization")
     else:
-        authorization = request.headers.get("x-api-key")
+        authorization = request.headers.get(HEADER_AUTHORIZATION)
         api_keys = authorization.split("|invariant-auth: ")
         invariant_authorization = f"Bearer {api_keys[1].strip()}"
         # Update the authorization header to pass the OpenAI API Key to the OpenAI API
-        headers["x-api-key"] = f"{api_keys[0].strip()}"
+        headers[HEADER_AUTHORIZATION] = f"{api_keys[0].strip()}"
 
     request_body = await request.body()
 
