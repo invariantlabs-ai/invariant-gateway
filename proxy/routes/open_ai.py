@@ -332,6 +332,10 @@ async def handle_non_streaming_response(
 ):
     """Handles non-streaming OpenAI responses"""
     json_response = response.json()
+    if json_response.get("error"):
+        raise HTTPException(
+            status_code=response.status_code, detail=json_response.get("error")
+        )
     await push_to_explorer(
         dataset_name, json_response, request_body_json, invariant_authorization
     )
