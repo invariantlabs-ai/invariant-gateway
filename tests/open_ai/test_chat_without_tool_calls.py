@@ -79,6 +79,7 @@ async def test_chat_completion(context, explorer_api_url, proxy_url, do_stream):
     ]
 
 
+@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
 async def test_chat_completion_with_image(context, explorer_api_url, proxy_url):
     """Test the chat completions proxy works with image."""
     dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
