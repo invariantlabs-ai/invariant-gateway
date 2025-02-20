@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
-from starlette.responses import StreamingResponse
+from fastapi.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from utils.explorer import push_trace
 
@@ -101,13 +101,23 @@ async def stream_response(
     dataset_name: str,
     request_body_json: dict[str, Any],
     invariant_authorization: str,
-) -> StreamingResponse:
+) -> Response:
     """
     Handles streaming the OpenAI response to the client while building a merged_response
     The chunks are returned to the caller immediately
     The merged_response is built from the chunks as they are received
     It is sent to the Invariant Explorer at the end of the stream
     """
+
+    response = await client.send(open_ai_request, stream=True)
+    if response.status_code != 200:
+        error_content = await response.aread()
+        try:
+            error_json = json.loads(error_content.decode("utf-8"))
+            error_detail = error_json.get("error", "Unknown error from OpenAI API")
+        except json.JSONDecodeError:
+            error_detail = {"error": "Failed to parse OpenAI error response"}
+        raise HTTPException(status_code=response.status_code, detail=error_detail)
 
     async def event_generator() -> Any:
         # merged_response will be updated with the data from the chunks in the stream
@@ -128,42 +138,30 @@ async def stream_response(
         # Combines the choice index and tool call index to uniquely identify a tool call
         tool_call_mapping_by_index = {}
 
-        async with client.stream(
-            "POST",
-            open_ai_request.url,
-            headers=open_ai_request.headers,
-            content=open_ai_request.content,
-        ) as response:
-            if response.status_code != 200:
-                yield json.dumps(
-                    {"error": f"Failed to fetch response: {response.status_code}"}
-                ).encode()
-                return
+        async for chunk in response.aiter_bytes():
+            chunk_text = chunk.decode().strip()
+            if not chunk_text:
+                continue
 
-            async for chunk in response.aiter_bytes():
-                chunk_text = chunk.decode().strip()
-                if not chunk_text:
-                    continue
+            # Yield chunk immediately to the client (proxy behavior)
+            yield chunk
 
-                # Yield chunk immediately to the client (proxy behavior)
-                yield chunk
-
-                # Process the chunk
-                # This will update merged_response with the data from the chunk
-                process_chunk_text(
-                    chunk_text,
-                    merged_response,
-                    choice_mapping_by_index,
-                    tool_call_mapping_by_index,
-                )
-
-            # Send full merged response to the explorer
-            await push_to_explorer(
-                dataset_name,
+            # Process the chunk
+            # This will update merged_response with the data from the chunk
+            process_chunk_text(
+                chunk_text,
                 merged_response,
-                request_body_json,
-                invariant_authorization,
+                choice_mapping_by_index,
+                tool_call_mapping_by_index,
             )
+
+        # Send full merged response to the explorer
+        await push_to_explorer(
+            dataset_name,
+            merged_response,
+            request_body_json,
+            invariant_authorization,
+        )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -331,7 +329,18 @@ async def handle_non_streaming_response(
     invariant_authorization: str,
 ):
     """Handles non-streaming OpenAI responses"""
-    json_response = response.json()
+    try:
+        json_response = response.json()
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail="Invalid JSON response received from OpenAI API",
+        ) from e
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=json_response.get("error", "Unknown error from OpenAI API"),
+        )
     await push_to_explorer(
         dataset_name, json_response, request_body_json, invariant_authorization
     )
