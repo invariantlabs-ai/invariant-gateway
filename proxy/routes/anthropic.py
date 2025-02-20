@@ -165,17 +165,6 @@ async def handle_streaming_response(
         raise HTTPException(status_code=response.status_code, detail=error_detail)
     
     async def event_generator() -> Any:
-        # async with client.stream(
-        #     "POST",
-        #     anthropic_request.url,
-        #     headers=anthropic_request.headers,
-        #     content=anthropic_request.content,
-        # ) as response:
-        #     if response.status_code != 200:
-        #         yield json.dumps(
-        #             {"error": f"Failed to fetch response: {response.status_code}"}
-        #         ).encode()
-        #         return
         async for chunk in response.aiter_bytes():
             chunk_decode = chunk.decode().strip()
             if not chunk_decode:
