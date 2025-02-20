@@ -156,7 +156,7 @@ class WeatherAgent:
         return response
 
 @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
-async def test_chat_completion_without_streaming(
+async def test_response_with_toolcall(
     context, explorer_api_url, proxy_url
 ):
     """Test the chat completion without streaming for the weather agent."""
@@ -164,7 +164,7 @@ async def test_chat_completion_without_streaming(
     weather_agent = WeatherAgent(proxy_url)
 
     queries = [
-        "What's the weather like in Zurich city?",
+        "What's the weather like in Zurich, Switzerland?",
         "Tell me the weather for New York",
     ]
     cities = ["zurich", "new york"]
@@ -213,14 +213,14 @@ async def test_chat_completion_without_streaming(
 
 
 @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
-async def test_chat_completion_with_streaming(
+async def test_streaming_response_with_toolcall(
     context, explorer_api_url, proxy_url
 ):
     """Test the chat completion with streaming for the weather agent."""
     weather_agent = WeatherAgent(proxy_url)
 
     queries = [
-        "What's the weather like in Zurich city?",
+        "What's the weather like in Zurich, Switzerland?",
         "Tell me the weather for New York",
     ]
     cities = ["zurich", "new york"]

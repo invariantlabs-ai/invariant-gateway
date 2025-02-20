@@ -52,13 +52,13 @@ async def openai_proxy(
     # The invariant-authorization header contains the Invariant API Key
     # "invariant-authorization": "Bearer <Invariant API Key>"
     # The authorization header contains the OpenAI API Key
-    # "authorization": "Bearer <OpenAI API Key>"
+    # "authorization": "<OpenAI API Key>"
     #
     # For some clients, it is not possible to pass a custom header
     # In such cases, the Invariant API Key is passed as part of the
     # authorization header with the OpenAI API key.
     # The header in that case becomes:
-    # "authorization": "Bearer <OpenAI API Key>|invariant-auth: <Invariant API Key>"
+    # "authorization": "<OpenAI API Key>|invariant-auth: <Invariant API Key>"
     if request.headers.get(
         "invariant-authorization"
     ) is None and "|invariant-auth:" not in request.headers.get("authorization"):
