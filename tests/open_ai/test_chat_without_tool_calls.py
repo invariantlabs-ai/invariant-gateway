@@ -10,9 +10,10 @@ import pytest
 from httpx import Client
 
 # add tests folder (parent) to sys.path
-from openai import OpenAI
+from openai import NotFoundError, OpenAI
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 from util import *  # needed for pytest fixtures
 
@@ -151,3 +152,42 @@ async def test_chat_completion_with_image(context, explorer_api_url, proxy_url):
                 "content": chat_response.choices[0].message.content,
             },
         ]
+
+
+@pytest.mark.skip(reason="Skipping this test: OpenAI error scenario")
+@pytest.mark.parametrize("do_stream", [True, False])
+async def test_chat_completion_with_openai_exception(proxy_url, do_stream):
+    """Test the chat completions proxy call when OpenAI API fails."""
+
+    client = OpenAI(
+        http_client=Client(
+            headers={
+                "Invariant-Authorization": "Bearer <some-key>"
+            },  # This key is not used for local tests
+        ),
+        base_url=f"{proxy_url}/api/v1/proxy/{"test-dataset-open-ai-" + str(uuid.uuid4())}/openai",
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        _ = client.chat.completions.create(
+            model="gpt-4-vision-preview",  # This model is not available so we get a 404 error
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "How many cats are there in this image?",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/png;base64," + "01234"},
+                        },
+                    ],
+                }
+            ],
+            stream=do_stream,
+        )
+
+    assert exc_info.errisinstance(NotFoundError)
+    assert exc_info.value.status_code == 404
