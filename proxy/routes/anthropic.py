@@ -53,7 +53,6 @@ async def anthropic_proxy(
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
     headers["accept-encoding"] = "identity"
-
     if request.headers.get(
         "invariant-authorization"
     ) is None and "|invariant-auth:" not in request.headers.get(HEADER_AUTHORIZATION):

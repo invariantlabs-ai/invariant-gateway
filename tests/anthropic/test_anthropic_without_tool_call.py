@@ -10,7 +10,7 @@ from util import *  # needed for pytest fixtures
 
 pytest_plugins = ("pytest_asyncio")
 @pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
-async def test_chat_completion_without_streaming(
+async def test_response_without_toolcall(
     context, explorer_api_url,proxy_url
 ):
     dataset_name = "claude_streaming_response_without_toolcall_test" + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
@@ -71,7 +71,8 @@ async def test_chat_completion_without_streaming(
 async def test_streaming_response_without_toolcall(
     context,
     explorer_api_url,
-    proxy_url):    
+    proxy_url
+    ):    
 
     dataset_name = "claude_streaming_response_without_toolcall_test" + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
     invariant_api_key = os.environ.get("INVARIANT_API_KEY","None")
