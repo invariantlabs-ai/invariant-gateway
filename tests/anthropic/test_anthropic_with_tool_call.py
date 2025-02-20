@@ -164,7 +164,7 @@ async def test_response_with_toolcall(
     weather_agent = WeatherAgent(proxy_url)
 
     queries = [
-        "What's the weather like in Zurich city?",
+        "What's the weather like in Zurich, Switzerland?",
         "Tell me the weather for New York",
     ]
     cities = ["zurich", "new york"]
@@ -220,7 +220,7 @@ async def test_streaming_response_with_toolcall(
     weather_agent = WeatherAgent(proxy_url)
 
     queries = [
-        "What's the weather like in Zurich city?",
+        "What's the weather like in Zurich, Switzerland?",
         "Tell me the weather for New York",
     ]
     cities = ["zurich", "new york"]

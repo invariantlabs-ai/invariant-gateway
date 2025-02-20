@@ -19,9 +19,7 @@ async def test_header(
     dataset_name = "claude_header_test" + str(
             datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         )
-    print("before patch:",anthropic_api_key)
     with patch.dict(os.environ, {"ANTHROPIC_API_KEY": anthropic_api_key + "|invariant-auth: <not needed for test>"}):
-        print("after patch:",os.environ.get("ANTHROPIC_API_KEY"))
         client = anthropic.Anthropic(
                 http_client=Client(),
                 base_url = f"{proxy_url}/api/v1/proxy/{dataset_name}/anthropic",
@@ -32,7 +30,7 @@ async def test_header(
             messages=[
                 {
                     "role": "user",
-                    "content": "Give me an introduction to Zurich within 200 words."
+                    "content": "Give me an introduction to Zurich, Switzerland within 200 words."
                 }
             ]
         )
@@ -55,7 +53,7 @@ async def test_header(
         assert trace["messages"] == [
             {
                 "role": "user",
-                "content": "Give me an introduction to Zurich within 200 words."
+                "content": "Give me an introduction to Zurich, Switzerland within 200 words."
             },
             {
                 "role": "assistant",

@@ -25,7 +25,7 @@ async def test_response_without_toolcall(
     
     cities = ["zurich", "new york", "london"]
     queries = [
-        "Can you introduce Zurich city within 200 words?",
+        "Can you introduce Zurich, Switzerland within 200 words?",
         "Tell me the history of New York within 100 words?",
         "How's the weather in London next week?"
     ]
@@ -86,7 +86,7 @@ async def test_streaming_response_without_toolcall(
     
     cities = ["zurich", "new york", "london"]
     queries = [
-        "Can you introduce Zurich city within 200 words?",
+        "Can you introduce Zurich, Switzerland within 200 words?",
         "Tell me the history of New York within 100 words?",
         "How's the weather in London next week?"
     ]
