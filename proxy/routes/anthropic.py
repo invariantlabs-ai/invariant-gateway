@@ -136,13 +136,12 @@ async def handle_non_streaming_response(
             detail=json_response.get("error", "Unknown error from Anthropic"),
         )
     # Only push the trace to explorer if the last message is an end turn message
-    if json_response.get("stop_reason") in END_REASONS:
-        await push_to_explorer(
-            dataset_name,
-            json_response,
-            request_body_json,
-            invariant_authorization,
-        )
+    await push_to_explorer(
+        dataset_name,
+        json_response,
+        request_body_json,
+        invariant_authorization,
+    )
 
 async def handle_streaming_response(
         client: httpx.AsyncClient,
@@ -154,7 +153,6 @@ async def handle_streaming_response(
     formatted_invariant_response = []
 
     response = await client.send(anthropic_request, stream=True)
-
     if response.status_code != 200:
         error_content = await response.aread()
         try:
@@ -169,7 +167,6 @@ async def handle_streaming_response(
             chunk_decode = chunk.decode().strip()
             if not chunk_decode:
                 continue
-
             yield chunk
 
             process_chunk_text(
@@ -177,13 +174,12 @@ async def handle_streaming_response(
                 formatted_invariant_response
             )
 
-        if formatted_invariant_response and formatted_invariant_response[-1].get("stop_reason") in END_REASONS:
-            await push_to_explorer(
-                dataset_name,
-                formatted_invariant_response[-1],
-                json.loads(anthropic_request.content),
-                invariant_authorization,
-            )
+        await push_to_explorer(
+            dataset_name,
+            formatted_invariant_response[-1],
+            json.loads(anthropic_request.content),
+            invariant_authorization,
+        )
     
     generator = event_generator()
         
