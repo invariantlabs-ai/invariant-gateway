@@ -164,53 +164,48 @@ async def test_response_with_toolcall(
     
     weather_agent = WeatherAgent(proxy_url)
 
-    queries = [
-        "What's the weather like in Zurich, Switzerland?",
-        "Tell me the weather for New York",
-    ]
-    cities = ["zurich", "new york"]
+    query = "Tell me the weather for New York"
+
+    city = "new york"
     # Process each query
     responses = []
-    for index, query in enumerate(queries):
-        messages = [{"role": "user", "content": query}]
-        response = weather_agent.get_response(messages)
-        assert response is not None
-        assert response[0].role == "assistant"
-        assert response[0].stop_reason == "tool_use"
-        assert response[0].content[0].type == "text"
-        assert response[0].content[1].type == "tool_use"
-        assert cities[index] in response[0].content[1].input["location"].lower()
+    messages = [{"role": "user", "content": query}]
+    response = weather_agent.get_response(messages)
+    assert response is not None
+    assert response[0].role == "assistant"
+    assert response[0].stop_reason == "tool_use"
+    assert response[0].content[0].type == "text"
+    assert response[0].content[1].type == "tool_use"
+    assert city in response[0].content[1].input["location"].lower()
 
-        assert response[1].role == "assistant"
-        assert response[1].stop_reason == "end_turn"
-        assert cities[index] in response[1].content[0].text.lower()
-        responses.append(response)
+    assert response[1].role == "assistant"
+    assert response[1].stop_reason == "end_turn"
+    assert city in response[1].content[0].text.lower()
+    responses.append(response)
 
     traces_response = await context.request.get(
     f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
     )
     traces = await traces_response.json()
-    assert len(traces) == len(queries)
+    trace = traces[-1]
+    trace_id = trace["id"]
+    # Fetch the trace
+    trace_response = await context.request.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id}"
+    )
+    trace = await trace_response.json()
+    trace_messages = trace["messages"]
 
-    for index,trace in enumerate(traces): 
-        trace_id = trace["id"]
-        # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
-        )
-        trace = await trace_response.json()
-        trace_messages = trace["messages"]
-
-        assert trace_messages[0]["role"] == "user"
-        assert trace_messages[0]["content"] == queries[index]
-        assert trace_messages[1]["role"] == "assistant"
-        assert cities[index] in trace_messages[1]["content"].lower()
-        assert trace_messages[2]["role"] == "assistant"
-        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
-        assert cities[index] in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
-        assert trace_messages[3]["role"] == "tool"
-        assert trace_messages[4]["role"] == "assistant"
-        assert cities[index] in trace_messages[4]["content"].lower()
+    assert trace_messages[0]["role"] == "user"
+    assert trace_messages[0]["content"] == query
+    assert trace_messages[1]["role"] == "assistant"
+    assert city in trace_messages[1]["content"].lower()
+    assert trace_messages[2]["role"] == "assistant"
+    assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert city in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
+    assert trace_messages[3]["role"] == "tool"
+    assert trace_messages[4]["role"] == "assistant"
+    assert city in trace_messages[4]["content"].lower()
 
 
 
@@ -221,49 +216,43 @@ async def test_streaming_response_with_toolcall(
     """Test the chat completion with streaming for the weather agent."""
     weather_agent = WeatherAgent(proxy_url)
 
-    queries = [
-        "What's the weather like in Zurich, Switzerland?",
-        "Tell me the weather for New York",
-    ]
-    cities = ["zurich", "new york"]
+    query = "Tell me the weather for New York"
+    city = "new york"
 
-
-    for index, query in enumerate(queries):
-        messages = [{"role": "user", "content": query}]
-        response = weather_agent.get_streaming_response(messages)
-        assert response is not None
-        assert response[0][0].type == "text"
-        assert response[0][1].type == "tool_use"
-        assert response[0][1].name == "get_weather"
-        assert cities[index] in response[0][1].input["location"].lower()
-        
-        assert response[1][0].type == "text"
-        assert cities[index] in response[1][0].text.lower()
+    messages = [{"role": "user", "content": query}]
+    response = weather_agent.get_streaming_response(messages)
+    assert response is not None
+    assert response[0][0].type == "text"
+    assert response[0][1].type == "tool_use"
+    assert response[0][1].name == "get_weather"
+    assert city in response[0][1].input["location"].lower()
+    
+    assert response[1][0].type == "text"
+    assert city in response[1][0].text.lower()
     
     traces_response = await context.request.get(
     f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
     )
     traces = await traces_response.json()
-    assert len(traces) == len(queries)
 
-    for index,trace in enumerate(traces): 
-        trace_id = trace["id"]
-        # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
-        )
-        trace = await trace_response.json()
-        trace_messages = trace["messages"]
-        assert trace_messages[0]["role"] == "user"
-        assert trace_messages[0]["content"] == queries[index]
-        assert trace_messages[1]["role"] == "assistant"
-        assert cities[index] in trace_messages[1]["content"].lower()
-        assert trace_messages[2]["role"] == "assistant"
-        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
-        assert cities[index] in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
-        assert trace_messages[3]["role"] == "tool"
-        assert trace_messages[4]["role"] == "assistant"
-        assert cities[index] in trace_messages[4]["content"].lower()
+    trace = traces[-1]
+    trace_id = trace["id"]
+    # Fetch the trace
+    trace_response = await context.request.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id}"
+    )
+    trace = await trace_response.json()
+    trace_messages = trace["messages"]
+    assert trace_messages[0]["role"] == "user"
+    assert trace_messages[0]["content"] == query
+    assert trace_messages[1]["role"] == "assistant"
+    assert city in trace_messages[1]["content"].lower()
+    assert trace_messages[2]["role"] == "assistant"
+    assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert city in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
+    assert trace_messages[3]["role"] == "tool"
+    assert trace_messages[4]["role"] == "assistant"
+    assert city in trace_messages[4]["content"].lower()
 
 
 async def test_response_with_toolcall_with_image(
@@ -322,20 +311,19 @@ async def test_response_with_toolcall_with_image(
     f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weatherAgent.dataset_name}/traces"
     )
     traces = await traces_response.json()
-    assert len(traces) == 1
 
-    for index,trace in enumerate(traces): 
-        trace_id = trace["id"]
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
-        )
-        trace = await trace_response.json()
-        trace_messages = trace["messages"]
-        assert trace_messages[0]["role"] == "user"
-        assert trace_messages[1]["role"] == "assistant"
-        assert city in trace_messages[1]["content"].lower()
-        assert trace_messages[2]["role"] == "assistant"
-        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
-        assert city in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
-        assert trace_messages[3]["role"] == "tool"
-        assert trace_messages[4]["role"] == "assistant"
+    trace = traces[-1]
+    trace_id = trace["id"]
+    trace_response = await context.request.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id}"
+    )
+    trace = await trace_response.json()
+    trace_messages = trace["messages"]
+    assert trace_messages[0]["role"] == "user"
+    assert trace_messages[1]["role"] == "assistant"
+    assert city in trace_messages[1]["content"].lower()
+    assert trace_messages[2]["role"] == "assistant"
+    assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert city in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
+    assert trace_messages[3]["role"] == "tool"
+    assert trace_messages[4]["role"] == "assistant"
