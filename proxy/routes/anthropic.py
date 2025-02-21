@@ -249,11 +249,11 @@ def anthropic_to_invariant_messages(
 
     return output
 
-
 def handle_user_message(message, keep_empty_tool_response):
     output = []
     content = message["content"]
     if isinstance(content, list):
+        user_content = []
         for sub_message in content:
             if sub_message["type"] == "tool_result":
                 if sub_message["content"]:
@@ -275,7 +275,24 @@ def handle_user_message(message, keep_empty_tool_response):
                         }
                     )
             elif sub_message["type"] == "text":
-                output.append({"role": "user", "content": sub_message["text"]})
+                user_content.append({
+                    "type":"text",
+                    "text":sub_message["text"]
+                    })
+            elif sub_message["type"] == "image":
+                user_content.append({
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": "data:"+sub_message["source"]["media_type"]+";base64,"+sub_message["source"]["data"],
+                                    },
+                                },
+                            
+                        )
+        if user_content:
+            output.append({
+                "role": "user",
+                "content": user_content
+            })
     else:
         output.append({"role": "user", "content": content})
     return output
