@@ -136,13 +136,12 @@ async def handle_non_streaming_response(
             detail=json_response.get("error", "Unknown error from Anthropic"),
         )
     # Only push the trace to explorer if the last message is an end turn message
-    if json_response.get("stop_reason") in END_REASONS:
-        await push_to_explorer(
-            dataset_name,
-            json_response,
-            request_body_json,
-            invariant_authorization,
-        )
+    await push_to_explorer(
+        dataset_name,
+        json_response,
+        request_body_json,
+        invariant_authorization,
+    )
 
 async def handle_streaming_response(
         client: httpx.AsyncClient,
@@ -154,7 +153,6 @@ async def handle_streaming_response(
     formatted_invariant_response = []
 
     response = await client.send(anthropic_request, stream=True)
-
     if response.status_code != 200:
         error_content = await response.aread()
         try:
@@ -169,7 +167,6 @@ async def handle_streaming_response(
             chunk_decode = chunk.decode().strip()
             if not chunk_decode:
                 continue
-
             yield chunk
 
             process_chunk_text(
@@ -177,13 +174,12 @@ async def handle_streaming_response(
                 formatted_invariant_response
             )
 
-        if formatted_invariant_response and formatted_invariant_response[-1].get("stop_reason") in END_REASONS:
-            await push_to_explorer(
-                dataset_name,
-                formatted_invariant_response[-1],
-                json.loads(anthropic_request.content),
-                invariant_authorization,
-            )
+        await push_to_explorer(
+            dataset_name,
+            formatted_invariant_response[-1],
+            json.loads(anthropic_request.content),
+            invariant_authorization,
+        )
     
     generator = event_generator()
         
@@ -249,11 +245,11 @@ def anthropic_to_invariant_messages(
 
     return output
 
-
 def handle_user_message(message, keep_empty_tool_response):
     output = []
     content = message["content"]
     if isinstance(content, list):
+        user_content = []
         for sub_message in content:
             if sub_message["type"] == "tool_result":
                 if sub_message["content"]:
@@ -275,7 +271,24 @@ def handle_user_message(message, keep_empty_tool_response):
                         }
                     )
             elif sub_message["type"] == "text":
-                output.append({"role": "user", "content": sub_message["text"]})
+                user_content.append({
+                    "type":"text",
+                    "text":sub_message["text"]
+                    })
+            elif sub_message["type"] == "image":
+                user_content.append({
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": "data:"+sub_message["source"]["media_type"]+";base64,"+sub_message["source"]["data"],
+                                    },
+                                },
+                            
+                        )
+        if user_content:
+            output.append({
+                "role": "user",
+                "content": user_content
+            })
     else:
         output.append({"role": "user", "content": content})
     return output
