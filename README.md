@@ -26,7 +26,7 @@ bash run.sh build && bash run.sh up
 This will launch the proxy at [http://localhost:8005/api/v1/proxy/](http://localhost:8005/api/v1/proxy/docs/).
 
 ### **Set Up an Invariant API Key**
-1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to obtain an API key. This allows the proxy to push traces to [Invariant Explorer](https://explorer.invariantlabs.ai).
+1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/api/client-setup/) to obtain an API key. This allows the proxy to push traces to [Invariant Explorer](https://explorer.invariantlabs.ai).
 
 ---
 
