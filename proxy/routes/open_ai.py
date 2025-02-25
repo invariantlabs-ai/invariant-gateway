@@ -9,13 +9,10 @@ from fastapi.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from utils.explorer import push_trace
 
-ALLOWED_OPEN_AI_ENDPOINTS = {"chat/completions"}
-
 proxy = APIRouter()
 
 MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant api key"
 MISSING_AUTH_HEADER = "Missing authorization header"
-NOT_SUPPORTED_ENDPOINT = "Not supported OpenAI endpoint"
 FINISH_REASON_TO_PUSH_TRACE = ["stop", "length", "content_filter"]
 
 
@@ -26,17 +23,14 @@ def validate_headers(authorization: str = Header(None)):
 
 
 @proxy.post(
-    "/{dataset_name}/openai/{endpoint:path}",
+    "/{dataset_name}/openai/chat/completions",
     dependencies=[Depends(validate_headers)],
 )
-async def openai_proxy(
+async def openai_chat_completions_proxy(
     request: Request,
     dataset_name: str,
-    endpoint: str,
 ) -> Response:
     """Proxy calls to the OpenAI APIs"""
-    if endpoint not in ALLOWED_OPEN_AI_ENDPOINTS:
-        raise HTTPException(status_code=404, detail=NOT_SUPPORTED_ENDPOINT)
 
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
@@ -76,7 +70,7 @@ async def openai_proxy(
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     open_ai_request = client.build_request(
         "POST",
-        f"https://api.openai.com/v1/{endpoint}",
+        "https://api.openai.com/v1/chat/completions",
         content=request_body_bytes,
         headers=headers,
     )
