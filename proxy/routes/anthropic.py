@@ -92,18 +92,16 @@ async def push_to_explorer(
     merged_response: dict[str, Any],
     request_body: dict[str, Any],
     invariant_authorization: str,
-    reformat: bool = True,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     # Combine the messages from the request body and Anthropic response
     messages = request_body.get("messages", [])
     messages += [merged_response]
 
-    if reformat:
-        messages = anthropic_to_invariant_messages(messages)
+    transformed_messages = connvert_anthropic_to_invariant_message_format(messages)
     _ = await push_trace(
         dataset_name=dataset_name,
-        messages=[messages],
+        messages=[transformed_messages],
         invariant_authorization=invariant_authorization,
     )
 
@@ -150,7 +148,7 @@ async def handle_streaming_response(
     invariant_authorization: str,
 ) -> StreamingResponse:
     """Handles streaming Anthropic responses"""
-    formatted_invariant_response = []
+    merged_response = []
 
     response = await client.send(anthropic_request, stream=True)
     if response.status_code != 200:
@@ -169,11 +167,11 @@ async def handle_streaming_response(
                 continue
             yield chunk
 
-            process_chunk_text(chunk_decode, formatted_invariant_response)
+            process_chunk_text(chunk_decode, merged_response)
         if dataset_name:
             await push_to_explorer(
                 dataset_name,
-                formatted_invariant_response[-1],
+                merged_response[-1],
                 json.loads(anthropic_request.content),
                 invariant_authorization,
             )
@@ -183,9 +181,9 @@ async def handle_streaming_response(
     return StreamingResponse(generator, media_type="text/event-stream")
 
 
-def process_chunk_text(chunk_decode, formatted_invariant_response):
+def process_chunk_text(chunk_decode, merged_response):
     """
-    Process the chunk of text and update the formatted_invariant_response
+    Process the chunk of text and update the merged_response
     Example of chunk list can be find in:
     ../../resources/streaming_chunk_text/anthropic.txt
     """
@@ -194,14 +192,14 @@ def process_chunk_text(chunk_decode, formatted_invariant_response):
         if len(text_block.split("\ndata:")) > 1:
             text_data = text_block.split("\ndata:")[1]
             text_json = json.loads(text_data)
-            update_formatted_invariant_response(text_json, formatted_invariant_response)
+            update_merged_response(text_json, merged_response)
 
 
-def update_formatted_invariant_response(text_json, formatted_invariant_response):
+def update_merged_response(text_json, merged_response):
     """Update the formatted_invariant_response based on the text_json"""
     if text_json.get("type") == MESSAGE_START:
         message = text_json.get("message")
-        formatted_invariant_response.append(
+        merged_response.append(
             {
                 "id": message.get("id"),
                 "role": message.get("role"),
@@ -216,7 +214,7 @@ def update_formatted_invariant_response(text_json, formatted_invariant_response)
         and text_json.get("content_block").get("type") == "tool_use"
     ):
         content_block = text_json.get("content_block")
-        formatted_invariant_response.append(
+        merged_response.append(
             {
                 "role": "tool",
                 "tool_id": content_block.get("id"),
@@ -224,21 +222,15 @@ def update_formatted_invariant_response(text_json, formatted_invariant_response)
             }
         )
     elif text_json.get("type") == CONTENT_BLOCK_DELTA:
-        if formatted_invariant_response[-1]["role"] == "assistant":
-            formatted_invariant_response[-1]["content"] += text_json.get("delta").get(
-                "text"
-            )
-        elif formatted_invariant_response[-1]["role"] == "tool":
-            formatted_invariant_response[-1]["content"] += text_json.get("delta").get(
-                "partial_json"
-            )
+        if merged_response[-1]["role"] == "assistant":
+            merged_response[-1]["content"] += text_json.get("delta").get("text")
+        elif merged_response[-1]["role"] == "tool":
+            merged_response[-1]["content"] += text_json.get("delta").get("partial_json")
     elif text_json.get("type") == MESSGAE_DELTA:
-        formatted_invariant_response[-1]["stop_reason"] = text_json.get("delta").get(
-            "stop_reason"
-        )
+        merged_response[-1]["stop_reason"] = text_json.get("delta").get("stop_reason")
 
 
-def anthropic_to_invariant_messages(
+def connvert_anthropic_to_invariant_message_format(
     messages: list[dict], keep_empty_tool_response: bool = False
 ) -> list[dict]:
     """Converts a list of messages from the Anthropic API to the Invariant API format."""
