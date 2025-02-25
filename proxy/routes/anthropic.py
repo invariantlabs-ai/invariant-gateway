@@ -5,18 +5,14 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from starlette.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from utils.explorer import push_trace
-from starlette.responses import StreamingResponse
-
 
 proxy = APIRouter()
 
-ALLOWED_ANTHROPIC_ENDPOINTS = {"v1/messages"}
-
 MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant authorization header"
 MISSING_ANTHROPIC_AUTH_HEADER = "Missing Anthropic authorization header"
-NOT_SUPPORTED_ENDPOINT = "Not supported Anthropic endpoint"
 FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
 END_REASONS = ["end_turn", "max_tokens", "stop_sequence"]
 
@@ -29,26 +25,22 @@ CONTENT_BLOCK_STOP = "content_block_stop"
 
 HEADER_AUTHORIZATION = "x-api-key"
 
-def validate_headers(
-    x_api_key: str = Header(None)
-):
+
+def validate_headers(x_api_key: str = Header(None)):
     """Require the headers to be present"""
     if x_api_key is None:
         raise HTTPException(status_code=400, detail=MISSING_ANTHROPIC_AUTH_HEADER)
 
 
 @proxy.post(
-    "/{dataset_name}/anthropic/{endpoint:path}",
+    "/{dataset_name}/anthropic/v1/messages",
     dependencies=[Depends(validate_headers)],
 )
-async def anthropic_proxy(
+async def anthropic_v1_messages_proxy(
     dataset_name: str,
-    endpoint: str,
     request: Request,
 ):
     """Proxy calls to the Anthropic APIs"""
-    if endpoint not in ALLOWED_ANTHROPIC_ENDPOINTS:
-        raise HTTPException(status_code=404, detail=NOT_SUPPORTED_ENDPOINT)
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
@@ -71,18 +63,21 @@ async def anthropic_proxy(
 
     request_body_json = json.loads(request_body)
 
-    anthropic_url = f"https://api.anthropic.com/{endpoint}"
-
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
 
     anthropic_request = client.build_request(
-        "POST", anthropic_url, headers=headers, data=request_body
+        "POST",
+        "https://api.anthropic.com/v1/messages",
+        headers=headers,
+        data=request_body,
     )
 
     if request_body_json.get("stream"):
-        return await handle_streaming_response(client, anthropic_request, dataset_name, invariant_authorization)
+        return await handle_streaming_response(
+            client, anthropic_request, dataset_name, invariant_authorization
+        )
     else:
-        try:    
+        try:
             response = await client.send(anthropic_request)
         except httpx.HTTPStatusError as e:
             raise HTTPException(
@@ -143,13 +138,13 @@ async def handle_non_streaming_response(
         invariant_authorization,
     )
 
-async def handle_streaming_response(
-        client: httpx.AsyncClient,
-        anthropic_request: httpx.Request,
-        dataset_name: str,
-        invariant_authorization: str
-) -> StreamingResponse:
 
+async def handle_streaming_response(
+    client: httpx.AsyncClient,
+    anthropic_request: httpx.Request,
+    dataset_name: str,
+    invariant_authorization: str,
+) -> StreamingResponse:
     formatted_invariant_response = []
 
     response = await client.send(anthropic_request, stream=True)
@@ -161,7 +156,7 @@ async def handle_streaming_response(
         except json.JSONDecodeError:
             error_detail = {"error": "Failed to decode error response from Anthropic"}
         raise HTTPException(status_code=response.status_code, detail=error_detail)
-    
+
     async def event_generator() -> Any:
         async for chunk in response.aiter_bytes():
             chunk_decode = chunk.decode().strip()
@@ -169,10 +164,7 @@ async def handle_streaming_response(
                 continue
             yield chunk
 
-            process_chunk_text(
-                chunk_decode,
-                formatted_invariant_response
-            )
+            process_chunk_text(chunk_decode, formatted_invariant_response)
 
         await push_to_explorer(
             dataset_name,
@@ -180,9 +172,9 @@ async def handle_streaming_response(
             json.loads(anthropic_request.content),
             invariant_authorization,
         )
-    
+
     generator = event_generator()
-        
+
     return StreamingResponse(generator, media_type="text/event-stream")
 
 
@@ -193,24 +185,30 @@ def process_chunk_text(chunk_decode, formatted_invariant_response):
     ../../resources/streaming_chunk_text/anthropic.txt
     """
     for text_block in chunk_decode.split("\n\n"):
-        # might be empty block  
-        if len(text_block.split("\ndata:"))>1:
+        # might be empty block
+        if len(text_block.split("\ndata:")) > 1:
             text_data = text_block.split("\ndata:")[1]
             text_json = json.loads(text_data)
             update_formatted_invariant_response(text_json, formatted_invariant_response)
 
+
 def update_formatted_invariant_response(text_json, formatted_invariant_response):
     if text_json.get("type") == MESSAGE_START:
         message = text_json.get("message")
-        formatted_invariant_response.append({
-            "id": message.get("id"),
-            "role": message.get("role"),
-            "content": "",
-            "model": message.get("model"),
-            "stop_reason": message.get("stop_reason"),
-            "stop_sequence": message.get("stop_sequence"),
-        })
-    elif text_json.get("type") == CONTENT_BLOCK_START and text_json.get("content_block").get("type")=="tool_use":
+        formatted_invariant_response.append(
+            {
+                "id": message.get("id"),
+                "role": message.get("role"),
+                "content": "",
+                "model": message.get("model"),
+                "stop_reason": message.get("stop_reason"),
+                "stop_sequence": message.get("stop_sequence"),
+            }
+        )
+    elif (
+        text_json.get("type") == CONTENT_BLOCK_START
+        and text_json.get("content_block").get("type") == "tool_use"
+    ):
         content_block = text_json.get("content_block")
         formatted_invariant_response.append(
             {
@@ -220,12 +218,19 @@ def update_formatted_invariant_response(text_json, formatted_invariant_response)
             }
         )
     elif text_json.get("type") == CONTENT_BLOCK_DELTA:
-        if formatted_invariant_response[-1]["role"]=="assistant":
-            formatted_invariant_response[-1]["content"] += text_json.get("delta").get("text")
-        elif formatted_invariant_response[-1]["role"]=="tool":
-            formatted_invariant_response[-1]["content"] += text_json.get("delta").get("partial_json")
+        if formatted_invariant_response[-1]["role"] == "assistant":
+            formatted_invariant_response[-1]["content"] += text_json.get("delta").get(
+                "text"
+            )
+        elif formatted_invariant_response[-1]["role"] == "tool":
+            formatted_invariant_response[-1]["content"] += text_json.get("delta").get(
+                "partial_json"
+            )
     elif text_json.get("type") == MESSGAE_DELTA:
-        formatted_invariant_response[-1]["stop_reason"] = text_json.get("delta").get("stop_reason")
+        formatted_invariant_response[-1]["stop_reason"] = text_json.get("delta").get(
+            "stop_reason"
+        )
+
 
 def anthropic_to_invariant_messages(
     messages: list[dict], keep_empty_tool_response: bool = False
@@ -244,6 +249,7 @@ def anthropic_to_invariant_messages(
             output.extend(handler(message))
 
     return output
+
 
 def handle_user_message(message, keep_empty_tool_response):
     output = []
@@ -271,24 +277,21 @@ def handle_user_message(message, keep_empty_tool_response):
                         }
                     )
             elif sub_message["type"] == "text":
-                user_content.append({
-                    "type":"text",
-                    "text":sub_message["text"]
-                    })
+                user_content.append({"type": "text", "text": sub_message["text"]})
             elif sub_message["type"] == "image":
-                user_content.append({
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": "data:"+sub_message["source"]["media_type"]+";base64,"+sub_message["source"]["data"],
-                                    },
-                                },
-                            
-                        )
+                user_content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "data:"
+                            + sub_message["source"]["media_type"]
+                            + ";base64,"
+                            + sub_message["source"]["data"],
+                        },
+                    },
+                )
         if user_content:
-            output.append({
-                "role": "user",
-                "content": user_content
-            })
+            output.append({"role": "user", "content": user_content})
     else:
         output.append({"role": "user", "content": content})
     return output
