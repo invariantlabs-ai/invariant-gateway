@@ -1,7 +1,7 @@
 """Proxy service to forward requests to the OpenAI APIs"""
 
 import json
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -26,9 +26,13 @@ def validate_headers(authorization: str = Header(None)):
     "/{dataset_name}/openai/chat/completions",
     dependencies=[Depends(validate_headers)],
 )
+@proxy.post(
+    "/openai/chat/completions",
+    dependencies=[Depends(validate_headers)],
+)
 async def openai_chat_completions_proxy(
     request: Request,
-    dataset_name: str,
+    dataset_name: str = None,
 ) -> Response:
     """Proxy calls to the OpenAI APIs"""
 
@@ -92,7 +96,7 @@ async def openai_chat_completions_proxy(
 async def stream_response(
     client: httpx.AsyncClient,
     open_ai_request: httpx.Request,
-    dataset_name: str,
+    dataset_name: Optional[str],
     request_body_json: dict[str, Any],
     invariant_authorization: str,
 ) -> Response:
@@ -150,12 +154,13 @@ async def stream_response(
             )
 
         # Send full merged response to the explorer
-        await push_to_explorer(
-            dataset_name,
-            merged_response,
-            request_body_json,
-            invariant_authorization,
-        )
+        if dataset_name:
+            await push_to_explorer(
+                dataset_name,
+                merged_response,
+                request_body_json,
+                invariant_authorization,
+            )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -318,10 +323,10 @@ async def push_to_explorer(
 
 async def handle_non_streaming_response(
     response: httpx.Response,
-    dataset_name: str,
+    dataset_name: Optional[str],
     request_body_json: dict[str, Any],
     invariant_authorization: str,
-):
+) -> Response:
     """Handles non-streaming OpenAI responses"""
     try:
         json_response = response.json()
@@ -335,9 +340,10 @@ async def handle_non_streaming_response(
             status_code=response.status_code,
             detail=json_response.get("error", "Unknown error from OpenAI API"),
         )
-    await push_to_explorer(
-        dataset_name, json_response, request_body_json, invariant_authorization
-    )
+    if dataset_name:
+        await push_to_explorer(
+            dataset_name, json_response, request_body_json, invariant_authorization
+        )
 
     return Response(
         content=json.dumps(json_response),

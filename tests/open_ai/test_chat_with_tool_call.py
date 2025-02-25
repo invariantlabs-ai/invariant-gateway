@@ -7,6 +7,7 @@ import uuid
 
 import pytest
 from httpx import Client
+
 # add tests folder (parent) to sys.path
 from openai import OpenAI
 
@@ -18,8 +19,9 @@ pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
+@pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_chat_completion_with_tool_call_without_streaming(
-    context, explorer_api_url, proxy_url
+    context, explorer_api_url, proxy_url, push_to_explorer
 ):
     """
     Test the chat completions proxy calls with tool calling and response processing
@@ -33,7 +35,9 @@ async def test_chat_completion_with_tool_call_without_streaming(
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai",
+        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai"
+        if push_to_explorer
+        else f"{proxy_url}/api/v1/proxy/openai",
     )
 
     chat_response = client.chat.completions.create(
@@ -96,36 +100,38 @@ async def test_chat_completion_with_tool_call_without_streaming(
     )
     assert "15°C" in chat_response_final.choices[0].message.content
 
-    # Fetch the trace ids for the dataset
-    traces_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
-    )
-    traces = await traces_response.json()
-    assert len(traces) == 1
-    trace_id = traces[0]["id"]
+    if push_to_explorer:
+        # Fetch the trace ids for the dataset
+        traces_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        )
+        traces = await traces_response.json()
+        assert len(traces) == 1
+        trace_id = traces[0]["id"]
 
-    # Fetch the trace
-    trace_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id}"
-    )
-    trace = await trace_response.json()
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
 
-    # Verify the trace messages
-    expected_messages = history + [
-        {
-            "role": "assistant",
-            "content": chat_response_final.choices[0].message.content,
-        }
-    ]
-    expected_messages[1]["tool_calls"][0]["function"]["arguments"] = json.loads(
-        expected_messages[1]["tool_calls"][0]["function"]["arguments"]
-    )
-    assert trace["messages"] == expected_messages
+        # Verify the trace messages
+        expected_messages = history + [
+            {
+                "role": "assistant",
+                "content": chat_response_final.choices[0].message.content,
+            }
+        ]
+        expected_messages[1]["tool_calls"][0]["function"]["arguments"] = json.loads(
+            expected_messages[1]["tool_calls"][0]["function"]["arguments"]
+        )
+        assert trace["messages"] == expected_messages
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
+@pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_chat_completion_with_tool_call_with_streaming(
-    context, explorer_api_url, proxy_url
+    context, explorer_api_url, proxy_url, push_to_explorer
 ):
     """
     Test the chat completions proxy calls with tool calling and response processing
@@ -139,7 +145,9 @@ async def test_chat_completion_with_tool_call_with_streaming(
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai",
+        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai"
+        if push_to_explorer
+        else f"{proxy_url}/api/v1/proxy/openai",
     )
 
     chat_response = client.chat.completions.create(
@@ -209,23 +217,24 @@ async def test_chat_completion_with_tool_call_with_streaming(
         if chunk.choices and chunk.choices[0].delta.content:
             final_response["content"] += chunk.choices[0].delta.content
 
-    # Fetch the trace ids for the dataset
-    traces_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
-    )
-    traces = await traces_response.json()
-    assert len(traces) == 1
-    trace_id = traces[0]["id"]
+    if push_to_explorer:
+        # Fetch the trace ids for the dataset
+        traces_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        )
+        traces = await traces_response.json()
+        assert len(traces) == 1
+        trace_id = traces[0]["id"]
 
-    # Fetch the trace
-    trace_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id}"
-    )
-    trace = await trace_response.json()
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
 
-    # Verify the trace messages
-    expected_messages = history + [final_response]
-    expected_messages[1]["tool_calls"][0]["function"]["arguments"] = json.loads(
-        expected_messages[1]["tool_calls"][0]["function"]["arguments"]
-    )
-    assert trace["messages"] == expected_messages
+        # Verify the trace messages
+        expected_messages = history + [final_response]
+        expected_messages[1]["tool_calls"][0]["function"]["arguments"] = json.loads(
+            expected_messages[1]["tool_calls"][0]["function"]["arguments"]
+        )
+        assert trace["messages"] == expected_messages

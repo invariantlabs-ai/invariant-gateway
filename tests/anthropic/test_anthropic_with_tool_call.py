@@ -1,13 +1,16 @@
+"""Test the Anthropic messages API with tool call for the weather agent."""
+
+import base64
 import datetime
-import os
-from typing import Dict
 import json
+import os
+import sys
+from pathlib import Path
+from typing import Dict, List
+
 import anthropic
 import pytest
 from httpx import Client
-import base64
-import sys
-from pathlib import Path
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -17,16 +20,20 @@ pytest_plugins = ("pytest_asyncio",)
 
 
 class WeatherAgent:
-    def __init__(self,proxy_url):
+    """Weather agent to get the current weather in a given location."""
+
+    def __init__(self, proxy_url, push_to_explorer):
         self.dataset_name = "claude_weather_agent_test" + str(
             datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         )
-        invariant_api_key = os.environ.get("INVARIANT_API_KEY","None")
+        invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
         self.client = anthropic.Anthropic(
             http_client=Client(
                 headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
             ),
-            base_url=f"{proxy_url}/api/v1/proxy/{self.dataset_name}/anthropic",
+            base_url=f"{proxy_url}/api/v1/proxy/{self.dataset_name}/anthropic"
+            if push_to_explorer
+            else f"{proxy_url}/api/v1/proxy/anthropic",
         )
         self.get_weather_function = {
             "name": "get_weather",
@@ -48,7 +55,7 @@ class WeatherAgent:
             },
         }
 
-    def get_response(self, messages: str) -> Dict:
+    def get_response(self, messages: List[Dict]) -> List[Dict]:
         """
         Get the response from the agent for a given user query for weather.
         """
@@ -58,7 +65,7 @@ class WeatherAgent:
                 tools=[self.get_weather_function],
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=1024,
-                messages=messages
+                messages=messages,
             )
             response_list.append(response)
             # If there's tool call, Extract the tool call parameters from the response
@@ -81,18 +88,19 @@ class WeatherAgent:
                 )
             else:
                 return response_list
-            
-    def get_streaming_response(self, messages: str) -> Dict:
+
+    def get_streaming_response(self, messages: List[Dict]) -> List[Dict]:
+        """Get streaming response from the agent for a given user query for weather."""
         response_list = []
 
         def clean_quotes(text):
             # Convert \' to '
-            text = text.replace("\'", "'")
+            text = text.replace("'", "'")
             # Convert \" to "
-            text = text.replace('\"', '"')
+            text = text.replace('"', '"')
             text = text.replace("\n", " ")
             return text
-        
+
         while True:
             json_data = ""
             content = []
@@ -108,26 +116,35 @@ class WeatherAgent:
                         current_block = event.content_block
                         current_text = ""
                     elif isinstance(event, anthropic.types.RawContentBlockDeltaEvent):
-                        if hasattr(event.delta, 'text'):
+                        if hasattr(event.delta, "text"):
                             # Accumulate text for TextBlock
                             current_text += clean_quotes(event.delta.text)
-                        elif hasattr(event.delta, 'partial_json'):
+                        elif hasattr(event.delta, "partial_json"):
                             # Accumulate JSON for ToolUseBlock
                             json_data += clean_quotes(event.delta.partial_json)
                             current_text += clean_quotes(event.delta.partial_json)
                     elif isinstance(event, anthropic.types.RawContentBlockStopEvent):
                         # Block is complete, add it to content
-                        if current_block.type == 'text':
-                            content.append(anthropic.types.TextBlock(citations=None, text=current_text, type="text"))
-                        elif current_block.type == 'tool_use':
+                        if current_block.type == "text":
                             content.append(
-                                anthropic.types.ToolUseBlock(id=current_block.id,
-                                input=json.loads(current_text), 
-                                name=current_block.name, 
-                                type="tool_use")
+                                anthropic.types.TextBlock(
+                                    citations=None, text=current_text, type="text"
+                                )
                             )
-            response_list.append(content)    
-            if isinstance(event, anthropic.types.RawMessageStopEvent) and event.message.stop_reason == "tool_use":
+                        elif current_block.type == "tool_use":
+                            content.append(
+                                anthropic.types.ToolUseBlock(
+                                    id=current_block.id,
+                                    input=json.loads(current_text),
+                                    name=current_block.name,
+                                    type="tool_use",
+                                )
+                            )
+            response_list.append(content)
+            if (
+                isinstance(event, anthropic.types.RawMessageStopEvent)
+                and event.message.stop_reason == "tool_use"
+            ):
                 tool_call_params = json.loads(json_data)
                 tool_call_result = self.get_weather(tool_call_params["location"])
                 messages.append({"role": "assistant", "content": content})
@@ -148,21 +165,25 @@ class WeatherAgent:
 
     def get_weather(self, location: str):
         """Get the current weather in a given location using latitude and longitude."""
-        response = f'''Weather in {location}:
+        response = f"""Weather in {location}:
                     Good morning! Expect overcast skies with intermittent showers throughout the day. 
                     Temperatures will range from a cool 15°C in the early hours to around 19°C by mid-afternoon.
                     Light winds from the northeast at about 10 km/h will keep conditions mild. 
                     It might be a good idea to carry an umbrella if you’re heading out. Stay dry and have a great day!
-                    '''
+                    """
         return response
 
-@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
-async def test_response_with_toolcall(
-    context, explorer_api_url, proxy_url
+
+@pytest.mark.skipif(
+    not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set"
+)
+@pytest.mark.parametrize("push_to_explorer", [False, True])
+async def test_response_with_tool_call(
+    context, explorer_api_url, proxy_url, push_to_explorer
 ):
     """Test the chat completion without streaming for the weather agent."""
-    
-    weather_agent = WeatherAgent(proxy_url)
+
+    weather_agent = WeatherAgent(proxy_url, push_to_explorer)
 
     query = "Tell me the weather for New York"
 
@@ -183,38 +204,46 @@ async def test_response_with_toolcall(
     assert city in response[1].content[0].text.lower()
     responses.append(response)
 
-    traces_response = await context.request.get(
-    f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
-    )
-    traces = await traces_response.json()
-    trace = traces[-1]
-    trace_id = trace["id"]
-    # Fetch the trace
-    trace_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id}"
-    )
-    trace = await trace_response.json()
-    trace_messages = trace["messages"]
+    if push_to_explorer:
+        traces_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+        )
+        traces = await traces_response.json()
+        trace = traces[-1]
+        trace_id = trace["id"]
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
+        trace_messages = trace["messages"]
 
-    assert trace_messages[0]["role"] == "user"
-    assert trace_messages[0]["content"] == query
-    assert trace_messages[1]["role"] == "assistant"
-    assert city in trace_messages[1]["content"].lower()
-    assert trace_messages[2]["role"] == "assistant"
-    assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
-    assert city in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
-    assert trace_messages[3]["role"] == "tool"
-    assert trace_messages[4]["role"] == "assistant"
-    assert city in trace_messages[4]["content"].lower()
+        assert trace_messages[0]["role"] == "user"
+        assert trace_messages[0]["content"] == query
+        assert trace_messages[1]["role"] == "assistant"
+        assert city in trace_messages[1]["content"].lower()
+        assert trace_messages[2]["role"] == "assistant"
+        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert (
+            city
+            in trace_messages[2]["tool_calls"][0]["function"]["arguments"][
+                "location"
+            ].lower()
+        )
+        assert trace_messages[3]["role"] == "tool"
+        assert trace_messages[4]["role"] == "assistant"
+        assert city in trace_messages[4]["content"].lower()
 
 
-
-@pytest.mark.skipif(not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set")
-async def test_streaming_response_with_toolcall(
-    context, explorer_api_url, proxy_url
+@pytest.mark.skipif(
+    not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set"
+)
+@pytest.mark.parametrize("push_to_explorer", [False, True])
+async def test_streaming_response_with_tool_call(
+    context, explorer_api_url, proxy_url, push_to_explorer
 ):
     """Test the chat completion with streaming for the weather agent."""
-    weather_agent = WeatherAgent(proxy_url)
+    weather_agent = WeatherAgent(proxy_url, push_to_explorer)
 
     query = "Tell me the weather for New York"
     city = "new york"
@@ -226,104 +255,109 @@ async def test_streaming_response_with_toolcall(
     assert response[0][1].type == "tool_use"
     assert response[0][1].name == "get_weather"
     assert city in response[0][1].input["location"].lower()
-    
+
     assert response[1][0].type == "text"
     assert city in response[1][0].text.lower()
-    
-    traces_response = await context.request.get(
-    f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
-    )
-    traces = await traces_response.json()
 
-    trace = traces[-1]
-    trace_id = trace["id"]
-    # Fetch the trace
-    trace_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id}"
-    )
-    trace = await trace_response.json()
-    trace_messages = trace["messages"]
-    assert trace_messages[0]["role"] == "user"
-    assert trace_messages[0]["content"] == query
-    assert trace_messages[1]["role"] == "assistant"
-    assert city in trace_messages[1]["content"].lower()
-    assert trace_messages[2]["role"] == "assistant"
-    assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
-    assert city in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
-    assert trace_messages[3]["role"] == "tool"
-    assert trace_messages[4]["role"] == "assistant"
-    assert city in trace_messages[4]["content"].lower()
+    if push_to_explorer:
+        traces_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+        )
+        traces = await traces_response.json()
+
+        trace = traces[-1]
+        trace_id = trace["id"]
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
+        trace_messages = trace["messages"]
+        assert trace_messages[0]["role"] == "user"
+        assert trace_messages[0]["content"] == query
+        assert trace_messages[1]["role"] == "assistant"
+        assert city in trace_messages[1]["content"].lower()
+        assert trace_messages[2]["role"] == "assistant"
+        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert (
+            city
+            in trace_messages[2]["tool_calls"][0]["function"]["arguments"][
+                "location"
+            ].lower()
+        )
+        assert trace_messages[3]["role"] == "tool"
+        assert trace_messages[4]["role"] == "assistant"
+        assert city in trace_messages[4]["content"].lower()
 
 
-async def test_response_with_toolcall_with_image(
-        context, explorer_api_url, proxy_url
+@pytest.mark.skipif(
+    not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set"
+)
+@pytest.mark.parametrize("push_to_explorer", [False, True])
+async def test_response_with_tool_call_with_image(
+    context, explorer_api_url, proxy_url, push_to_explorer
 ):
-    weatherAgent = WeatherAgent(proxy_url)
+    """Test the chat completion with image for the weather agent."""
+    weather_agent = WeatherAgent(proxy_url, push_to_explorer)
 
-    image_path1 = Path(__file__).parent.parent / "images" / "new-york.jpeg"
-    image_path2 = Path(__file__).parent.parent / "images" / "two-cats.png"
+    image_path = Path(__file__).parent.parent / "images" / "new-york.jpeg"
 
-    image1 = open(image_path1, "rb")
-    image2 = open(image_path2, "rb")
-    base64_image1 = base64.b64encode(image1.read()).decode("utf-8")
-    base64_image2 = base64.b64encode(image2.read()).decode("utf-8")
-    query = "get the weather in the city of these images"
-    city = "new york"
-    messages = [
-        {
-            "role": "user", "content": [
-                
-                {
-                    "type": "text", 
-                    "text": query,
-                },
-                {
-                    "type": "image",
-                    "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": base64_image1,
-                    }
-                },
-                {
-                    "type": "image",
-                    "source": {
-                    "type": "base64",
-                    "media_type": "image/png",
-                    "data": base64_image2,
-                    }
-                },
-            ]
-        }
-    ]
-    response = weatherAgent.get_response(messages)
-    assert response is not None
-    assert response[0].role == "assistant"
-    assert response[0].stop_reason == "tool_use"
-    assert response[0].content[0].type == "text"
-    assert response[0].content[1].type == "tool_use"
-    assert city in response[0].content[1].input["location"].lower()
+    with image_path.open("rb") as image_file:
+        base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+        query = "get the weather in the city of this image"
+        city = "new york"
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": query},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": base64_image,
+                        },
+                    },
+                ],
+            }
+        ]
+        response = weather_agent.get_response(messages)
+        assert response is not None
+        assert response[0].role == "assistant"
+        assert response[0].stop_reason == "tool_use"
+        assert response[0].content[0].type == "text"
+        assert response[0].content[1].type == "tool_use"
+        assert city in response[0].content[1].input["location"].lower()
 
-    assert response[1].role == "assistant"
-    assert response[1].stop_reason == "end_turn"
+        assert response[1].role == "assistant"
+        assert response[1].stop_reason == "end_turn"
 
-    traces_response = await context.request.get(
-    f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weatherAgent.dataset_name}/traces"
-    )
-    traces = await traces_response.json()
+        if push_to_explorer:
+            traces_response = await context.request.get(
+                f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+            )
+            traces = await traces_response.json()
 
-    trace = traces[-1]
-    trace_id = trace["id"]
-    trace_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id}"
-    )
-    trace = await trace_response.json()
-    trace_messages = trace["messages"]
-    assert trace_messages[0]["role"] == "user"
-    assert trace_messages[1]["role"] == "assistant"
-    assert city in trace_messages[1]["content"].lower()
-    assert trace_messages[2]["role"] == "assistant"
-    assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
-    assert city in trace_messages[2]["tool_calls"][0]["function"]["arguments"]["location"].lower()
-    assert trace_messages[3]["role"] == "tool"
-    assert trace_messages[4]["role"] == "assistant"
+            trace = traces[-1]
+            trace_id = trace["id"]
+            trace_response = await context.request.get(
+                f"{explorer_api_url}/api/v1/trace/{trace_id}"
+            )
+            trace = await trace_response.json()
+            trace_messages = trace["messages"]
+            assert trace_messages[0]["role"] == "user"
+            assert trace_messages[1]["role"] == "assistant"
+            assert city in trace_messages[1]["content"].lower()
+            assert trace_messages[2]["role"] == "assistant"
+            assert (
+                trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+            )
+            assert (
+                city
+                in trace_messages[2]["tool_calls"][0]["function"]["arguments"][
+                    "location"
+                ].lower()
+            )
+            assert trace_messages[3]["role"] == "tool"
+            assert trace_messages[4]["role"] == "assistant"

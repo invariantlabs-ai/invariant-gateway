@@ -21,8 +21,13 @@ pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
-@pytest.mark.parametrize("do_stream", [True, False])
-async def test_chat_completion(context, explorer_api_url, proxy_url, do_stream):
+@pytest.mark.parametrize(
+    "do_stream, push_to_explorer",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+async def test_chat_completion(
+    context, explorer_api_url, proxy_url, do_stream, push_to_explorer
+):
     """Test the chat completions proxy calls without tool calling."""
     dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
 
@@ -32,7 +37,9 @@ async def test_chat_completion(context, explorer_api_url, proxy_url, do_stream):
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai",
+        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai"
+        if push_to_explorer
+        else f"{proxy_url}/api/v1/proxy/openai",
     )
 
     chat_response = client.chat.completions.create(
@@ -53,35 +60,39 @@ async def test_chat_completion(context, explorer_api_url, proxy_url, do_stream):
         assert "PARIS" in full_response.upper()
         expected_assistant_message = full_response
 
-    # Fetch the trace ids for the dataset
-    traces_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
-    )
-    traces = await traces_response.json()
-    assert len(traces) == 1
-    trace_id = traces[0]["id"]
+    if push_to_explorer:
+        # Fetch the trace ids for the dataset
+        traces_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        )
+        traces = await traces_response.json()
+        assert len(traces) == 1
+        trace_id = traces[0]["id"]
 
-    # Fetch the trace
-    trace_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id}"
-    )
-    trace = await trace_response.json()
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
 
-    # Verify the trace messages
-    assert trace["messages"] == [
-        {
-            "role": "user",
-            "content": "What is the capital of France?",
-        },
-        {
-            "role": "assistant",
-            "content": expected_assistant_message,
-        },
-    ]
+        # Verify the trace messages
+        assert trace["messages"] == [
+            {
+                "role": "user",
+                "content": "What is the capital of France?",
+            },
+            {
+                "role": "assistant",
+                "content": expected_assistant_message,
+            },
+        ]
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
-async def test_chat_completion_with_image(context, explorer_api_url, proxy_url):
+@pytest.mark.parametrize("push_to_explorer", [True, False])
+async def test_chat_completion_with_image(
+    context, explorer_api_url, proxy_url, push_to_explorer
+):
     """Test the chat completions proxy works with image."""
     dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
 
@@ -91,7 +102,9 @@ async def test_chat_completion_with_image(context, explorer_api_url, proxy_url):
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai",
+        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai"
+        if push_to_explorer
+        else f"{proxy_url}/api/v1/proxy/openai",
     )
     image_path = Path(__file__).parent.parent / "images" / "two-cats.png"
     with image_path.open("rb") as image_file:
@@ -121,37 +134,43 @@ async def test_chat_completion_with_image(context, explorer_api_url, proxy_url):
 
         assert "TWO" in chat_response.choices[0].message.content.upper()
 
-        # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
-        )
-        traces = await traces_response.json()
-        assert len(traces) == 1
-        trace_id = traces[0]["id"]
+        if push_to_explorer:
+            # Fetch the trace ids for the dataset
+            traces_response = await context.request.get(
+                f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+            )
+            traces = await traces_response.json()
+            assert len(traces) == 1
+            trace_id = traces[0]["id"]
 
-        # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
-        )
-        trace = await trace_response.json()
+            # Fetch the trace
+            trace_response = await context.request.get(
+                f"{explorer_api_url}/api/v1/trace/{trace_id}"
+            )
+            trace = await trace_response.json()
 
-        # Verify the trace messages
-        assert trace["messages"] == [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "How many cats are there in this image?"},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": "data:image/png;base64," + base64_image},
-                    },
-                ],
-            },
-            {
-                "role": "assistant",
-                "content": chat_response.choices[0].message.content,
-            },
-        ]
+            # Verify the trace messages
+            assert trace["messages"] == [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "How many cats are there in this image?",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": "data:image/png;base64," + base64_image
+                            },
+                        },
+                    ],
+                },
+                {
+                    "role": "assistant",
+                    "content": chat_response.choices[0].message.content,
+                },
+            ]
 
 
 @pytest.mark.skip(reason="Skipping this test: OpenAI error scenario")

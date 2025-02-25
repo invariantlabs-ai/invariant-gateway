@@ -1,10 +1,10 @@
 """Proxy service to forward requests to the Anthropic APIs"""
 
 import json
-from typing import Any
+from typing import Any, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from utils.explorer import push_trace
@@ -36,9 +36,13 @@ def validate_headers(x_api_key: str = Header(None)):
     "/{dataset_name}/anthropic/v1/messages",
     dependencies=[Depends(validate_headers)],
 )
+@proxy.post(
+    "/anthropic/v1/messages",
+    dependencies=[Depends(validate_headers)],
+)
 async def anthropic_v1_messages_proxy(
-    dataset_name: str,
     request: Request,
+    dataset_name: str = None,
 ):
     """Proxy calls to the Anthropic APIs"""
     headers = {
@@ -77,17 +81,10 @@ async def anthropic_v1_messages_proxy(
             client, anthropic_request, dataset_name, invariant_authorization
         )
     else:
-        try:
-            response = await client.send(anthropic_request)
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Failed to fetch response from Anthropic: {response.text}, got error{e}",
-            )
-        await handle_non_streaming_response(
+        response = await client.send(anthropic_request)
+        return await handle_non_streaming_response(
             response, dataset_name, request_body_json, invariant_authorization
         )
-        return response.json()
 
 
 async def push_to_explorer(
@@ -116,7 +113,7 @@ async def handle_non_streaming_response(
     dataset_name: str,
     request_body_json: dict[str, Any],
     invariant_authorization: str,
-):
+) -> Response:
     """Handles non-streaming Anthropic responses"""
     try:
         json_response = response.json()
@@ -131,20 +128,28 @@ async def handle_non_streaming_response(
             detail=json_response.get("error", "Unknown error from Anthropic"),
         )
     # Only push the trace to explorer if the last message is an end turn message
-    await push_to_explorer(
-        dataset_name,
-        json_response,
-        request_body_json,
-        invariant_authorization,
+    if dataset_name:
+        await push_to_explorer(
+            dataset_name,
+            json_response,
+            request_body_json,
+            invariant_authorization,
+        )
+    return Response(
+        content=json.dumps(json_response),
+        status_code=response.status_code,
+        media_type="application/json",
+        headers=dict(response.headers),
     )
 
 
 async def handle_streaming_response(
     client: httpx.AsyncClient,
     anthropic_request: httpx.Request,
-    dataset_name: str,
+    dataset_name: Optional[str],
     invariant_authorization: str,
 ) -> StreamingResponse:
+    """Handles streaming Anthropic responses"""
     formatted_invariant_response = []
 
     response = await client.send(anthropic_request, stream=True)
@@ -165,13 +170,13 @@ async def handle_streaming_response(
             yield chunk
 
             process_chunk_text(chunk_decode, formatted_invariant_response)
-
-        await push_to_explorer(
-            dataset_name,
-            formatted_invariant_response[-1],
-            json.loads(anthropic_request.content),
-            invariant_authorization,
-        )
+        if dataset_name:
+            await push_to_explorer(
+                dataset_name,
+                formatted_invariant_response[-1],
+                json.loads(anthropic_request.content),
+                invariant_authorization,
+            )
 
     generator = event_generator()
 
@@ -193,6 +198,7 @@ def process_chunk_text(chunk_decode, formatted_invariant_response):
 
 
 def update_formatted_invariant_response(text_json, formatted_invariant_response):
+    """Update the formatted_invariant_response based on the text_json"""
     if text_json.get("type") == MESSAGE_START:
         message = text_json.get("message")
         formatted_invariant_response.append(
@@ -252,6 +258,7 @@ def anthropic_to_invariant_messages(
 
 
 def handle_user_message(message, keep_empty_tool_response):
+    """Handle the user message from the Anthropic API"""
     output = []
     content = message["content"]
     if isinstance(content, list):
@@ -298,6 +305,7 @@ def handle_user_message(message, keep_empty_tool_response):
 
 
 def handle_assistant_message(message):
+    """Handle the assistant message from the Anthropic API"""
     output = []
     if isinstance(message["content"], list):
         for sub_message in message["content"]:
