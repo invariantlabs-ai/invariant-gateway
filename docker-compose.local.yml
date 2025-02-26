@@ -9,10 +9,14 @@ services:
       - .env
     environment:
       - DEV_MODE=true
+      - POLICIES_FILE_PATH=${POLICIES_FILE_PATH:+/srv/resources/policies.py}
     volumes:
       - type: bind
         source: ./proxy
         target: /srv/proxy
+      - type: bind
+        source: ${POLICIES_FILE_PATH:-/dev/null}
+        target: /srv/resources/policies.py
     networks:
       - invariant-explorer-web
     ports:
@@ -24,7 +28,6 @@ services:
       - "traefik.http.routers.invariant-proxy-api.entrypoints=invariant-explorer-web"
       - "traefik.http.services.invariant-proxy-api.loadbalancer.server.port=8000"
       - "traefik.docker.network=invariant-explorer-web"
-
 networks:
   invariant-explorer-web:
     external: true
