@@ -104,6 +104,7 @@ class WeatherAgent:
         while True:
             json_data = ""
             content = []
+            event = None
             with self.client.messages.stream(
                 tools=[self.get_weather_function],
                 model="claude-3-5-sonnet-20241022",
@@ -140,7 +141,8 @@ class WeatherAgent:
                                     type="tool_use",
                                 )
                             )
-            response_list.append(content)
+            if content:
+                response_list.append(content)
             if (
                 isinstance(event, anthropic.types.RawMessageStopEvent)
                 and event.message.stop_reason == "tool_use"
