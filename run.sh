@@ -3,11 +3,33 @@ up() {
   docker network inspect invariant-explorer-web >/dev/null 2>&1 || \
     docker network create invariant-explorer-web
 
-  # Start your local docker-compose services
-  docker compose -f docker-compose.local.yml up -d
+  # Default values
+  POLICIES_FILE_PATH=""
+
+  # Parse command-line arguments
+  while [[ "$#" -gt 0 ]]; do
+      case "$1" in
+          --policies-file=*)
+              POLICIES_FILE_PATH="${1#*=}"
+              ;;
+          *)
+              echo "Unknown parameter: $1"
+              exit 1
+              ;;
+      esac
+      shift
+  done
+
+  if [[ -n "$POLICIES_FILE_PATH" ]]; then
+    POLICIES_FILE_PATH=$(realpath "$POLICIES_FILE_PATH")
+  fi
+
+  # Start Docker Compose with the correct environment variable
+  POLICIES_FILE_PATH="$POLICIES_FILE_PATH" docker compose -f docker-compose.local.yml up -d
 
   echo "Proxy started at http://localhost:8005/api/v1/proxy/"
   echo "See http://localhost:8005/api/v1/proxy/docs for API documentation"
+  echo "Using Policies File: ${POLICIES_FILE_PATH:-None}"
 }
 
 build() {
@@ -78,7 +100,8 @@ tests() {
 # -----------------------------
 case "$1" in
   "up")
-    up
+    shift
+    up $@
     ;;
   "build")
     build

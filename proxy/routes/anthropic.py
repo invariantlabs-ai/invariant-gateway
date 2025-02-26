@@ -4,6 +4,7 @@ import json
 from typing import Any, Optional
 
 import httpx
+from common.config_manager import ProxyConfig, ProxyConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
@@ -43,6 +44,7 @@ def validate_headers(x_api_key: str = Header(None)):
 async def anthropic_v1_messages_proxy(
     request: Request,
     dataset_name: str = None,
+    config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
 ):
     """Proxy calls to the Anthropic APIs"""
     headers = {

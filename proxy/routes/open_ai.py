@@ -4,6 +4,7 @@ import json
 from typing import Any, Optional
 
 import httpx
+from common.config_manager import ProxyConfig, ProxyConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
@@ -33,9 +34,9 @@ def validate_headers(authorization: str = Header(None)):
 async def openai_chat_completions_proxy(
     request: Request,
     dataset_name: str = None,
+    config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
 ) -> Response:
     """Proxy calls to the OpenAI APIs"""
-
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
