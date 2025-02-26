@@ -5,6 +5,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from httpx import Client
@@ -171,6 +172,59 @@ async def test_chat_completion_with_image(
                     "content": chat_response.choices[0].message.content,
                 },
             ]
+
+
+@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
+async def test_chat_completion_with_invariant_key_in_openai_key_header(
+    context, explorer_api_url, proxy_url
+):
+    """Test the chat completions proxy calls with the Invariant API Key in the OpenAI Key header."""
+    dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    with patch.dict(
+        os.environ,
+        {"OPENAI_API_KEY": openai_api_key + "|invariant-auth: <not needed for test>"},
+    ):
+        client = OpenAI(
+            http_client=Client(),
+            base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai",
+        )
+
+        chat_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": "What is the capital of France?"}],
+            stream=False,
+        )
+
+        # Verify the chat response
+        assert "PARIS" in chat_response.choices[0].message.content.upper()
+        expected_assistant_message = chat_response.choices[0].message.content
+
+        # Fetch the trace ids for the dataset
+        traces_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        )
+        traces = await traces_response.json()
+        assert len(traces) == 1
+        trace_id = traces[0]["id"]
+
+        # Fetch the trace
+        trace_response = await context.request.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        )
+        trace = await trace_response.json()
+
+        # Verify the trace messages
+        assert trace["messages"] == [
+            {
+                "role": "user",
+                "content": "What is the capital of France?",
+            },
+            {
+                "role": "assistant",
+                "content": expected_assistant_message,
+            },
+        ]
 
 
 @pytest.mark.skip(reason="Skipping this test: OpenAI error scenario")
