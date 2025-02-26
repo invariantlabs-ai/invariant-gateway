@@ -132,6 +132,9 @@ This setup ensures that SWE-agent works seamlessly with Invariant Proxy, maintai
 
 ## **Development**
 
+### **Pushing to Local Explorer**
+By default the proxy points to the Production Explorer instance. To point it to your local Explorer instance, modify the `INVARIANT_API_URL` value inside `.env`. Follow instructions in `.env` on how to point to the local instance.
+
 ### **Run Tests**
 To run tests, execute:
 
