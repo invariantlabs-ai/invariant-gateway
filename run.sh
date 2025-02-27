@@ -47,22 +47,22 @@ tests() {
   docker compose -f tests/docker-compose.test.yml build
   docker compose -f tests/docker-compose.test.yml up -d
 
-  until [ "$(docker inspect -f '{{.State.Health.Status}}' explorer-proxy-test-app-api)" = "healthy" ]; do
-    echo "explorer-proxy-test-app-api container starting..."
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' invariant-proxy-test-explorer-app-api)" = "healthy" ]; do
+    echo "Explorer backend app-api instance container starting..."
     sleep 2
   done
 
-  until [ "$(docker inspect -f '{{.State.Health.Status}}' explorer-proxy-test)" = "healthy" ]; do
-    echo "explorer-proxy-test container starting..."
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' invariant-proxy-test)" = "healthy" ]; do
+    echo "Invariant proxy test instance container starting..."
     sleep 2
   done
 
-  echo "app-api and proxy are available. Running tests..."
+  echo "Running tests..."
 
   # Make call to signup endpoint
   curl -k -X POST http://127.0.0.1/api/v1/user/signup
 
-  docker build -t 'explorer-proxy-tests' -f ./tests/Dockerfile.test ./tests
+  docker build -t 'invariant-proxy-tests' -f ./tests/Dockerfile.test ./tests
 
   docker run \
     --mount type=bind,source=./tests,target=/tests \
@@ -70,7 +70,7 @@ tests() {
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
     -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\
     --env-file ./tests/.env.test \
-    explorer-proxy-tests $@
+    invariant-proxy-tests $@
 }
 
 # -----------------------------
