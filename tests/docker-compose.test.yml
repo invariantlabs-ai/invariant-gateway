@@ -1,8 +1,8 @@
-name: explorer-proxy-test-stack
+name: invariant-proxy-test-stack
 services:
   traefik:
     image: traefik:v2.0
-    container_name: "explorer-proxy-test-traefik"
+    container_name: "invariant-proxy-test-traefik"
     command:
       - --providers.docker=true
       # Enable the API handler in insecure mode,
@@ -21,8 +21,8 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik-http.entrypoints=invariant-proxy-web-test"
 
-  explorer-proxy:
-    container_name: explorer-proxy-test
+  invariant-proxy:
+    container_name: invariant-proxy-test
     build:
       context: ../proxy
       dockerfile: ../proxy/Dockerfile.proxy
@@ -43,9 +43,9 @@ services:
     ports: []
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.explorer-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
-      - "traefik.http.routers.explorer-proxy-api.entrypoints=invariant-proxy-web-test"
-      - "traefik.http.services.explorer-proxy-api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.invariant-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
+      - "traefik.http.routers.invariant-proxy-api.entrypoints=invariant-proxy-web-test"
+      - "traefik.http.services.invariant-proxy-api.loadbalancer.server.port=8000"
       - "traefik.docker.network=invariant-proxy-web-test"
     healthcheck:
       test: curl -X GET -I http://localhost:8000/api/v1/proxy/health --fail
@@ -53,7 +53,7 @@ services:
       timeout: 5s
 
   app-api:
-    container_name: explorer-proxy-test-app-api
+    container_name: invariant-proxy-test-explorer-app-api
     image: ghcr.io/invariantlabs-ai/explorer/app-api:latest
     platform: linux/amd64
     depends_on:
@@ -78,9 +78,9 @@ services:
       - /tmp/invariant-proxy-test/configs/explorer.test.yml:/config/explorer.config.yml
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.explorer-test-api.rule=(Host(`localhost`) && PathPrefix(`/api/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/`))"
-      - "traefik.http.routers.explorer-test-api.entrypoints=invariant-proxy-web-test"
-      - "traefik.http.services.explorer-test-api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.invariant-test-api.rule=(Host(`localhost`) && PathPrefix(`/api/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/`))"
+      - "traefik.http.routers.invariant-test-api.entrypoints=invariant-proxy-web-test"
+      - "traefik.http.services.invariant-test-api.loadbalancer.server.port=8000"
       - "traefik.docker.network=invariant-proxy-web-test"
     healthcheck:
       test: curl -X GET -I http://localhost:8000/api/v1/ --fail
@@ -88,7 +88,7 @@ services:
       timeout: 5s
 
   database:
-    container_name: explorer-proxy-test-database
+    container_name: invariant-proxy-test-database
     image: postgres:16
     env_file:
       - .env.test
