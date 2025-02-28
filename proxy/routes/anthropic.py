@@ -88,24 +88,6 @@ async def anthropic_v1_messages_proxy(
             response, dataset_name, request_body_json, invariant_authorization
         )
 
-async def push_to_explorer_with_openai_format(
-    dataset_name: str,
-    merged_response: dict[str, Any],
-    request_body: dict[str, Any],
-    invariant_authorization: str,
-) -> None:
-    """Pushes the full trace to the Invariant Explorer"""
-
-    # Combine the messages from the request body and the choices from the OpenAI response
-    messages = request_body.get("messages", [])
-    print("request body: ", request_body.get("messages", []))
-    messages += [choice["message"] for choice in merged_response.get("choices", [])]
-
-    _ = await push_trace(
-        dataset_name=dataset_name,
-        messages=[messages],
-        invariant_authorization=invariant_authorization,
-    )
 
 async def push_to_explorer(
     dataset_name: str,
@@ -146,6 +128,7 @@ async def handle_non_streaming_response(
         )
     # Only push the trace to explorer if the last message is an end turn message
     if dataset_name:
+        # TO DO: Maybe can use litellm transform_request instead of this
         request_messages_in_openai_format = connvert_anthropic_to_invariant_message_format(request_body_json.get("messages", []))
         response_in_openai_format = await convert_to_litellm_messages(response, request_body_json)
         await open_ai.push_to_explorer(
