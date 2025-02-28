@@ -3,3 +3,4 @@ httpx==0.28.1
 invariant-sdk>=0.0.10
 starlette-compress==1.4.0
 uvicorn==0.34.0
+litellm
