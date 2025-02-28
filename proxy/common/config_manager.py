@@ -10,7 +10,6 @@ class ProxyConfig:
     """Common configurations for the Proxy Server."""
 
     def __init__(self):
-        print("hello in init of ProxyConfig")
         self.policies = self._load_policies()
 
     def _load_policies(self) -> str:
@@ -18,7 +17,6 @@ class ProxyConfig:
         Loads and validates policies from the file specified in POLICIES_FILE_PATH.
         Returns the policy file content as a string if valid; otherwise, raises an error.
         """
-        print("hello in load_policies")
         policies_file = os.getenv("POLICIES_FILE_PATH", "")
 
         if not policies_file:
