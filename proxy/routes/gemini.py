@@ -19,14 +19,14 @@ async def gemini_generate_content_proxy(
     api_version: str,
     model: str,
     endpoint: str,
-    dataset_name: str = None,
+    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
     alt: str = Query(
         None, title="Response Format", description="Set to 'sse' for streaming"
     ),
     config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
 ) -> Response:
     """Proxy calls to the Gemini GenerateContent API"""
-    if "generateContent" != endpoint and "streamGenerateContent" != endpoint:
+    if endpoint not in ["generateContent", "streamGenerateContent"]:
         return Response(
             content="Invalid endpoint - the only endpoints supported are: \
             /api/v1/proxy/gemini/<version>/models/<model-name>:generateContent or \
