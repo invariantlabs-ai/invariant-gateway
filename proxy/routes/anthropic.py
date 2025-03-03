@@ -57,6 +57,16 @@ async def anthropic_v1_messages_proxy(
     headers["accept-encoding"] = "identity"
 
     # In case the user wants to push to Explorer, the request must contain the Invariant API Key
+    # The invariant-authorization header contains the Invariant API Key
+    # "invariant-authorization": "Bearer <Invariant API Key>"
+    # The x-api-key header contains the Anthropic API Key
+    # "x-api-key": "<Anthropic API Key>"
+    #
+    # For some clients, it is not possible to pass a custom header
+    # In such cases, the Invariant API Key is passed as part of the
+    # x-api-key header with the Anthropic API key.
+    # The header in that case becomes:
+    # "x-api-key": "<Anthropic API Key>|invariant-auth: <Invariant API Key>"
     invariant_authorization = None
     if dataset_name:
         if request.headers.get(
@@ -73,7 +83,7 @@ async def anthropic_v1_messages_proxy(
             header_value = request.headers.get(ANTHROPIC_AUTHORIZATION_HEADER)
             api_keys = header_value.split("|invariant-auth: ")
             invariant_authorization = f"Bearer {api_keys[1].strip()}"
-            # Update the authorization header to pass the OpenAI API Key to the OpenAI API
+            # Update the authorization header to pass the Anthropic API Key
             headers[ANTHROPIC_AUTHORIZATION_HEADER] = f"{api_keys[0].strip()}"
 
     request_body = await request.body()
@@ -110,7 +120,7 @@ async def push_to_explorer(
     messages = request_body.get("messages", [])
     messages += [merged_response]
 
-    transformed_messages = connvert_anthropic_to_invariant_message_format(messages)
+    transformed_messages = convert_anthropic_to_invariant_message_format(messages)
     _ = await push_trace(
         dataset_name=dataset_name,
         messages=[transformed_messages],
@@ -242,7 +252,7 @@ def update_merged_response(text_json, merged_response):
         merged_response[-1]["stop_reason"] = text_json.get("delta").get("stop_reason")
 
 
-def connvert_anthropic_to_invariant_message_format(
+def convert_anthropic_to_invariant_message_format(
     messages: list[dict], keep_empty_tool_response: bool = False
 ) -> list[dict]:
     """Converts a list of messages from the Anthropic API to the Invariant API format."""
