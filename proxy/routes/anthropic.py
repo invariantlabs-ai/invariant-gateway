@@ -82,11 +82,10 @@ async def anthropic_v1_messages_proxy(
         return await handle_streaming_response(
             client, anthropic_request, dataset_name, invariant_authorization
         )
-    else:
-        response = await client.send(anthropic_request)
-        return await handle_non_streaming_response(
-            response, dataset_name, request_body_json, invariant_authorization
-        )
+    response = await client.send(anthropic_request)
+    return await handle_non_streaming_response(
+        response, dataset_name, request_body_json, invariant_authorization
+    )
 
 
 async def push_to_explorer(
