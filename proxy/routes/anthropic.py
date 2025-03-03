@@ -120,7 +120,7 @@ async def push_to_explorer(
     messages = request_body.get("messages", [])
     messages += [merged_response]
 
-    transformed_messages = connvert_anthropic_to_invariant_message_format(messages)
+    transformed_messages = convert_anthropic_to_invariant_message_format(messages)
     _ = await push_trace(
         dataset_name=dataset_name,
         messages=[transformed_messages],
@@ -252,7 +252,7 @@ def update_merged_response(text_json, merged_response):
         merged_response[-1]["stop_reason"] = text_json.get("delta").get("stop_reason")
 
 
-def connvert_anthropic_to_invariant_message_format(
+def convert_anthropic_to_invariant_message_format(
     messages: list[dict], keep_empty_tool_response: bool = False
 ) -> list[dict]:
     """Converts a list of messages from the Anthropic API to the Invariant API format."""
