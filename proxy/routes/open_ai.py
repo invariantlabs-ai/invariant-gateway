@@ -87,11 +87,10 @@ async def openai_chat_completions_proxy(
             request_body_json,
             invariant_authorization,
         )
-    async with client:
-        response = await client.send(open_ai_request)
-        return await handle_non_streaming_response(
-            response, dataset_name, request_body_json, invariant_authorization
-        )
+    response = await client.send(open_ai_request)
+    return await handle_non_streaming_response(
+        response, dataset_name, request_body_json, invariant_authorization
+    )
 
 
 async def stream_response(
