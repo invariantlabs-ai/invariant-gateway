@@ -7,7 +7,11 @@ import httpx
 from common.config_manager import ProxyConfig, ProxyConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
-from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
+from utils.constants import (
+    CLIENT_TIMEOUT,
+    IGNORED_HEADERS,
+    INVARIANT_AUTHORIZATION_HEADER,
+)
 from utils.explorer import push_trace
 
 proxy = APIRouter()
@@ -15,6 +19,7 @@ proxy = APIRouter()
 MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant api key"
 MISSING_AUTH_HEADER = "Missing authorization header"
 FINISH_REASON_TO_PUSH_TRACE = ["stop", "length", "content_filter"]
+OPENAI_AUTHORIZATION_HEADER = "authorization"
 
 
 def validate_headers(authorization: str = Header(None)):
@@ -33,7 +38,7 @@ def validate_headers(authorization: str = Header(None)):
 )
 async def openai_chat_completions_proxy(
     request: Request,
-    dataset_name: str = None,
+    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
     config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
 ) -> Response:
     """Proxy calls to the OpenAI APIs"""
@@ -48,6 +53,7 @@ async def openai_chat_completions_proxy(
     # Check if the request is for streaming
     is_streaming = request_body_json.get("stream", False)
 
+    # In case the user wants to push to Explorer, the request must contain the Invariant API Key
     # The invariant-authorization header contains the Invariant API Key
     # "invariant-authorization": "Bearer <Invariant API Key>"
     # The authorization header contains the OpenAI API Key
@@ -58,19 +64,25 @@ async def openai_chat_completions_proxy(
     # authorization header with the OpenAI API key.
     # The header in that case becomes:
     # "authorization": "<OpenAI API Key>|invariant-auth: <Invariant API Key>"
-    if request.headers.get(
-        "invariant-authorization"
-    ) is None and "|invariant-auth:" not in request.headers.get("authorization"):
-        raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
+    invariant_authorization = None
+    if dataset_name:
+        if request.headers.get(
+            INVARIANT_AUTHORIZATION_HEADER
+        ) is None and "|invariant-auth:" not in request.headers.get(
+            OPENAI_AUTHORIZATION_HEADER
+        ):
+            raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
 
-    if request.headers.get("invariant-authorization"):
-        invariant_authorization = request.headers.get("invariant-authorization")
-    else:
-        authorization = request.headers.get("authorization")
-        api_keys = authorization.split("|invariant-auth: ")
-        invariant_authorization = f"Bearer {api_keys[1].strip()}"
-        # Update the authorization header to pass the OpenAI API Key to the OpenAI API
-        headers["authorization"] = f"{api_keys[0].strip()}"
+        if request.headers.get(INVARIANT_AUTHORIZATION_HEADER):
+            invariant_authorization = request.headers.get(
+                INVARIANT_AUTHORIZATION_HEADER
+            )
+        else:
+            header_value = request.headers.get(OPENAI_AUTHORIZATION_HEADER)
+            api_keys = header_value.split("|invariant-auth: ")
+            invariant_authorization = f"Bearer {api_keys[1].strip()}"
+            # Update the authorization header to pass the OpenAI API Key to the OpenAI API
+            headers[OPENAI_AUTHORIZATION_HEADER] = f"{api_keys[0].strip()}"
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     open_ai_request = client.build_request(
@@ -98,7 +110,7 @@ async def stream_response(
     open_ai_request: httpx.Request,
     dataset_name: Optional[str],
     request_body_json: dict[str, Any],
-    invariant_authorization: str,
+    invariant_authorization: Optional[str],
 ) -> Response:
     """
     Handles streaming the OpenAI response to the client while building a merged_response
@@ -325,7 +337,7 @@ async def handle_non_streaming_response(
     response: httpx.Response,
     dataset_name: Optional[str],
     request_body_json: dict[str, Any],
-    invariant_authorization: str,
+    invariant_authorization: Optional[str],
 ) -> Response:
     """Handles non-streaming OpenAI responses"""
     try:

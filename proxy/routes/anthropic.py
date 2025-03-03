@@ -7,7 +7,11 @@ import httpx
 from common.config_manager import ProxyConfig, ProxyConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
-from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
+from utils.constants import (
+    CLIENT_TIMEOUT,
+    IGNORED_HEADERS,
+    INVARIANT_AUTHORIZATION_HEADER,
+)
 from utils.explorer import push_trace
 
 proxy = APIRouter()
@@ -24,7 +28,7 @@ CONTENT_BLOCK_START = "content_block_start"
 CONTENT_BLOCK_DELTA = "content_block_delta"
 CONTENT_BLOCK_STOP = "content_block_stop"
 
-HEADER_AUTHORIZATION = "x-api-key"
+ANTHROPIC_AUTHORIZATION_HEADER = "x-api-key"
 
 
 def validate_headers(x_api_key: str = Header(None)):
@@ -43,7 +47,7 @@ def validate_headers(x_api_key: str = Header(None)):
 )
 async def anthropic_v1_messages_proxy(
     request: Request,
-    dataset_name: str = None,
+    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
     config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
 ):
     """Proxy calls to the Anthropic APIs"""
@@ -51,19 +55,26 @@ async def anthropic_v1_messages_proxy(
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
     headers["accept-encoding"] = "identity"
-    if request.headers.get(
-        "invariant-authorization"
-    ) is None and "|invariant-auth:" not in request.headers.get(HEADER_AUTHORIZATION):
-        raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
 
-    if request.headers.get("invariant-authorization"):
-        invariant_authorization = request.headers.get("invariant-authorization")
-    else:
-        authorization = request.headers.get(HEADER_AUTHORIZATION)
-        api_keys = authorization.split("|invariant-auth: ")
-        invariant_authorization = f"Bearer {api_keys[1].strip()}"
-        # Update the authorization header to pass the OpenAI API Key to the OpenAI API
-        headers[HEADER_AUTHORIZATION] = f"{api_keys[0].strip()}"
+    # In case the user wants to push to Explorer, the request must contain the Invariant API Key
+    invariant_authorization = None
+    if dataset_name:
+        if request.headers.get(
+            INVARIANT_AUTHORIZATION_HEADER
+        ) is None and "|invariant-auth:" not in request.headers.get(
+            ANTHROPIC_AUTHORIZATION_HEADER
+        ):
+            raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
+        if request.headers.get(INVARIANT_AUTHORIZATION_HEADER):
+            invariant_authorization = request.headers.get(
+                INVARIANT_AUTHORIZATION_HEADER
+            )
+        else:
+            header_value = request.headers.get(ANTHROPIC_AUTHORIZATION_HEADER)
+            api_keys = header_value.split("|invariant-auth: ")
+            invariant_authorization = f"Bearer {api_keys[1].strip()}"
+            # Update the authorization header to pass the OpenAI API Key to the OpenAI API
+            headers[ANTHROPIC_AUTHORIZATION_HEADER] = f"{api_keys[0].strip()}"
 
     request_body = await request.body()
 
@@ -109,9 +120,9 @@ async def push_to_explorer(
 
 async def handle_non_streaming_response(
     response: httpx.Response,
-    dataset_name: str,
+    dataset_name: Optional[str],
     request_body_json: dict[str, Any],
-    invariant_authorization: str,
+    invariant_authorization: Optional[str],
 ) -> Response:
     """Handles non-streaming Anthropic responses"""
     try:
@@ -146,7 +157,7 @@ async def handle_streaming_response(
     client: httpx.AsyncClient,
     anthropic_request: httpx.Request,
     dataset_name: Optional[str],
-    invariant_authorization: str,
+    invariant_authorization: Optional[str],
 ) -> StreamingResponse:
     """Handles streaming Anthropic responses"""
     merged_response = []
