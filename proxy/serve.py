@@ -3,6 +3,7 @@
 import fastapi
 import uvicorn
 from routes.anthropic import proxy as anthropic_proxy
+from routes.gemini import proxy as gemini_proxy
 from routes.open_ai import proxy as open_ai_proxy
 from starlette_compress import CompressMiddleware
 
@@ -25,6 +26,8 @@ async def get_proxy_info():
 router.include_router(open_ai_proxy, prefix="/proxy", tags=["open_ai_proxy"])
 
 router.include_router(anthropic_proxy, prefix="/proxy", tags=["anthropic_proxy"])
+
+router.include_router(gemini_proxy, prefix="/proxy", tags=["gemini_proxy"])
 
 app.include_router(router)
 

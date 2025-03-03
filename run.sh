@@ -20,11 +20,13 @@ up() {
       shift
   done
 
-  if [[ -n "$POLICIES_FILE_PATH" && -f "$POLICIES_FILE_PATH" ]]; then
-    POLICIES_FILE_PATH=$(realpath "$POLICIES_FILE_PATH")
-  else
+  if [[ -n "$POLICIES_FILE_PATH" ]]; then
+    if [[ -f "$POLICIES_FILE_PATH" ]]; then
+      POLICIES_FILE_PATH=$(realpath "$POLICIES_FILE_PATH")
+    else
       echo "Error: Specified policies file does not exist: $POLICIES_FILE_PATH"
       exit 1
+    fi
   fi
 
   # Start Docker Compose with the correct environment variable
