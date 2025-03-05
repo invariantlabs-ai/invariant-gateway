@@ -28,7 +28,7 @@ Gateway automatically traces agent interactions and stores them in the [Invarian
 
 ## **Quickstart for Users**
 
-Looking to observe and secure AI agents in your organization? See our [quickstart guide for users](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to get started.
+Looking to observe and secure AI agents in your organization? See our [quickstart guide for users](#quickstart-for-users) to get started.
 
 ## **Quickstart for Developers**
 
