@@ -1,4 +1,4 @@
-"""Common constants used in the proxy."""
+"""Common constants used in the gateway."""
 
 IGNORED_HEADERS = [
     "accept-encoding",

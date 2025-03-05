@@ -22,7 +22,7 @@ pytest_plugins = ("pytest_asyncio",)
 class WeatherAgent:
     """Weather agent to get the current weather in a given location."""
 
-    def __init__(self, proxy_url, push_to_explorer):
+    def __init__(self, gateway_url, push_to_explorer):
         self.dataset_name = "claude_weather_agent_test" + str(
             datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         )
@@ -31,9 +31,9 @@ class WeatherAgent:
             http_client=Client(
                 headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
             ),
-            base_url=f"{proxy_url}/api/v1/proxy/{self.dataset_name}/anthropic"
+            base_url=f"{gateway_url}/api/v1/gateway/{self.dataset_name}/anthropic"
             if push_to_explorer
-            else f"{proxy_url}/api/v1/proxy/anthropic",
+            else f"{gateway_url}/api/v1/gateway/anthropic",
         )
         self.get_weather_function = {
             "name": "get_weather",
@@ -181,11 +181,11 @@ class WeatherAgent:
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_response_with_tool_call(
-    context, explorer_api_url, proxy_url, push_to_explorer
+    context, explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the chat completion without streaming for the weather agent."""
 
-    weather_agent = WeatherAgent(proxy_url, push_to_explorer)
+    weather_agent = WeatherAgent(gateway_url, push_to_explorer)
 
     query = "Tell me the weather for New York"
 
@@ -242,10 +242,10 @@ async def test_response_with_tool_call(
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_streaming_response_with_tool_call(
-    context, explorer_api_url, proxy_url, push_to_explorer
+    context, explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the chat completion with streaming for the weather agent."""
-    weather_agent = WeatherAgent(proxy_url, push_to_explorer)
+    weather_agent = WeatherAgent(gateway_url, push_to_explorer)
 
     query = "Tell me the weather for New York"
     city = "new york"
@@ -297,10 +297,10 @@ async def test_streaming_response_with_tool_call(
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_response_with_tool_call_with_image(
-    context, explorer_api_url, proxy_url, push_to_explorer
+    context, explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the chat completion with image for the weather agent."""
-    weather_agent = WeatherAgent(proxy_url, push_to_explorer)
+    weather_agent = WeatherAgent(gateway_url, push_to_explorer)
 
     image_path = Path(__file__).parent.parent / "images" / "new-york.jpeg"
 

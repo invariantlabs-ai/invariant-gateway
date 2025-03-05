@@ -1,10 +1,10 @@
 services:
-  invariant-proxy:
-    container_name: invariant-proxy
+  invariant-gateway:
+    container_name: invariant-gateway
     build:
-      context: ./proxy
-      dockerfile: ../proxy/Dockerfile.proxy
-    working_dir: /srv/proxy
+      context: ./gateway
+      dockerfile: ../gateway/Dockerfile.gateway
+    working_dir: /srv/gateway
     env_file:
       - .env
     environment:
@@ -12,8 +12,8 @@ services:
       - POLICIES_FILE_PATH=${POLICIES_FILE_PATH:+/srv/resources/policies.py}
     volumes:
       - type: bind
-        source: ./proxy
-        target: /srv/proxy
+        source: ./gateway
+        target: /srv/gateway
       - type: bind
         source: ${POLICIES_FILE_PATH:-/dev/null}
         target: /srv/resources/policies.py
@@ -24,9 +24,9 @@ services:
     labels:
     # For access via Traefik
       - "traefik.enable=true"
-      - "traefik.http.routers.invariant-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
-      - "traefik.http.routers.invariant-proxy-api.entrypoints=invariant-explorer-web"
-      - "traefik.http.services.invariant-proxy-api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.invariant-gateway-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/gateway/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/gateway/`))"
+      - "traefik.http.routers.invariant-gateway-api.entrypoints=invariant-explorer-web"
+      - "traefik.http.services.invariant-gateway-api.loadbalancer.server.port=8000"
       - "traefik.docker.network=invariant-explorer-web"
 networks:
   invariant-explorer-web:

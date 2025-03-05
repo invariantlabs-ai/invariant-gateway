@@ -1,4 +1,4 @@
-name: Invariant proxy testing CI
+name: Invariant gateway testing CI
 
 on:
   push:

@@ -7,10 +7,10 @@ from playwright.async_api import async_playwright
 
 
 @pytest.fixture
-def proxy_url():
-    if "INVARIANT_PROXY_API_URL" in os.environ:
-        return os.environ["INVARIANT_PROXY_API_URL"]
-    raise ValueError("Please set the INVARIANT_PROXY_API_URL environment variable")
+def gateway_url():
+    if "INVARIANT_GATEWAY_API_URL" in os.environ:
+        return os.environ["INVARIANT_GATEWAY_API_URL"]
+    raise ValueError("Please set the INVARIANT_GATEWAY_API_URL environment variable")
 
 
 @pytest.fixture
