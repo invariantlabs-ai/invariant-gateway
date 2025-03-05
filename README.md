@@ -23,7 +23,7 @@ This enables you to _observe and debug_ your agents in [Invariant Explorer](http
 - [x] **Intercepts agents on an LLM-level** for better debugging and analysis.
 - [x] **Tool Calling and Computer Use Support** to capture all forms of agentic interactions.
 - [x] **Seamless forwarding and LLM streaming** to OpenAI, Anthropic, and other LLM providers.
-- [x] **Store and organize runtime traces** in the Invariant Explorer.
+- [x] **Store and organize runtime traces** in the [Invariant Explorer](https://explorer.invariantlabs.ai/).
 
 ## **Quickstart for Teams and Users**
 
