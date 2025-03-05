@@ -32,7 +32,7 @@ Looking to observe and secure AI agents in your organization? See our [quickstar
 
 ## **Quickstart for Developers**
 
-To get started with Gateway, follow the integration guides below depending on the LLM provider you are using.
+To add Gateway to your agentic system, simply follow the integration guides below depending on the LLM provider you are using.
 
 ## **Integration Guides**
 
@@ -151,9 +151,9 @@ This setup ensures that SWE-agent works seamlessly with Invariant Proxy, maintai
 
 ---
 
-### **Run the Gateway Locally**
+## **Run the Gateway Locally**
 
-To start the Invariant Gateway, run:
+First, clone this repository. To start the Invariant Gateway, run:
 
 ```bash
 bash run.sh build && bash run.sh up
