@@ -9,12 +9,11 @@ Invariant Gateway is a lightweight _zero-configuration_ service that acts as an 
 
 Gateway automatically traces agent interactions and stores them in the [Invariant Explorer](https://explorer.invariantlabs.ai/), giving you insights into what your agents are doing.
 
-<!-- ![Invariant Proxy Diagram](resources/images/overview.svg) -->
 <br/>
 <br/>
 
 <div align="center">
-<img src="resources/images/overview.svg" alt="Invariant Proxy Diagram" width="80%"/>
+<img src="resources/images/overview.svg" alt="Invariant Gateway Diagram" width="80%"/>
 </div>
 
 <br/>
@@ -41,7 +40,7 @@ To add Gateway to your agentic system, simply follow the integration guides belo
 1. Follow [these steps](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key) to obtain an OpenAI API key.
 2. **Modify OpenAI Client Setup**
 
-   Instead of connecting directly to OpenAI, configure your `OpenAI` client to use the proxy:
+   Instead of connecting directly to OpenAI, configure your `OpenAI` client to use Gateway:
 
    ```python
    from httpx import Client
@@ -53,7 +52,7 @@ To add Gateway to your agentic system, simply follow the integration guides belo
                "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai",
+       base_url="https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/openai",
    )
    ```
 
@@ -74,7 +73,7 @@ To add Gateway to your agentic system, simply follow the integration guides belo
                "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/anthropic",
+       base_url="https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/anthropic",
    )
    ```
 
@@ -92,14 +91,14 @@ See below for example integrations with popular agents.
 
 [OpenHands](https://github.com/All-Hands-AI/OpenHands) (formerly OpenDevin) is a platform for software development agents powered by AI.
 
-#### **How to Integrate OpenHands with Invariant Proxy**
+#### **How to Integrate OpenHands with Invariant Gateway**
 
 ##### **Step 1: Modify the API Base**
 
 Enable the `Advanced Options` toggle under settings and update the `Base URL` to the following
 
 ```
-https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai
+https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/openai
 ```
 
 <img src="./resources/images/openhands-integration.png" height=300/>
@@ -114,7 +113,7 @@ Set the API Key using the following format:
 
 > **Note:** Do not include the curly braces `{}`.
 
-The Invariant Proxy extracts the `invariant-auth` field from the API key and correctly forwards it to Invariant Explorer while sending the actual API key to OpenAI or Anthropic.
+The Invariant Gateway extracts the `invariant-auth` field from the API key and correctly forwards it to Invariant Explorer while sending the actual API key to OpenAI or Anthropic.
 
 ---
 
@@ -122,16 +121,16 @@ The Invariant Proxy extracts the `invariant-auth` field from the API key and cor
 
 [SWE-agent](https://github.com/SWE-agent/SWE-agent) allows your preferred language model (e.g., GPT-4o or Claude Sonnet 3.5) to autonomously utilize tools for various tasks, such as fixing issues in real GitHub repositories.
 
-#### **Using SWE-agent with Invariant Proxy**
+#### **Using SWE-agent with Invariant Gateway**
 
-SWE-agent does not support custom headers, so you **cannot** pass the Invariant API Key via `Invariant-Authorization`. However, **there is a workaround** using the Invariant Proxy.
+SWE-agent does not support custom headers, so you **cannot** pass the Invariant API Key via `Invariant-Authorization`. However, **there is a workaround** using the Invariant Gateway.
 
 ##### **Step 1: Modify the API Base**
 
 Run `sweagent` with the following flag:
 
 ```bash
---agent.model.api_base=https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai
+--agent.model.api_base=https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/openai
 ```
 
 > **Note:** Do not include the curly braces `{}`.
@@ -147,7 +146,7 @@ export ANTHROPIC_API_KEY={your-anthropic-api-key}|invariant-auth: {your-invarian
 
 > **Note:** Do not include the curly braces `{}`.
 
-This setup ensures that SWE-agent works seamlessly with Invariant Proxy, maintaining compatibility while enabling full functionality. 🚀
+This setup ensures that SWE-agent works seamlessly with Invariant Gateway, maintaining compatibility while enabling full functionality. 🚀
 
 ---
 
@@ -159,11 +158,11 @@ First, clone this repository. To start the Invariant Gateway, run:
 bash run.sh build && bash run.sh up
 ```
 
-This will launch the proxy at [http://localhost:8005/api/v1/proxy/](http://localhost:8005/api/v1/proxy/docs/).
+This will launch Gateway at [http://localhost:8005/api/v1/gateway/](http://localhost:8005/api/v1/gateway/docs/).
 
 ### **Set Up an Invariant API Key**
 
-1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/api/client-setup/) to obtain an API key. This allows the proxy to push traces to [Invariant Explorer](https://explorer.invariantlabs.ai).
+1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/api/client-setup/) to obtain an API key. This allows the gateway to push traces to [Invariant Explorer](https://explorer.invariantlabs.ai).
 
 ---
 
@@ -171,7 +170,7 @@ This will launch the proxy at [http://localhost:8005/api/v1/proxy/](http://local
 
 ### **Pushing to Local Explorer**
 
-By default the proxy points to the Production Explorer instance. To point it to your local Explorer instance, modify the `INVARIANT_API_URL` value inside `.env`. Follow instructions in `.env` on how to point to the local instance.
+By default Gateway points to the public Explorer instance at `explorer.invariantlabs.ai`. To point it to your local Explorer instance, modify the `INVARIANT_API_URL` value inside `.env`. Follow instructions in `.env` on how to point to the local instance.
 
 ### **Run Tests**
 
