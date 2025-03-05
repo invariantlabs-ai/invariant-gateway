@@ -32,6 +32,8 @@ Looking to observe and secure AI agents in your organization? See our [quickstar
 
 ## **Quickstart for Developers**
 
+To get started with Gateway, follow the integration guides below depending on the LLM provider you are using.
+
 ## **Integration Guides**
 
 ### **🔹 OpenAI Integration**
