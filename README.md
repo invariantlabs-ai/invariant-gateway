@@ -1,6 +1,6 @@
 # Invariant Gateway
 
-**LLM proxy to secure and debug what your AI agents are doing.**
+**LLM proxy to observe and debug what your AI agents are doing.**
 
 [Documentation](https://explorer.invariantlabs.ai/docs/gateway) | [Quickstart for Users](#quickstart-for-users) | [Quickstart for Developers](#quickstart-for-developers)
 
