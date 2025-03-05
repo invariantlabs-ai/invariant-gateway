@@ -2,7 +2,7 @@
 
 **LLM proxy to secure and debug what your AI agents are doing.**
 
-[Documentation](https://explorer.invariantlabs.ai/docs) | [Quickstart for Users](#quickstart-for-users) | [Quickstart for Developers](#quickstart-for-developers)
+[Documentation](https://explorer.invariantlabs.ai/docs/gateway) | [Quickstart for Users](#quickstart-for-users) | [Quickstart for Developers](#quickstart-for-developers)
 
 Invariant Gateway is a lightweight _zero-configuration_ service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic).
 
