@@ -82,7 +82,7 @@ To get started with Gateway, follow the integration guides below depending on th
 
 ---
 
-## **Quickstart for Users**
+## Quickstart for Users
 
 If you are not building an agent yourself but would like to observe and secure AI agents in your organization, you can do so by configuring the agents to use the Gateway.
 
