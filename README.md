@@ -1,34 +1,36 @@
-# **Invariant Proxy**
+<div align="center">
+<h1>Invariant Gateway</h1>
 
-Invariant Proxy is a lightweight Docker service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic). It captures and forwards agent interactions to the [Invariant Explorer](https://explorer.invariantlabs.ai/), enabling seamless debugging, visualization, and exploration of traces.
+<b>LLM proxy to secure and debug what your AI agents are doing.</b>
 
-![Invariant Proxy Diagram](resources/images/invariant-proxy.png)
+</div>
 
----
+Invariant Gateway is a lightweight _zero-configuration_ service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic) and automatically captures, forwards and secures agent interactions as traces in the [Invariant Explorer](https://explorer.invariantlabs.ai/)
 
-## **Why Use Invariant Proxy?**
-- ✅ **Intercept AI interactions** for better debugging and analysis.
-- ✅ **Seamlessly forward API requests** to OpenAI, Anthropic, and other LLM providers (**supports streaming responses too**).
-- ✅ **Works with AI Agent platforms and systems** like OpenHands, SWE-agent, etc.
-- ✅ **Automatically store and organize traces** in the Invariant Explorer.
+This enables seamless debugging, visualization and security scanning of agentic behavior.
 
----
+<!-- ![Invariant Proxy Diagram](resources/images/overview.svg) -->
+<br/>
+<br/>
 
-## **Getting Started**
+<div align="center">
+<img src="resources/images/overview.svg" alt="Invariant Proxy Diagram" width="80%"/>
+</div>
 
-### **Run the Proxy Locally**
-To start the Invariant Proxy, run:
+<br/>
+<br/>
 
-```bash
-bash run.sh build && bash run.sh up
-```
+- [x] **Single Line Setup**: Just change the base URL of your LLM provider to the Invariant Gateway.
+- [x] **Intercepts agents on an LLM-level** for better debugging and analysis.
+- [x] **Tool Calling and Computer Use Support** to capture all forms of agentic interactions.
+- [x] **Seamless forwarding and LLM streaming** to OpenAI, Anthropic, and other LLM providers.
+- [x] **Store and organize runtime traces** in the Invariant Explorer.
 
-This will launch the proxy at [http://localhost:8005/api/v1/proxy/](http://localhost:8005/api/v1/proxy/docs/).
+## **Quickstart for Users**
 
-### **Set Up an Invariant API Key**
-1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/api/client-setup/) to obtain an API key. This allows the proxy to push traces to [Invariant Explorer](https://explorer.invariantlabs.ai).
+Looking to observe and secure AI agents in your organization? See our [quickstart guide for users](https://explorer.invariantlabs.ai/docs/explorer/Explorer_API/1_client_setup/) to get started.
 
----
+## **Quickstart for Developers**
 
 ## **Integration Guides**
 
@@ -75,19 +77,29 @@ This will launch the proxy at [http://localhost:8005/api/v1/proxy/](http://local
    ```
 
    > **Note:** Do not include the curly braces `{}`. If the dataset does not exist in Invariant Explorer, it will be created before adding traces.
+
 ---
 
-## **OpenHands Integration**
+## **Quickstart for Users**
+
+If you are not building an agent yourself but would like to observe and secure AI agents in your organization, you can do so by configuring the agents to use the Gateway.
+
+See below for example integrations with popular agents.
+
+### **OpenHands Integration**
+
 [OpenHands](https://github.com/All-Hands-AI/OpenHands) (formerly OpenDevin) is a platform for software development agents powered by AI.
 
-### **How to Integrate OpenHands with Invariant Proxy**
+#### **How to Integrate OpenHands with Invariant Proxy**
 
-#### **Step 1: Modify the API Base**
+##### **Step 1: Modify the API Base**
+
 Enable the `Advanced Options` toggle under settings and update the `Base URL`:
 
 <img src="./resources/images/openhands-integration.png" height=300/>
 
-#### **Step 2: Adjust the API Key Format**
+##### **Step 2: Adjust the API Key Format**
+
 Set the API Key using the following format:
 
 ```text
@@ -100,13 +112,15 @@ The Invariant Proxy extracts the `invariant-auth` field from the API key and cor
 
 ---
 
-## **SWE-agent Integration**
+### **SWE-agent Integration**
+
 [SWE-agent](https://github.com/SWE-agent/SWE-agent) allows your preferred language model (e.g., GPT-4o or Claude Sonnet 3.5) to autonomously utilize tools for various tasks, such as fixing issues in real GitHub repositories.
 
-### **Using SWE-agent with Invariant Proxy**
+#### **Using SWE-agent with Invariant Proxy**
+
 SWE-agent does not support custom headers, so you **cannot** pass the Invariant API Key via `Invariant-Authorization`. However, **there is a workaround** using the Invariant Proxy.
 
-#### **Step 1: Modify the API Base**
+##### **Step 1: Modify the API Base**
 
 Run `sweagent` with the following flag:
 
@@ -116,7 +130,8 @@ Run `sweagent` with the following flag:
 
 > **Note:** Do not include the curly braces `{}`.
 
-#### **Step 2: Adjust the API Key Format**
+##### **Step 2: Adjust the API Key Format**
+
 Instead of setting your API Key normally, modify the environment variable as follows:
 
 ```bash
@@ -130,15 +145,32 @@ This setup ensures that SWE-agent works seamlessly with Invariant Proxy, maintai
 
 ---
 
+### **Run the Gateway Locally**
+
+To start the Invariant Gateway, run:
+
+```bash
+bash run.sh build && bash run.sh up
+```
+
+This will launch the proxy at [http://localhost:8005/api/v1/proxy/](http://localhost:8005/api/v1/proxy/docs/).
+
+### **Set Up an Invariant API Key**
+
+1. Follow the instructions [here](https://explorer.invariantlabs.ai/docs/explorer/api/client-setup/) to obtain an API key. This allows the proxy to push traces to [Invariant Explorer](https://explorer.invariantlabs.ai).
+
+---
+
 ## **Development**
 
 ### **Pushing to Local Explorer**
+
 By default the proxy points to the Production Explorer instance. To point it to your local Explorer instance, modify the `INVARIANT_API_URL` value inside `.env`. Follow instructions in `.env` on how to point to the local instance.
 
 ### **Run Tests**
+
 To run tests, execute:
 
 ```bash
 ./run.sh tests
 ```
-
