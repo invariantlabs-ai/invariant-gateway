@@ -188,6 +188,8 @@ This setup ensures that SWE-agent works seamlessly with Invariant Gateway, maint
 
 ## **Run the Gateway Locally**
 
+You can also operate your own instance of the Gateway, to ensure privacy and security.
+
 First, clone this repository. To start the Invariant Gateway, run:
 
 ```bash
