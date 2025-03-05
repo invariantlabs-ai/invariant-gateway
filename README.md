@@ -94,7 +94,7 @@ import os
 client = Swarm(
     client=OpenAI(
         http_client=Client(headers={"Invariant-Authorization": "Bearer " + os.getenv("INVARIANT_API_KEY", "")}),
-        base_url="https://explorer.invariantlabs.ai/api/v1/proxy/weather-swarm-agent/openai",
+        base_url="https://explorer.invariantlabs.ai/api/v1/gateway/weather-swarm-agent/openai",
     )
 )
 
