@@ -30,7 +30,7 @@ Looking to observe and secure AI agents in your organization? See our [no-code q
 
 ## **Quickstart for Developers**
 
-To add Gateway to your agentic system, simply follow the integration guides below depending on the LLM provider you are using.
+To add Gateway to your agentic system, follow onf of the integration guides below, depending on the LLM provider.
 
 ## **Integration Guides**
 
