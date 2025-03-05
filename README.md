@@ -96,7 +96,7 @@ See below for example integrations with popular agents.
 
 ##### **Step 1: Modify the API Base**
 
-Enable the `Advanced Options` toggle under settings and update the `Base URL`:
+Enable the `Advanced Options` toggle under settings and update the `Base URL` to `https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai`.
 
 <img src="./resources/images/openhands-integration.png" height=300/>
 
