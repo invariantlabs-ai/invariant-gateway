@@ -26,7 +26,7 @@ Gateway automatically traces agent interactions and stores them in the [Invarian
 - [x] **Seamless forwarding and LLM streaming** to OpenAI, Anthropic, and other LLM providers.
 - [x] **Store and organize runtime traces** in the Invariant Explorer.
 
-## **Quickstart for Users**
+## **Quickstart for Organizations**
 
 Looking to observe and secure AI agents in your organization? See our [quickstart guide for users](#quickstart-for-users) to get started.
 
