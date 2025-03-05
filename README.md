@@ -4,6 +4,8 @@
 
 [Documentation](https://explorer.invariantlabs.ai/docs/gateway) | [Quickstart for Users](#quickstart-for-users) | [Quickstart for Developers](#quickstart-for-developers)
 
+<a href="https://discord.gg/dZuZfhKnJ4"><img src="https://img.shields.io/discord/1265409784409231483?style=plastic&logo=discord&color=blueviolet&logoColor=white" height=18/></a>
+
 Invariant Gateway is a lightweight _zero-configuration_ service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic).
 
 Gateway automatically traces agent interactions and stores them in the [Invariant Explorer](https://explorer.invariantlabs.ai/), giving you insights into what your agents are doing.
