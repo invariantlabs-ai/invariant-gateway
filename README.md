@@ -53,7 +53,7 @@ To get started with Gateway, follow the integration guides below depending on th
                "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="http://localhost:8005/api/v1/proxy/{add-your-dataset-name-here}/openai",
+       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai",
    )
    ```
 
@@ -74,7 +74,7 @@ To get started with Gateway, follow the integration guides below depending on th
                "Invariant-Authorization": "Bearer your-invariant-api-key"
            },
        ),
-       base_url="http://localhost:8005/api/v1/proxy/{add-your-dataset-name-here}/anthropic",
+       base_url="https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/anthropic",
    )
    ```
 
