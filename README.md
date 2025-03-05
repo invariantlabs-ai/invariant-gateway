@@ -27,7 +27,7 @@ Gateway automatically traces agent interactions and stores them in the [Invarian
 
 ## **Quickstart for Teams and Users**
 
-Looking to observe and secure AI agents in your organization? See our [quickstart guide for users](#quickstart-for-users) to get started.
+Looking to observe and secure AI agents in your organization? See our [no-code quickstart guide for users](#quickstart-for-users) to get started.
 
 ## **Quickstart for Developers**
 
