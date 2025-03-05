@@ -118,6 +118,34 @@ print(response.messages[-1]["content"])
 # Output: "It seems to be sunny."
 ```
 
+### **🔹 Microsoft Autogen Integration**
+
+You can also easily integrate the Gateway with [Microsoft Autogen](https://github.com/microsoft/autogen) as follows:
+
+```python
+import asyncio
+from autogen_agentchat.agents import AssistantAgent
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+
+import os
+from httpx import AsyncClient
+
+async def main() -> None:
+    client = OpenAIChatCompletionClient(
+        model="gpt-4o",
+        http_client=AsyncClient(headers={"Invariant-Authorization": "Bearer " + os.getenv("INVARIANT_API_KEY", "")}),
+        base_url="https://explorer.invariantlabs.ai/api/v1/gateway/weather-swarm-agent/openai",
+    )
+    agent = AssistantAgent("assistant", client)
+    print(await agent.run(task="Say 'Hello World!'"))
+
+
+asyncio.run(main())
+# Output: "Hello World!"
+```
+
+This will automatically trace your agent interactions in Invariant Explorer.
+
 ---
 
 ## Quickstart for Users
