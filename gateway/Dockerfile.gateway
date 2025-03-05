@@ -1,0 +1,12 @@
+FROM python:3.10
+
+COPY ./requirements.txt /srv/gateway/requirements.txt
+WORKDIR /srv/gateway
+
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . /srv/gateway
+
+# Ensure run.sh is executable
+RUN chmod +x /srv/gateway/run.sh
+
+ENTRYPOINT ./run.sh

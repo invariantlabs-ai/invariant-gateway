@@ -20,9 +20,9 @@ pytest_plugins = ("pytest_asyncio",)
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_response_without_tool_call(
-    context, explorer_api_url, proxy_url, push_to_explorer
+    context, explorer_api_url, gateway_url, push_to_explorer
 ):
-    """Test the Anthropic proxy without tool calling."""
+    """Test the Anthropic gateway without tool calling."""
     dataset_name = "claude_streaming_response_without_tool_call_test" + str(
         datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     )
@@ -32,9 +32,9 @@ async def test_response_without_tool_call(
         http_client=Client(
             headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/anthropic"
+        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"
         if push_to_explorer
-        else f"{proxy_url}/api/v1/proxy/anthropic",
+        else f"{gateway_url}/api/v1/gateway/anthropic",
     )
 
     cities = ["zurich", "new york", "london"]
@@ -82,9 +82,9 @@ async def test_response_without_tool_call(
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_streaming_response_without_tool_call(
-    context, explorer_api_url, proxy_url, push_to_explorer
+    context, explorer_api_url, gateway_url, push_to_explorer
 ):
-    """Test the Anthropic proxy without tool calling."""
+    """Test the Anthropic gateway without tool calling."""
     dataset_name = "claude_streaming_response_without_tool_call_test" + str(
         datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     )
@@ -94,9 +94,9 @@ async def test_streaming_response_without_tool_call(
         http_client=Client(
             headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/anthropic"
+        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"
         if push_to_explorer
-        else f"{proxy_url}/api/v1/proxy/anthropic",
+        else f"{gateway_url}/api/v1/gateway/anthropic",
     )
 
     cities = ["zurich", "new york", "london"]

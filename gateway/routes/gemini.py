@@ -1,20 +1,19 @@
-"""Proxy service to forward requests to the Gemini APIs"""
+"""Gateway service to forward requests to the Gemini APIs"""
 
 import json
 from typing import Any, Optional
 
 import httpx
-from common.config_manager import ProxyConfig, ProxyConfigManager
+from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 
-proxy = APIRouter()
+gateway = APIRouter()
 
 
-@proxy.post("/gemini/{api_version}/models/{model}:{endpoint}")
-@proxy.post("/{dataset_name}/gemini/{api_version}/models/{model}:{endpoint}")
-async def gemini_generate_content_proxy(
+@gateway.post("/gemini/{api_version}/models/{model}:{endpoint}")
+async def gemini_generate_content_gateway(
     request: Request,
     api_version: str,
     model: str,
@@ -23,14 +22,14 @@ async def gemini_generate_content_proxy(
     alt: str = Query(
         None, title="Response Format", description="Set to 'sse' for streaming"
     ),
-    config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
+    config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
 ) -> Response:
     """Proxy calls to the Gemini GenerateContent API"""
     if endpoint not in ["generateContent", "streamGenerateContent"]:
         return Response(
             content="Invalid endpoint - the only endpoints supported are: \
-            /api/v1/proxy/gemini/<version>/models/<model-name>:generateContent or \
-            /api/v1/proxy/<dataset-name>/gemini/<version>models/<model-name>:generateContent",
+            /api/v1/gateway/gemini/<version>/models/<model-name>:generateContent or \
+            /api/v1/gateway/<dataset-name>/gemini/<version>models/<model-name>:generateContent",
             status_code=400,
         )
     headers = {
@@ -83,7 +82,7 @@ async def stream_response(
             if not chunk_text:
                 continue
 
-            # Yield chunk immediately to the client (proxy behavior)
+            # Yield chunk immediately to the client
             yield chunk
 
         # Send full merged response to the explorer

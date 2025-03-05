@@ -1,4 +1,4 @@
-"""Test the Anthropic proxy with Invariant key in the ANTHROPIC_API_KEY."""
+"""Test the Anthropic gateway with Invariant key in the ANTHROPIC_API_KEY."""
 
 import datetime
 import os
@@ -19,10 +19,10 @@ pytest_plugins = ("pytest_asyncio",)
 @pytest.mark.skipif(
     not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set"
 )
-async def test_proxy_with_invariant_key_in_anthropic_key_header(
-    context, proxy_url, explorer_api_url
+async def test_gateway_with_invariant_key_in_anthropic_key_header(
+    context, gateway_url, explorer_api_url
 ):
-    """Test the Anthropic proxy with Invariant key in the Anthropic key"""
+    """Test the Anthropic gateway with Invariant key in the Anthropic key"""
     anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
     dataset_name = "claude_header_test" + str(
         datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -36,7 +36,7 @@ async def test_proxy_with_invariant_key_in_anthropic_key_header(
     ):
         client = anthropic.Anthropic(
             http_client=Client(),
-            base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/anthropic",
+            base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic",
         )
         response = client.messages.create(
             model="claude-3-5-sonnet-20241022",

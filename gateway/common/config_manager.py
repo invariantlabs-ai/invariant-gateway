@@ -1,4 +1,4 @@
-"""Common Configurations for the Proxy Server."""
+"""Common Configurations for the Gateway Server."""
 
 import os
 import threading
@@ -6,8 +6,8 @@ import threading
 from invariant.analyzer import Policy
 
 
-class ProxyConfig:
-    """Common configurations for the Proxy Server."""
+class GatewayConfig:
+    """Common configurations for the Gateway Server."""
 
     def __init__(self):
         self.policies = self._load_policies()
@@ -38,24 +38,24 @@ class ProxyConfig:
             raise ValueError(f"Invalid policy content in {policies_file}: {e}") from e
 
     def __repr__(self) -> str:
-        return f"ProxyConfig(policies={repr(self.policies)})"
+        return f"GatewayConfig(policies={repr(self.policies)})"
 
 
-class ProxyConfigManager:
-    """Manager for Proxy Configuration."""
+class GatewayConfigManager:
+    """Manager for Gateway Configuration."""
 
     _config_instance = None
     _lock = threading.Lock()
 
     @classmethod
     def get_config(cls):
-        """Initializes and returns the proxy configuration using double-checked locking."""
+        """Initializes and returns the gateway configuration using double-checked locking."""
         local_config = cls._config_instance
 
         if local_config is None:
             with cls._lock:
                 local_config = cls._config_instance
                 if local_config is None:
-                    local_config = ProxyConfig()
+                    local_config = GatewayConfig()
                     cls._config_instance = local_config
         return local_config

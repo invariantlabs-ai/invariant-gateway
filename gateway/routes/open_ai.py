@@ -1,10 +1,10 @@
-"""Proxy service to forward requests to the OpenAI APIs"""
+"""Gateway service to forward requests to the OpenAI APIs"""
 
 import json
 from typing import Any, Optional
 
 import httpx
-from common.config_manager import ProxyConfig, ProxyConfigManager
+from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from utils.constants import (
@@ -14,7 +14,7 @@ from utils.constants import (
 )
 from utils.explorer import push_trace
 
-proxy = APIRouter()
+gateway = APIRouter()
 
 MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant api key"
 MISSING_AUTH_HEADER = "Missing authorization header"
@@ -28,18 +28,18 @@ def validate_headers(authorization: str = Header(None)):
         raise HTTPException(status_code=400, detail=MISSING_AUTH_HEADER)
 
 
-@proxy.post(
+@gateway.post(
     "/{dataset_name}/openai/chat/completions",
     dependencies=[Depends(validate_headers)],
 )
-@proxy.post(
+@gateway.post(
     "/openai/chat/completions",
     dependencies=[Depends(validate_headers)],
 )
-async def openai_chat_completions_proxy(
+async def openai_chat_completions_gateway(
     request: Request,
     dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
-    config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
+    config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
 ) -> Response:
     """Proxy calls to the OpenAI APIs"""
     headers = {
@@ -153,7 +153,7 @@ async def stream_response(
             if not chunk_text:
                 continue
 
-            # Yield chunk immediately to the client (proxy behavior)
+            # Yield chunk immediately to the client
             yield chunk
 
             # Process the chunk

@@ -1,8 +1,8 @@
-name: invariant-proxy-test-stack
+name: invariant-gateway-test-stack
 services:
   traefik:
     image: traefik:v2.0
-    container_name: "invariant-proxy-test-traefik"
+    container_name: "invariant-gateway-test-traefik"
     command:
       - --providers.docker=true
       # Enable the API handler in insecure mode,
@@ -10,50 +10,50 @@ services:
       # on the entry point named traefik.
       - --api.insecure=true
       # Define Traefik entry points to port [80] for http and port [443] for https.
-      - --entrypoints.invariant-proxy-web-test.address=0.0.0.0:80
+      - --entrypoints.invariant-gateway-web-test.address=0.0.0.0:80
     networks:
-      - invariant-proxy-web-test
+      - invariant-gateway-web-test
     ports:
       - '${PORT_HTTP:-80}:80'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik-http.entrypoints=invariant-proxy-web-test"
+      - "traefik.http.routers.traefik-http.entrypoints=invariant-gateway-web-test"
 
-  invariant-proxy:
-    container_name: invariant-proxy-test
+  invariant-gateway:
+    container_name: invariant-gateway-test
     build:
-      context: ../proxy
-      dockerfile: ../proxy/Dockerfile.proxy
+      context: ../gateway
+      dockerfile: ../gateway/Dockerfile.gateway
     depends_on:
       app-api:
         condition: service_healthy
-    working_dir: /srv/proxy
+    working_dir: /srv/gateway
     env_file:
       - .env.test
     environment:
       - DEV_MODE=true
     volumes:
       - type: bind
-        source: ../proxy
-        target: /srv/proxy
+        source: ../gateway
+        target: /srv/gateway
     networks:
-      - invariant-proxy-web-test
+      - invariant-gateway-web-test
     ports: []
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.invariant-proxy-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/proxy/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/proxy/`))"
-      - "traefik.http.routers.invariant-proxy-api.entrypoints=invariant-proxy-web-test"
-      - "traefik.http.services.invariant-proxy-api.loadbalancer.server.port=8000"
-      - "traefik.docker.network=invariant-proxy-web-test"
+      - "traefik.http.routers.invariant-gateway-api.rule=(Host(`localhost`) && PathPrefix(`/api/v1/gateway/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/v1/gateway/`))"
+      - "traefik.http.routers.invariant-gateway-api.entrypoints=invariant-gateway-web-test"
+      - "traefik.http.services.invariant-gateway-api.loadbalancer.server.port=8000"
+      - "traefik.docker.network=invariant-gateway-web-test"
     healthcheck:
-      test: curl -X GET -I http://localhost:8000/api/v1/proxy/health --fail
+      test: curl -X GET -I http://localhost:8000/api/v1/gateway/health --fail
       interval: 1s
       timeout: 5s
 
   app-api:
-    container_name: invariant-proxy-test-explorer-app-api
+    container_name: invariant-gateway-test-explorer-app-api
     image: ghcr.io/invariantlabs-ai/explorer/app-api:latest
     platform: linux/amd64
     depends_on:
@@ -73,22 +73,22 @@ services:
       - PORT_API=80
     networks:
       - internal
-      - invariant-proxy-web-test
+      - invariant-gateway-web-test
     volumes:
-      - /tmp/invariant-proxy-test/configs/explorer.test.yml:/config/explorer.config.yml
+      - /tmp/invariant-gateway-test/configs/explorer.test.yml:/config/explorer.config.yml
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.invariant-test-api.rule=(Host(`localhost`) && PathPrefix(`/api/`)) || (Host(`127.0.0.1`) && PathPrefix(`/api/`))"
-      - "traefik.http.routers.invariant-test-api.entrypoints=invariant-proxy-web-test"
+      - "traefik.http.routers.invariant-test-api.entrypoints=invariant-gateway-web-test"
       - "traefik.http.services.invariant-test-api.loadbalancer.server.port=8000"
-      - "traefik.docker.network=invariant-proxy-web-test"
+      - "traefik.docker.network=invariant-gateway-web-test"
     healthcheck:
       test: curl -X GET -I http://localhost:8000/api/v1/ --fail
       interval: 1s
       timeout: 5s
 
   database:
-    container_name: invariant-proxy-test-database
+    container_name: invariant-gateway-test-database
     image: postgres:16
     env_file:
       - .env.test
@@ -101,6 +101,6 @@ services:
       retries: 5
 
 networks:
-  invariant-proxy-web-test:
+  invariant-gateway-web-test:
     external: true
   internal:

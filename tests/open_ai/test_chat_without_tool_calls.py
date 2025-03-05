@@ -1,4 +1,4 @@
-"""Test the chat completions proxy calls without tool calling."""
+"""Test the chat completions gateway calls without tool calling."""
 
 import base64
 import os
@@ -27,9 +27,9 @@ pytest_plugins = ("pytest_asyncio",)
     [(True, True), (True, False), (False, True), (False, False)],
 )
 async def test_chat_completion(
-    context, explorer_api_url, proxy_url, do_stream, push_to_explorer
+    context, explorer_api_url, gateway_url, do_stream, push_to_explorer
 ):
-    """Test the chat completions proxy calls without tool calling."""
+    """Test the chat completions gateway calls without tool calling."""
     dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
 
     client = OpenAI(
@@ -38,9 +38,9 @@ async def test_chat_completion(
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai"
+        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
         if push_to_explorer
-        else f"{proxy_url}/api/v1/proxy/openai",
+        else f"{gateway_url}/api/v1/gateway/openai",
     )
 
     chat_response = client.chat.completions.create(
@@ -92,9 +92,9 @@ async def test_chat_completion(
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
 @pytest.mark.parametrize("push_to_explorer", [True, False])
 async def test_chat_completion_with_image(
-    context, explorer_api_url, proxy_url, push_to_explorer
+    context, explorer_api_url, gateway_url, push_to_explorer
 ):
-    """Test the chat completions proxy works with image."""
+    """Test the chat completions gateway works with image."""
     dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
 
     client = OpenAI(
@@ -103,9 +103,9 @@ async def test_chat_completion_with_image(
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai"
+        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
         if push_to_explorer
-        else f"{proxy_url}/api/v1/proxy/openai",
+        else f"{gateway_url}/api/v1/gateway/openai",
     )
     image_path = Path(__file__).parent.parent / "images" / "two-cats.png"
     with image_path.open("rb") as image_file:
@@ -176,9 +176,9 @@ async def test_chat_completion_with_image(
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
 async def test_chat_completion_with_invariant_key_in_openai_key_header(
-    context, explorer_api_url, proxy_url
+    context, explorer_api_url, gateway_url
 ):
-    """Test the chat completions proxy calls with the Invariant API Key in the OpenAI Key header."""
+    """Test the chat completions gateway calls with the Invariant API Key in the OpenAI Key header."""
     dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
     openai_api_key = os.getenv("OPENAI_API_KEY")
     with patch.dict(
@@ -187,7 +187,7 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
     ):
         client = OpenAI(
             http_client=Client(),
-            base_url=f"{proxy_url}/api/v1/proxy/{dataset_name}/openai",
+            base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai",
         )
 
         chat_response = client.chat.completions.create(
@@ -229,8 +229,8 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
 
 @pytest.mark.skip(reason="Skipping this test: OpenAI error scenario")
 @pytest.mark.parametrize("do_stream", [True, False])
-async def test_chat_completion_with_openai_exception(proxy_url, do_stream):
-    """Test the chat completions proxy call when OpenAI API fails."""
+async def test_chat_completion_with_openai_exception(gateway_url, do_stream):
+    """Test the chat completions gateway call when OpenAI API fails."""
 
     client = OpenAI(
         http_client=Client(
@@ -238,7 +238,7 @@ async def test_chat_completion_with_openai_exception(proxy_url, do_stream):
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{proxy_url}/api/v1/proxy/{"test-dataset-open-ai-" + str(uuid.uuid4())}/openai",
+        base_url=f"{gateway_url}/api/v1/gateway/{"test-dataset-open-ai-" + str(uuid.uuid4())}/openai",
     )
 
     with pytest.raises(Exception) as exc_info:

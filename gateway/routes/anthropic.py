@@ -1,10 +1,10 @@
-"""Proxy service to forward requests to the Anthropic APIs"""
+"""Gateway service to forward requests to the Anthropic APIs"""
 
 import json
 from typing import Any, Optional
 
 import httpx
-from common.config_manager import ProxyConfig, ProxyConfigManager
+from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
 from utils.constants import (
@@ -14,7 +14,7 @@ from utils.constants import (
 )
 from utils.explorer import push_trace
 
-proxy = APIRouter()
+gateway = APIRouter()
 
 MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant authorization header"
 MISSING_ANTHROPIC_AUTH_HEADER = "Missing Anthropic authorization header"
@@ -37,18 +37,18 @@ def validate_headers(x_api_key: str = Header(None)):
         raise HTTPException(status_code=400, detail=MISSING_ANTHROPIC_AUTH_HEADER)
 
 
-@proxy.post(
+@gateway.post(
     "/{dataset_name}/anthropic/v1/messages",
     dependencies=[Depends(validate_headers)],
 )
-@proxy.post(
+@gateway.post(
     "/anthropic/v1/messages",
     dependencies=[Depends(validate_headers)],
 )
-async def anthropic_v1_messages_proxy(
+async def anthropic_v1_messages_gateway(
     request: Request,
     dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
-    config: ProxyConfig = Depends(ProxyConfigManager.get_config),  # pylint: disable=unused-argument
+    config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
 ):
     """Proxy calls to the Anthropic APIs"""
     headers = {
