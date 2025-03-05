@@ -1,9 +1,6 @@
-<div align="center">
-<h1>Invariant Gateway</h1>
+# Invariant Gateway
 
-<b>LLM proxy to secure and debug what your AI agents are doing.</b>
-
-</div>
+**LLM proxy to secure and debug what your AI agents are doing.**
 
 Invariant Gateway is a lightweight _zero-configuration_ service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic).
 
