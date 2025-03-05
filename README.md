@@ -127,7 +127,7 @@ SWE-agent does not support custom headers, so you **cannot** pass the Invariant 
 Run `sweagent` with the following flag:
 
 ```bash
---agent.model.api_base=http://localhost:8005/api/v1/proxy/{add-your-dataset-name-here}/openai
+--agent.model.api_base=https://explorer.invariantlabs.ai/api/v1/proxy/{add-your-dataset-name-here}/openai
 ```
 
 > **Note:** Do not include the curly braces `{}`.
