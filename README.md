@@ -79,6 +79,45 @@ To add Gateway to your agentic system, simply follow the integration guides belo
 
    > **Note:** Do not include the curly braces `{}`. If the dataset does not exist in Invariant Explorer, it will be created before adding traces.
 
+### **🔹 OpenAI Swarm Integration**
+
+Integrating directly with a specific agent framework is also supported, simply by configuring the underlying LLM client.
+
+For instance, [OpenAI Swarm](https://github.com/openai/swarm) relies on OpenAI's Python client, the setup is very similar to the standard OpenAI integration:
+
+```python
+from swarm import Swarm, Agent
+from openai import OpenAI
+from httpx import Client
+import os
+
+client = Swarm(
+    client=OpenAI(
+        http_client=Client(headers={"Invariant-Authorization": "Bearer " + os.getenv("INVARIANT_API_KEY", "")}),
+        base_url="https://explorer.invariantlabs.ai/api/v1/proxy/weather-swarm-agent/openai",
+    )
+)
+
+
+def get_weather():
+    return "It's sunny."
+
+
+agent = Agent(
+    name="Agent A",
+    instructions="You are a helpful agent.",
+    functions=[get_weather],
+)
+
+response = client.run(
+    agent=agent,
+    messages=[{"role": "user", "content": "What's the weather?"}],
+)
+
+print(response.messages[-1]["content"])
+# Output: "It seems to be sunny."
+```
+
 ---
 
 ## Quickstart for Users
