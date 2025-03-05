@@ -7,6 +7,7 @@
 Invariant Gateway is a lightweight _zero-configuration_ service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic).
 
 Gateway automatically traces agent interactions and stores them in the [Invariant Explorer](https://explorer.invariantlabs.ai/), giving you insights into what your agents are doing.
+This enables you to observe, debug and scan for security issues in your agents.
 
 <br/>
 <br/>
