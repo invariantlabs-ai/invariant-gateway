@@ -63,12 +63,12 @@ async def openai_chat_completions_gateway(
     # In such cases, the Invariant API Key is passed as part of the
     # authorization header with the OpenAI API key.
     # The header in that case becomes:
-    # "authorization": "<OpenAI API Key>|invariant-auth: <Invariant API Key>"
+    # "authorization": "<OpenAI API Key>;invariant-auth=<Invariant API Key>"
     invariant_authorization = None
     if dataset_name:
         if request.headers.get(
             INVARIANT_AUTHORIZATION_HEADER
-        ) is None and "|invariant-auth:" not in request.headers.get(
+        ) is None and ";invariant-auth=" not in request.headers.get(
             OPENAI_AUTHORIZATION_HEADER
         ):
             raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
@@ -79,7 +79,7 @@ async def openai_chat_completions_gateway(
             )
         else:
             header_value = request.headers.get(OPENAI_AUTHORIZATION_HEADER)
-            api_keys = header_value.split("|invariant-auth: ")
+            api_keys = header_value.split(";invariant-auth=")
             invariant_authorization = f"Bearer {api_keys[1].strip()}"
             # Update the authorization header to pass the OpenAI API Key to the OpenAI API
             headers[OPENAI_AUTHORIZATION_HEADER] = f"{api_keys[0].strip()}"

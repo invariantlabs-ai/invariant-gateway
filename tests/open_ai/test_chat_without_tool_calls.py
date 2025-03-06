@@ -183,7 +183,7 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
     openai_api_key = os.getenv("OPENAI_API_KEY")
     with patch.dict(
         os.environ,
-        {"OPENAI_API_KEY": openai_api_key + "|invariant-auth: <not needed for test>"},
+        {"OPENAI_API_KEY": openai_api_key + ";invariant-auth=<not needed for test>"},
     ):
         client = OpenAI(
             http_client=Client(),
