@@ -9,7 +9,7 @@
 Invariant Gateway is a lightweight _zero-configuration_ service that acts as an intermediary between AI Agents and LLM providers (such as OpenAI and Anthropic).
 
 Gateway automatically traces agent interactions and stores them in the [Invariant Explorer](https://explorer.invariantlabs.ai/), giving you insights into what your agents are doing.
-This enables you to _observe and debug_ your agents in [Invariant Explorer](https://explorer.invariantlabs.ai/).
+This allows you to _observe and debug_ your agents in [Invariant Explorer](https://explorer.invariantlabs.ai/).
 
 <br/>
 <br/>
@@ -33,7 +33,7 @@ Looking to observe and secure AI agents in your organization? See our [no-code q
 
 ## **Quickstart for Developers**
 
-To add Gateway to your agentic system, follow onf of the integration guides below, depending on the LLM provider.
+To add Gateway to your agentic system, follow one of the integration guides below, depending on the LLM provider.
 
 ## **Integration Guides**
 
@@ -164,7 +164,7 @@ See below for example integrations with popular agents.
 
 ##### **Step 1: Modify the API Base**
 
-Enable the `Advanced Options` toggle under settings and update the `Base URL` to the following
+Enable the `Advanced Options` toggle under Settings and update the `Base URL` to the following
 
 ```
 https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/openai
