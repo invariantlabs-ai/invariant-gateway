@@ -31,7 +31,7 @@ async def test_gateway_with_invariant_key_in_anthropic_key_header(
         os.environ,
         {
             "ANTHROPIC_API_KEY": anthropic_api_key
-            + "|invariant-auth: <not needed for test>"
+            + ";invariant-auth=<not needed for test>"
         },
     ):
         client = anthropic.Anthropic(

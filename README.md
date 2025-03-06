@@ -177,7 +177,7 @@ https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/op
 Set the API Key using the following format:
 
 ```text
-{your-llm-api-key}|invariant-auth: {your-invariant-api-key}
+{your-llm-api-key};invariant-auth={your-invariant-api-key}
 ```
 
 > **Note:** Do not include the curly braces `{}`.
@@ -209,8 +209,8 @@ Run `sweagent` with the following flag:
 Instead of setting your API Key normally, modify the environment variable as follows:
 
 ```bash
-export OPENAI_API_KEY={your-openai-api-key}|invariant-auth: {your-invariant-api-key}
-export ANTHROPIC_API_KEY={your-anthropic-api-key}|invariant-auth: {your-invariant-api-key}
+export OPENAI_API_KEY={your-openai-api-key};invariant-auth={your-invariant-api-key}
+export ANTHROPIC_API_KEY={your-anthropic-api-key};invariant-auth={your-invariant-api-key}
 ```
 
 > **Note:** Do not include the curly braces `{}`.
