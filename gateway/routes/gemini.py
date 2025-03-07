@@ -12,7 +12,7 @@ from common.constants import (
     IGNORED_HEADERS,
 )
 from common.authorization import extract_authorization_from_headers
-from utils.explorer import push_trace
+from integrations.explorer import push_trace
 
 gateway = APIRouter()
 
