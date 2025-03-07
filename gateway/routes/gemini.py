@@ -7,9 +7,16 @@ import httpx
 from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from utils.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
+from common.constants import (
+    CLIENT_TIMEOUT,
+    IGNORED_HEADERS,
+)
+from common.authorization import extract_authorization_from_headers
+from utils.explorer import push_trace
 
 gateway = APIRouter()
+
+GEMINI_AUTHORIZATION_HEADER = "x-goog-api-key"
 
 
 @gateway.post("/gemini/{api_version}/models/{model}:{endpoint}")
@@ -37,7 +44,15 @@ async def gemini_generate_content_gateway(
     }
     headers["accept-encoding"] = "identity"
 
+    invariant_authorization, gemini_api_key = extract_authorization_from_headers(
+        request, dataset_name, GEMINI_AUTHORIZATION_HEADER
+    )
+    headers[GEMINI_AUTHORIZATION_HEADER] = gemini_api_key
+
     request_body_bytes = await request.body()
+    request_body_json = json.loads(request_body_bytes)
+    print("Here is the request: ", request_body_json)
+
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     gemini_api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:{endpoint}"
     if alt == "sse":
@@ -56,7 +71,9 @@ async def gemini_generate_content_gateway(
             dataset_name,
         )
     response = await client.send(gemini_request)
-    return await handle_non_streaming_response(response, dataset_name)
+    return await handle_non_streaming_response(
+        response, dataset_name, request_body_json, invariant_authorization
+    )
 
 
 async def stream_response(
@@ -83,6 +100,7 @@ async def stream_response(
                 continue
 
             # Yield chunk immediately to the client
+            print("Here is the response chunk: ", chunk)
             yield chunk
 
         # Send full merged response to the explorer
@@ -93,13 +111,33 @@ async def stream_response(
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+async def push_to_explorer(
+    dataset_name: str,
+    merged_response: dict[str, Any],
+    request_body: dict[str, Any],
+    invariant_authorization: str,
+) -> None:
+    """Pushes the full trace to the Invariant Explorer"""
+    # Combine the messages from the request body and the choices from the Gemini response
+    messages = request_body.get("messages", [])
+    messages += [choice["message"] for choice in merged_response.get("choices", [])]
+    _ = await push_trace(
+        dataset_name=dataset_name,
+        messages=[messages],
+        invariant_authorization=invariant_authorization,
+    )
+
+
 async def handle_non_streaming_response(
     response: httpx.Response,
     dataset_name: Optional[str],
+    request_body_json: dict[str, Any],
+    invariant_authorization: Optional[str],
 ) -> Response:
     """Handles non-streaming Gemini responses"""
     try:
         json_response = response.json()
+        print("Here is the response: ", json_response)
     except json.JSONDecodeError as e:
         raise HTTPException(
             status_code=response.status_code,
@@ -111,8 +149,9 @@ async def handle_non_streaming_response(
             detail=json_response.get("error", "Unknown error from Gemini API"),
         )
     if dataset_name:
-        # Push to Explorer
-        pass
+        await push_to_explorer(
+            dataset_name, json_response, request_body_json, invariant_authorization
+        )
 
     return Response(
         content=json.dumps(json_response),

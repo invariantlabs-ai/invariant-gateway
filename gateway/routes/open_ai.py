@@ -7,12 +7,12 @@ import httpx
 from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
-from utils.constants import (
+from common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
-    INVARIANT_AUTHORIZATION_HEADER,
 )
 from utils.explorer import push_trace
+from common.authorization import extract_authorization_from_headers
 
 gateway = APIRouter()
 
@@ -47,42 +47,15 @@ async def openai_chat_completions_gateway(
     }
     headers["accept-encoding"] = "identity"
 
+    invariant_authorization, openai_api_key = extract_authorization_from_headers(
+        request, dataset_name, OPENAI_AUTHORIZATION_HEADER
+    )
+    headers[OPENAI_AUTHORIZATION_HEADER] = openai_api_key
+
     request_body_bytes = await request.body()
     request_body_json = json.loads(request_body_bytes)
-
     # Check if the request is for streaming
     is_streaming = request_body_json.get("stream", False)
-
-    # In case the user wants to push to Explorer, the request must contain the Invariant API Key
-    # The invariant-authorization header contains the Invariant API Key
-    # "invariant-authorization": "Bearer <Invariant API Key>"
-    # The authorization header contains the OpenAI API Key
-    # "authorization": "<OpenAI API Key>"
-    #
-    # For some clients, it is not possible to pass a custom header
-    # In such cases, the Invariant API Key is passed as part of the
-    # authorization header with the OpenAI API key.
-    # The header in that case becomes:
-    # "authorization": "<OpenAI API Key>;invariant-auth=<Invariant API Key>"
-    invariant_authorization = None
-    if dataset_name:
-        if request.headers.get(
-            INVARIANT_AUTHORIZATION_HEADER
-        ) is None and ";invariant-auth=" not in request.headers.get(
-            OPENAI_AUTHORIZATION_HEADER
-        ):
-            raise HTTPException(status_code=400, detail=MISSING_INVARIANT_AUTH_API_KEY)
-
-        if request.headers.get(INVARIANT_AUTHORIZATION_HEADER):
-            invariant_authorization = request.headers.get(
-                INVARIANT_AUTHORIZATION_HEADER
-            )
-        else:
-            header_value = request.headers.get(OPENAI_AUTHORIZATION_HEADER)
-            api_keys = header_value.split(";invariant-auth=")
-            invariant_authorization = f"Bearer {api_keys[1].strip()}"
-            # Update the authorization header to pass the OpenAI API Key to the OpenAI API
-            headers[OPENAI_AUTHORIZATION_HEADER] = f"{api_keys[0].strip()}"
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     open_ai_request = client.build_request(
