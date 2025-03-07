@@ -21,6 +21,7 @@ GEMINI_AUTHORIZATION_HEADER = "x-goog-api-key"
 
 
 @gateway.post("/gemini/{api_version}/models/{model}:{endpoint}")
+@gateway.post("/{dataset_name}/gemini/{api_version}/models/{model}:{endpoint}")
 async def gemini_generate_content_gateway(
     request: Request,
     api_version: str,

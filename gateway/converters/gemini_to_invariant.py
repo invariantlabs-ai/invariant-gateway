@@ -1,5 +1,8 @@
 """Converts the request and response formats from Gemini to Invariant API format."""
 
+import base64
+
+
 def convert_request(request: dict) -> list[dict]:
     """Converts the request from Gemini API to Invariant API format."""
     openai_messages = []
@@ -21,11 +24,16 @@ def convert_request(request: dict) -> list[dict]:
                     if "text" in part:
                         message_content.append({"type": "text", "text": part["text"]})
                     elif "inlineData" in part:
+                        # TODO: Handle other types of inline data.
+                        # Currently, only images are supported.
+                        # Gemini’s API returns URL-safe base64 (uses _ and -).
+                        # We need to convert it to standard base64 (uses + and /).
+                        inline_data = part["inlineData"]["data"].replace("-", "+").replace("_", "/")
                         message_content.append(
                             {
-                                "type": "image",
+                                "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:{part['inlineData']['mime_type']};base64,{part['inlineData']['data']}"
+                                    "url": f"data:{part['inlineData']['mime_type']};base64,{inline_data}"
                                 },
                             }
                         )
@@ -40,14 +48,7 @@ def convert_request(request: dict) -> list[dict]:
                             }
                         )
                 if message_content:
-                    openai_messages.append(
-                        {
-                            "role": "user",
-                            "content": message_content
-                            if len(message_content) > 1
-                            else message_content[0],
-                        }
-                    )
+                    openai_messages.append({"role": "user", "content": message_content})
 
             elif role == "model":
                 for part in content.get("parts", []):
