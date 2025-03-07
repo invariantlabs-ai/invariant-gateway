@@ -12,11 +12,11 @@ from common.constants import (
     IGNORED_HEADERS,
 )
 from integrations.explorer import push_trace
+from converters.anthropic_to_invariant import convert_anthropic_to_invariant_message_format
 from common.authorization import extract_authorization_from_headers
 
 gateway = APIRouter()
 
-MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant authorization header"
 MISSING_ANTHROPIC_AUTH_HEADER = "Missing Anthropic authorization header"
 FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
 END_REASONS = ["end_turn", "max_tokens", "stop_sequence"]
@@ -92,10 +92,10 @@ async def push_to_explorer(
     messages = request_body.get("messages", [])
     messages += [merged_response]
 
-    transformed_messages = convert_anthropic_to_invariant_message_format(messages)
+    converted_messages = convert_anthropic_to_invariant_message_format(messages)
     _ = await push_trace(
         dataset_name=dataset_name,
-        messages=[transformed_messages],
+        messages=[converted_messages],
         invariant_authorization=invariant_authorization,
     )
 
@@ -222,98 +222,3 @@ def update_merged_response(text_json, merged_response):
             merged_response[-1]["content"] += text_json.get("delta").get("partial_json")
     elif text_json.get("type") == MESSGAE_DELTA:
         merged_response[-1]["stop_reason"] = text_json.get("delta").get("stop_reason")
-
-
-def convert_anthropic_to_invariant_message_format(
-    messages: list[dict], keep_empty_tool_response: bool = False
-) -> list[dict]:
-    """Converts a list of messages from the Anthropic API to the Invariant API format."""
-    output = []
-    role_mapping = {
-        "system": lambda msg: {"role": "system", "content": msg["content"]},
-        "user": lambda msg: handle_user_message(msg, keep_empty_tool_response),
-        "assistant": lambda msg: handle_assistant_message(msg),
-    }
-
-    for message in messages:
-        handler = role_mapping.get(message["role"])
-        if handler:
-            output.extend(handler(message))
-
-    return output
-
-
-def handle_user_message(message, keep_empty_tool_response):
-    """Handle the user message from the Anthropic API"""
-    output = []
-    content = message["content"]
-    if isinstance(content, list):
-        user_content = []
-        for sub_message in content:
-            if sub_message["type"] == "tool_result":
-                if sub_message["content"]:
-                    output.append(
-                        {
-                            "role": "tool",
-                            "content": sub_message["content"],
-                            "tool_id": sub_message["tool_use_id"],
-                        }
-                    )
-                elif keep_empty_tool_response and any(sub_message.values()):
-                    output.append(
-                        {
-                            "role": "tool",
-                            "content": {"is_error": True}
-                            if sub_message["is_error"]
-                            else {},
-                            "tool_id": sub_message["tool_use_id"],
-                        }
-                    )
-            elif sub_message["type"] == "text":
-                user_content.append({"type": "text", "text": sub_message["text"]})
-            elif sub_message["type"] == "image":
-                user_content.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": "data:"
-                            + sub_message["source"]["media_type"]
-                            + ";base64,"
-                            + sub_message["source"]["data"],
-                        },
-                    },
-                )
-        if user_content:
-            output.append({"role": "user", "content": user_content})
-    else:
-        output.append({"role": "user", "content": content})
-    return output
-
-
-def handle_assistant_message(message):
-    """Handle the assistant message from the Anthropic API"""
-    output = []
-    if isinstance(message["content"], list):
-        for sub_message in message["content"]:
-            if sub_message["type"] == "text":
-                output.append({"role": "assistant", "content": sub_message.get("text")})
-            elif sub_message["type"] == "tool_use":
-                output.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "tool_id": sub_message.get("id"),
-                                "type": "function",
-                                "function": {
-                                    "name": sub_message.get("name"),
-                                    "arguments": sub_message.get("input"),
-                                },
-                            }
-                        ],
-                    }
-                )
-    else:
-        output.append({"role": "assistant", "content": message["content"]})
-    return output

@@ -16,7 +16,6 @@ from common.authorization import extract_authorization_from_headers
 
 gateway = APIRouter()
 
-MISSING_INVARIANT_AUTH_API_KEY = "Missing invariant api key"
 MISSING_AUTH_HEADER = "Missing authorization header"
 FINISH_REASON_TO_PUSH_TRACE = ["stop", "length", "content_filter"]
 OPENAI_AUTHORIZATION_HEADER = "authorization"

@@ -12,6 +12,7 @@ from common.constants import (
     IGNORED_HEADERS,
 )
 from common.authorization import extract_authorization_from_headers
+from converters.gemini_to_invariant import convert_request, convert_response
 from integrations.explorer import push_trace
 
 gateway = APIRouter()
@@ -118,12 +119,11 @@ async def push_to_explorer(
     invariant_authorization: str,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
-    # Combine the messages from the request body and the choices from the Gemini response
-    messages = request_body.get("messages", [])
-    messages += [choice["message"] for choice in merged_response.get("choices", [])]
+    converted_requests = convert_request(request_body)
+    converted_responses = convert_response(merged_response)
     _ = await push_trace(
         dataset_name=dataset_name,
-        messages=[messages],
+        messages=[converted_requests + converted_responses],
         invariant_authorization=invariant_authorization,
     )
 
