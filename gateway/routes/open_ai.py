@@ -11,7 +11,7 @@ from common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
 )
-from utils.explorer import push_trace
+from integrations.explorer import push_trace
 from common.authorization import extract_authorization_from_headers
 
 gateway = APIRouter()
