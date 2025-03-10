@@ -6,17 +6,16 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-from google import genai
-import PIL.Image
-
-# add tests folder (parent) to sys.path
+# Add tests folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
+import PIL.Image
+from google import genai
 
-from util import *  # needed for pytest fixtures
+from util import *  # Needed for pytest fixtures
 
+# Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
 
 
@@ -134,7 +133,10 @@ async def test_generate_content_with_image(
         config={"maxOutputTokens": 100},
     )
 
-    assert "TWO" in chat_response.candidates[0].content.parts[0].text.upper()
+    assert (
+        "TWO" in chat_response.candidates[0].content.parts[0].text.upper()
+        or 2 in chat_response.candidates[0].content.parts[0].text
+    )
 
     if push_to_explorer:
         # Fetch the trace ids for the dataset

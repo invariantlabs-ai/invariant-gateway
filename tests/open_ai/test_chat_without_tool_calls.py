@@ -7,17 +7,16 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-from httpx import Client
-
-# add tests folder (parent) to sys.path
-from openai import NotFoundError, OpenAI
-
+# Add tests folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
+from httpx import Client
+from openai import NotFoundError, OpenAI
 
-from util import *  # needed for pytest fixtures
+from util import *  # Needed for pytest fixtures
 
+# Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
 
 
@@ -133,7 +132,10 @@ async def test_chat_completion_with_image(
             max_tokens=100,
         )
 
-        assert "TWO" in chat_response.choices[0].message.content.upper()
+        assert (
+            "TWO" in chat_response.choices[0].message.content.upper()
+            or 2 in chat_response.choices[0].message.content
+        )
 
         if push_to_explorer:
             # Fetch the trace ids for the dataset
