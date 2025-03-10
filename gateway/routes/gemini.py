@@ -1,7 +1,7 @@
 """Gateway service to forward requests to the Gemini APIs"""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from common.config_manager import GatewayConfig, GatewayConfigManager
@@ -12,6 +12,7 @@ from common.constants import (
     IGNORED_HEADERS,
 )
 from common.authorization import extract_authorization_from_headers
+from common.request_context_data import RequestContextData
 from converters.gemini_to_invariant import convert_request, convert_response
 from integrations.explorer import push_trace
 
@@ -52,7 +53,7 @@ async def gemini_generate_content_gateway(
     headers[GEMINI_AUTHORIZATION_HEADER] = gemini_api_key
 
     request_body_bytes = await request.body()
-    request_body_json = json.loads(request_body_bytes)
+    request_json = json.loads(request_body_bytes)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     gemini_api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:{endpoint}"
@@ -65,26 +66,29 @@ async def gemini_generate_content_gateway(
         headers=headers,
     )
 
+    context = RequestContextData(
+        request_json=request_json,
+        dataset_name=dataset_name,
+        invariant_authorization=invariant_authorization,
+    )
+
     if alt == "sse" or endpoint == "streamGenerateContent":
         return await stream_response(
+            context,
             client,
             gemini_request,
-            dataset_name,
-            request_body_json,
-            invariant_authorization,
         )
     response = await client.send(gemini_request)
     return await handle_non_streaming_response(
-        response, dataset_name, request_body_json, invariant_authorization
+        context,
+        response,
     )
 
 
 async def stream_response(
+    context: RequestContextData,
     client: httpx.AsyncClient,
     gemini_request: httpx.Request,
-    dataset_name: Optional[str],
-    request_body_json: dict[str, Any],
-    invariant_authorization: Optional[str],
 ) -> Response:
     """Handles streaming the Gemini response to the client"""
 
@@ -115,13 +119,11 @@ async def stream_response(
             # Parse and update merged_response incrementally
             process_chunk_text(merged_response, chunk_text)
 
-        if dataset_name:
+        if context.dataset_name:
             # Push to Explorer
             await push_to_explorer(
-                dataset_name,
+                context,
                 merged_response,
-                request_body_json,
-                invariant_authorization,
             )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -175,31 +177,28 @@ def update_merged_response(merged_response: dict[str, Any], chunk_json: dict) ->
         if "finishReason" in candidate:
             merged_response["candidates"][0]["finishReason"] = candidate["finishReason"]
 
+
 async def push_to_explorer(
-    dataset_name: str,
-    merged_response: dict[str, Any],
-    request_body: dict[str, Any],
-    invariant_authorization: str,
+    context: RequestContextData,
+    response_json: dict[str, Any],
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
-    converted_requests = convert_request(request_body)
-    converted_responses = convert_response(merged_response)
+    converted_requests = convert_request(context.request_json)
+    converted_responses = convert_response(response_json)
     _ = await push_trace(
-        dataset_name=dataset_name,
+        dataset_name=context.dataset_name,
         messages=[converted_requests + converted_responses],
-        invariant_authorization=invariant_authorization,
+        invariant_authorization=context.invariant_authorization,
     )
 
 
 async def handle_non_streaming_response(
+    context: RequestContextData,
     response: httpx.Response,
-    dataset_name: Optional[str],
-    request_body_json: dict[str, Any],
-    invariant_authorization: Optional[str],
 ) -> Response:
     """Handles non-streaming Gemini responses"""
     try:
-        json_response = response.json()
+        response_json = response.json()
     except json.JSONDecodeError as e:
         raise HTTPException(
             status_code=response.status_code,
@@ -208,15 +207,13 @@ async def handle_non_streaming_response(
     if response.status_code != 200:
         raise HTTPException(
             status_code=response.status_code,
-            detail=json_response.get("error", "Unknown error from Gemini API"),
+            detail=response_json.get("error", "Unknown error from Gemini API"),
         )
-    if dataset_name:
-        await push_to_explorer(
-            dataset_name, json_response, request_body_json, invariant_authorization
-        )
+    if context.dataset_name:
+        await push_to_explorer(context, response_json)
 
     return Response(
-        content=json.dumps(json_response),
+        content=json.dumps(response_json),
         status_code=response.status_code,
         media_type="application/json",
         headers=dict(response.headers),

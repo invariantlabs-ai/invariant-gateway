@@ -3,18 +3,18 @@
 import os
 import sys
 import uuid
-import pytest
 
+# Add tests folder (parent) to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import pytest
 from google import genai
 from google.genai import types
 
-# add tests folder (parent) to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from util import *  # Needed for pytest fixtures
 
-from util import *  # needed for pytest fixtures
-
+# Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
-
 
 def set_light_values(brightness: int, color_temp: str) -> dict[str, int | str]:
     """Set the brightness and color temperature of a room light. (mock API).

@@ -4,14 +4,16 @@ import datetime
 import os
 import sys
 
+# Add tests folder (parent) to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import anthropic
 import pytest
 from httpx import Client
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from util import *  # Needed for pytest fixtures
 
-from util import *  # needed for pytest fixtures
-
+# Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
 
 

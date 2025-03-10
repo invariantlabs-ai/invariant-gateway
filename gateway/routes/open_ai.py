@@ -1,7 +1,7 @@
 """Gateway service to forward requests to the OpenAI APIs"""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from common.config_manager import GatewayConfig, GatewayConfigManager
@@ -13,6 +13,7 @@ from common.constants import (
 )
 from integrations.explorer import push_trace
 from common.authorization import extract_authorization_from_headers
+from common.request_context_data import RequestContextData
 
 gateway = APIRouter()
 
@@ -52,9 +53,7 @@ async def openai_chat_completions_gateway(
     headers[OPENAI_AUTHORIZATION_HEADER] = openai_api_key
 
     request_body_bytes = await request.body()
-    request_body_json = json.loads(request_body_bytes)
-    # Check if the request is for streaming
-    is_streaming = request_body_json.get("stream", False)
+    request_json = json.loads(request_body_bytes)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     open_ai_request = client.build_request(
@@ -63,26 +62,30 @@ async def openai_chat_completions_gateway(
         content=request_body_bytes,
         headers=headers,
     )
-    if is_streaming:
+
+    context = RequestContextData(
+        request_json=request_json,
+        dataset_name=dataset_name,
+        invariant_authorization=invariant_authorization,
+    )
+
+    if request_json.get("stream", False):
         return await stream_response(
+            context,
             client,
             open_ai_request,
-            dataset_name,
-            request_body_json,
-            invariant_authorization,
         )
     response = await client.send(open_ai_request)
     return await handle_non_streaming_response(
-        response, dataset_name, request_body_json, invariant_authorization
+        context,
+        response,
     )
 
 
 async def stream_response(
+    context: RequestContextData,
     client: httpx.AsyncClient,
     open_ai_request: httpx.Request,
-    dataset_name: Optional[str],
-    request_body_json: dict[str, Any],
-    invariant_authorization: Optional[str],
 ) -> Response:
     """
     Handles streaming the OpenAI response to the client while building a merged_response
@@ -138,13 +141,8 @@ async def stream_response(
             )
 
         # Send full merged response to the explorer
-        if dataset_name:
-            await push_to_explorer(
-                dataset_name,
-                merged_response,
-                request_body_json,
-                invariant_authorization,
-            )
+        if context.dataset_name:
+            await push_to_explorer(context, merged_response)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -282,10 +280,7 @@ def update_existing_choice_with_delta(
 
 
 async def push_to_explorer(
-    dataset_name: str,
-    merged_response: dict[str, Any],
-    request_body: dict[str, Any],
-    invariant_authorization: str,
+    context: RequestContextData, merged_response: dict[str, Any]
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     # Only push the trace to explorer if the message is an end turn message
@@ -296,20 +291,17 @@ async def push_to_explorer(
     ):
         return
     # Combine the messages from the request body and the choices from the OpenAI response
-    messages = request_body.get("messages", [])
+    messages = context.request_json.get("messages", [])
     messages += [choice["message"] for choice in merged_response.get("choices", [])]
     _ = await push_trace(
-        dataset_name=dataset_name,
+        dataset_name=context.dataset_name,
         messages=[messages],
-        invariant_authorization=invariant_authorization,
+        invariant_authorization=context.invariant_authorization,
     )
 
 
 async def handle_non_streaming_response(
-    response: httpx.Response,
-    dataset_name: Optional[str],
-    request_body_json: dict[str, Any],
-    invariant_authorization: Optional[str],
+    context: RequestContextData, response: httpx.Response
 ) -> Response:
     """Handles non-streaming OpenAI responses"""
     try:
@@ -324,10 +316,8 @@ async def handle_non_streaming_response(
             status_code=response.status_code,
             detail=json_response.get("error", "Unknown error from OpenAI API"),
         )
-    if dataset_name:
-        await push_to_explorer(
-            dataset_name, json_response, request_body_json, invariant_authorization
-        )
+    if context.dataset_name:
+        await push_to_explorer(context, json_response)
 
     return Response(
         content=json.dumps(json_response),

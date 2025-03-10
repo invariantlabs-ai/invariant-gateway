@@ -5,16 +5,16 @@ import os
 import sys
 import uuid
 
-import pytest
-from httpx import Client
-
-# add tests folder (parent) to sys.path
-from openai import OpenAI
-
+# Add tests folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from util import *  # needed for pytest fixtures
+import pytest
+from httpx import Client
+from openai import OpenAI
 
+from util import *  # Needed for pytest fixtures
+
+# Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
 
 
