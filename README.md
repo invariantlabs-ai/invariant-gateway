@@ -90,6 +90,8 @@ Gateway supports the Gemini `generateContent` and `streamGenerateContent` method
 2. **Modify Gemini Client Setup**
 
    ```python
+   import os
+   
    from google import genai
 
    client = genai.Client(
