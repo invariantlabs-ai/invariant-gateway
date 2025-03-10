@@ -3,6 +3,7 @@
 import base64
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 from unittest.mock import patch
@@ -61,6 +62,9 @@ async def test_chat_completion(
         expected_assistant_message = full_response
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         # Fetch the trace ids for the dataset
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
@@ -134,10 +138,13 @@ async def test_chat_completion_with_image(
 
         assert (
             "TWO" in chat_response.choices[0].message.content.upper()
-            or 2 in chat_response.choices[0].message.content
+            or "2" in chat_response.choices[0].message.content
         )
 
         if push_to_explorer:
+            # Wait for the trace to be saved
+            # This is needed because the trace is saved asynchronously
+            time.sleep(2)
             # Fetch the trace ids for the dataset
             traces_response = await context.request.get(
                 f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
@@ -201,6 +208,10 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
         # Verify the chat response
         assert "PARIS" in chat_response.choices[0].message.content.upper()
         expected_assistant_message = chat_response.choices[0].message.content
+
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
 
         # Fetch the trace ids for the dataset
         traces_response = await context.request.get(

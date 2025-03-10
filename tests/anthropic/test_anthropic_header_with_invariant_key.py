@@ -3,6 +3,7 @@
 import datetime
 import os
 import sys
+import time
 from unittest.mock import patch
 
 # Add tests folder (parent) to sys.path
@@ -54,6 +55,10 @@ async def test_gateway_with_invariant_key_in_anthropic_key_header(
         assert response is not None
         response_text = response.content[0].text
         assert "zurich" in response_text.lower()
+
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
 
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"

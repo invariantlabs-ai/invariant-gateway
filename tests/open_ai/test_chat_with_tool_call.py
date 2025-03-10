@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import time
 import uuid
 
 # Add tests folder (parent) to sys.path
@@ -101,6 +102,9 @@ async def test_chat_completion_with_tool_call_without_streaming(
     assert "15°C" in chat_response_final.choices[0].message.content
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         # Fetch the trace ids for the dataset
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
@@ -218,6 +222,9 @@ async def test_chat_completion_with_tool_call_with_streaming(
             final_response["content"] += chunk.choices[0].delta.content
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         # Fetch the trace ids for the dataset
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
