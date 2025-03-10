@@ -1,5 +1,7 @@
 anthropic
+google-genai
 openai
+pillow
 pytest
 pytest-asyncio
 pytest-playwright
