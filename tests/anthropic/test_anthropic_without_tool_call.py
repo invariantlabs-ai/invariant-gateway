@@ -3,6 +3,7 @@
 import datetime
 import os
 import sys
+import time
 
 # Add tests folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -60,6 +61,9 @@ async def test_response_without_tool_call(
         assert cities[queries.index(query)] in response_text.lower()
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
         )
@@ -126,6 +130,9 @@ async def test_streaming_response_without_tool_call(
         assert cities[queries.index(query)] in response_text.lower()
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
         )

@@ -1,5 +1,6 @@
 """Gateway service to forward requests to the OpenAI APIs"""
 
+import asyncio
 import json
 from typing import Any
 
@@ -141,8 +142,9 @@ async def stream_response(
             )
 
         # Send full merged response to the explorer
+        # Don't block on the response from explorer
         if context.dataset_name:
-            await push_to_explorer(context, merged_response)
+            asyncio.create_task(push_to_explorer(context, merged_response))
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -317,7 +319,8 @@ async def handle_non_streaming_response(
             detail=json_response.get("error", "Unknown error from OpenAI API"),
         )
     if context.dataset_name:
-        await push_to_explorer(context, json_response)
+        # Push to Explorer - don't block on its response
+        asyncio.create_task(push_to_explorer(context, json_response))
 
     return Response(
         content=json.dumps(json_response),

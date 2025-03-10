@@ -1,7 +1,8 @@
 """Gateway service to forward requests to the Anthropic APIs"""
 
+import asyncio
 import json
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from common.config_manager import GatewayConfig, GatewayConfigManager
@@ -121,11 +122,9 @@ async def handle_non_streaming_response(
             detail=json_response.get("error", "Unknown error from Anthropic"),
         )
     # Only push the trace to explorer if the last message is an end turn message
+    # Don't block on the response from explorer
     if context.dataset_name:
-        await push_to_explorer(
-            context,
-            json_response,
-        )
+        asyncio.create_task(push_to_explorer(context, json_response))
     return Response(
         content=json.dumps(json_response),
         status_code=response.status_code,
@@ -161,10 +160,8 @@ async def handle_streaming_response(
 
             process_chunk_text(chunk_decode, merged_response)
         if context.dataset_name:
-            await push_to_explorer(
-                context,
-                merged_response[-1],
-            )
+            # Push to Explorer - don't block on the response
+            asyncio.create_task(push_to_explorer(context, merged_response[-1]))
 
     generator = event_generator()
 

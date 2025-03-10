@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List
 
@@ -209,6 +210,9 @@ async def test_response_with_tool_call(
     responses.append(response)
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
         )
@@ -264,6 +268,9 @@ async def test_streaming_response_with_tool_call(
     assert city in response[1][0].text.lower()
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
         )
@@ -338,6 +345,9 @@ async def test_response_with_tool_call_with_image(
         assert response[1].stop_reason == "end_turn"
 
         if push_to_explorer:
+            # Wait for the trace to be saved
+            # This is needed because the trace is saved asynchronously
+            time.sleep(2)
             traces_response = await context.request.get(
                 f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
             )

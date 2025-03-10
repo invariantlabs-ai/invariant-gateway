@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 from unittest.mock import patch
@@ -73,6 +74,9 @@ async def test_generate_content(
         expected_assistant_message = full_response
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         # Fetch the trace ids for the dataset
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
@@ -135,10 +139,13 @@ async def test_generate_content_with_image(
 
     assert (
         "TWO" in chat_response.candidates[0].content.parts[0].text.upper()
-        or 2 in chat_response.candidates[0].content.parts[0].text
+        or "2" in chat_response.candidates[0].content.parts[0].text
     )
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         # Fetch the trace ids for the dataset
         traces_response = await context.request.get(
             f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
@@ -195,6 +202,10 @@ async def test_generate_content_with_invariant_key_in_gemini_key_header(
         # Verify the chat response
         assert "MADRID" in chat_response.candidates[0].content.parts[0].text.upper()
         expected_assistant_message = chat_response.candidates[0].content.parts[0].text
+
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
 
         # Fetch the trace ids for the dataset
         traces_response = await context.request.get(

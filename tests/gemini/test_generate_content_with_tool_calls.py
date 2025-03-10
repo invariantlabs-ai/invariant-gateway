@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import uuid
 
 # Add tests folder (parent) to sys.path
@@ -186,6 +187,9 @@ async def test_generate_content_with_tool_call(
         expected_final_assistant_message = full_response
 
     if push_to_explorer:
+        # Wait for the trace to be saved
+        # This is needed because the trace is saved asynchronously
+        time.sleep(2)
         await _verify_trace_from_explorer(
             context, explorer_api_url, dataset_name, expected_final_assistant_message
         )

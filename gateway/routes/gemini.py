@@ -1,5 +1,6 @@
 """Gateway service to forward requests to the Gemini APIs"""
 
+import asyncio
 import json
 from typing import Any
 
@@ -120,10 +121,12 @@ async def stream_response(
             process_chunk_text(merged_response, chunk_text)
 
         if context.dataset_name:
-            # Push to Explorer
-            await push_to_explorer(
-                context,
-                merged_response,
+            # Push to Explorer - don't block on the response
+            asyncio.create_task(
+                push_to_explorer(
+                    context,
+                    merged_response,
+                )
             )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -210,7 +213,8 @@ async def handle_non_streaming_response(
             detail=response_json.get("error", "Unknown error from Gemini API"),
         )
     if context.dataset_name:
-        await push_to_explorer(context, response_json)
+        # Push to Explorer - don't block on the response
+        asyncio.create_task(push_to_explorer(context, response_json))
 
     return Response(
         content=json.dumps(response_json),
