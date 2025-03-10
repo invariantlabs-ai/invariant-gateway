@@ -50,7 +50,7 @@ down() {
 
 
 tests() {
-  echo "Setting up test environment..."
+  echo "Setting up test environment to run integration tests..."
 
   # Ensure test network exists
   docker network inspect invariant-gateway-web-test >/dev/null 2>&1 || \
@@ -84,7 +84,18 @@ tests() {
     sleep 2
   done
 
-  echo "Running tests..."
+  while true; do
+    echo "Attempting to create test user in invariant-gateway-test-explorer-app-api"
+    RESPONSE=$(curl -ks -X POST http://127.0.0.1/api/v1/user/signup)
+    if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
+        echo "Created test user in invariant-gateway-test-explorer-app-api"
+        break
+    fi
+    echo "$RESPONSE"
+    sleep 2
+  done
+
+  echo "Running integration tests..."
 
   # Make call to signup endpoint
   curl -k -X POST http://127.0.0.1/api/v1/user/signup
@@ -96,6 +107,7 @@ tests() {
     --network invariant-gateway-web-test \
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
     -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\
+    -e GEMINI_API_KEY="$GEMINI_API_KEY" \
     --env-file ./tests/.env.test \
     invariant-gateway-tests $@
 }
