@@ -38,6 +38,7 @@ To add Gateway to your agentic system, follow one of the integration guides belo
 ## **Integration Guides**
 
 ### **🔹 OpenAI Integration**
+Gateway supports the OpenAI Chat Completions API (`/v1/chat/completions` endpoint).
 
 1. Follow [these steps](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key) to obtain an OpenAI API key.
 2. **Modify OpenAI Client Setup**
@@ -61,6 +62,7 @@ To add Gateway to your agentic system, follow one of the integration guides belo
    > **Note:** Do not include the curly braces `{}`. If the dataset does not exist in Invariant Explorer, it will be created before adding traces.
 
 ### **🔹 Anthropic Integration**
+Gateway supports the Anthropic Messages API (`/v1/messages` endpoint).
 
 1. Follow [these steps](https://docs.anthropic.com/en/docs/initial-setup#set-your-api-key) to obtain an Anthropic API key.
 2. **Modify Anthropic Client Setup**
@@ -77,6 +79,28 @@ To add Gateway to your agentic system, follow one of the integration guides belo
        ),
        base_url="https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/anthropic",
    )
+   ```
+
+   > **Note:** Do not include the curly braces `{}`. If the dataset does not exist in Invariant Explorer, it will be created before adding traces.
+
+### **🔹 Gemini Integration**
+Gateway supports the Gemini `generateContent` and `streamGenerateContent` methods.
+
+1. Follow [these steps](https://ai.google.dev/gemini-api/docs/api-key) to obtain a Gemini API key.
+2. **Modify Gemini Client Setup**
+
+   ```python
+   from google import genai
+
+   client = genai.Client(
+        api_key=os.environ["GEMINI_API_KEY"],
+        http_options={
+            "base_url": "https://explorer.invariantlabs.ai/api/v1/gateway/{add-your-dataset-name-here}/gemini",
+            "headers": {
+                "Invariant-Authorization": "Bearer your-invariant-api-key"
+            },
+        },
+    )
    ```
 
    > **Note:** Do not include the curly braces `{}`. If the dataset does not exist in Invariant Explorer, it will be created before adding traces.
