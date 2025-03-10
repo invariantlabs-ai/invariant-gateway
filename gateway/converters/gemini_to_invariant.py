@@ -28,7 +28,11 @@ def convert_request(request: dict) -> list[dict]:
                         # Currently, only images are supported.
                         # Gemini’s API returns URL-safe base64 (uses _ and -).
                         # We need to convert it to standard base64 (uses + and /).
-                        inline_data = part["inlineData"]["data"].replace("-", "+").replace("_", "/")
+                        inline_data = (
+                            part["inlineData"]["data"]
+                            .replace("-", "+")
+                            .replace("_", "/")
+                        )
                         message_content.append(
                             {
                                 "type": "image_url",
@@ -38,13 +42,15 @@ def convert_request(request: dict) -> list[dict]:
                             }
                         )
                     elif "functionResponse" in part:
+                        result = part["functionResponse"]["response"].get("result", {})
+                        # TODO: Fix this once Explorer rendering is fixed.
+                        if not isinstance(result, dict):
+                            result = str(result)
                         openai_messages.append(
                             {
                                 "role": "tool",
                                 "tool_name": part["functionResponse"]["name"],
-                                "content": part["functionResponse"]["response"].get(
-                                    "result", {}
-                                ),
+                                "content": result,
                             }
                         )
                 if message_content:

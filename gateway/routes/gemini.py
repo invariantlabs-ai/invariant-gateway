@@ -53,7 +53,6 @@ async def gemini_generate_content_gateway(
 
     request_body_bytes = await request.body()
     request_body_json = json.loads(request_body_bytes)
-    print("Here is the request: ", request_body_json)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
     gemini_api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:{endpoint}"
@@ -71,6 +70,8 @@ async def gemini_generate_content_gateway(
             client,
             gemini_request,
             dataset_name,
+            request_body_json,
+            invariant_authorization,
         )
     response = await client.send(gemini_request)
     return await handle_non_streaming_response(
@@ -82,6 +83,8 @@ async def stream_response(
     client: httpx.AsyncClient,
     gemini_request: httpx.Request,
     dataset_name: Optional[str],
+    request_body_json: dict[str, Any],
+    invariant_authorization: Optional[str],
 ) -> Response:
     """Handles streaming the Gemini response to the client"""
 
@@ -96,22 +99,81 @@ async def stream_response(
         raise HTTPException(status_code=response.status_code, detail=error_detail)
 
     async def event_generator() -> Any:
+        # Store the progressively merged response
+        merged_response = {
+            "candidates": [{"content": {"parts": []}, "finishReason": None}]
+        }
+
         async for chunk in response.aiter_bytes():
             chunk_text = chunk.decode().strip()
             if not chunk_text:
                 continue
 
             # Yield chunk immediately to the client
-            print("Here is the response chunk: ", chunk)
             yield chunk
 
-        # Send full merged response to the explorer
+            # Parse and update merged_response incrementally
+            process_chunk_text(merged_response, chunk_text)
+
         if dataset_name:
             # Push to Explorer
-            pass
+            await push_to_explorer(
+                dataset_name,
+                merged_response,
+                request_body_json,
+                invariant_authorization,
+            )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
+def process_chunk_text(
+    merged_response: dict[str, Any],
+    chunk_text: str,
+) -> None:
+    """Processes the chunk text and updates the merged_response to be sent to the explorer"""
+    # Split the chunk text into individual JSON strings
+    # A single chunk can contain multiple "data: " sections
+    for json_string in chunk_text.split("data: "):
+        json_string = json_string.replace("data: ", "").strip()
+
+        if not json_string:
+            continue
+
+        try:
+            json_chunk = json.loads(json_string)
+        except json.JSONDecodeError:
+            print("Warning: Could not parse chunk:", json_string)
+
+        update_merged_response(merged_response, json_chunk)
+
+
+def update_merged_response(merged_response: dict[str, Any], chunk_json: dict) -> None:
+    """Updates the merged response incrementally with a new chunk."""
+    candidates = chunk_json.get("candidates", [])
+
+    for candidate in candidates:
+        content = candidate.get("content", {})
+        parts = content.get("parts", [])
+
+        for part in parts:
+            if "text" in part:
+                existing_parts = merged_response["candidates"][0]["content"]["parts"]
+                if existing_parts and "text" in existing_parts[-1]:
+                    existing_parts[-1]["text"] += part["text"]
+                else:
+                    existing_parts.append({"text": part["text"]})
+
+            if "functionCall" in part:
+                merged_response["candidates"][0]["content"]["parts"].append(
+                    {"functionCall": part["functionCall"]}
+                )
+
+        if "role" in content:
+            merged_response["candidates"][0]["content"]["role"] = content["role"]
+
+        if "finishReason" in candidate:
+            merged_response["candidates"][0]["finishReason"] = candidate["finishReason"]
 
 async def push_to_explorer(
     dataset_name: str,
@@ -138,7 +200,6 @@ async def handle_non_streaming_response(
     """Handles non-streaming Gemini responses"""
     try:
         json_response = response.json()
-        print("Here is the response: ", json_response)
     except json.JSONDecodeError as e:
         raise HTTPException(
             status_code=response.status_code,
