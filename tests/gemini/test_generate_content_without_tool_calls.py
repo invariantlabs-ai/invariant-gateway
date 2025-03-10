@@ -1,6 +1,5 @@
 """Test the generate content gateway calls without tool calling."""
 
-import base64
 import os
 import sys
 import uuid
@@ -8,7 +7,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from httpx import Client
 
 from google import genai
 import PIL.Image
@@ -52,10 +50,11 @@ async def test_generate_content(
         },
     }
 
-    if not do_stream:
-        chat_response = client.models.generate_content(**request)
-    else:
-        chat_response = client.models.generate_content_stream(**request)
+    chat_response = (
+        client.models.generate_content(**request)
+        if not do_stream
+        else client.models.generate_content_stream(**request)
+    )
 
     # Verify the chat response
     if not do_stream:
