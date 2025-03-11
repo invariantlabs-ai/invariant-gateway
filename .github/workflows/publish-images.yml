@@ -32,28 +32,26 @@ jobs:
       # based on whether this is a version tag or a branch, we will set the tags for the pushed images
       - name: Set Docker Tags
         id: set-tags
+        # run: |
+        #   if [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
+        #     echo "tags=ghcr.io/${{ github.repository }}/app-api:latest" >> $GITHUB_ENV
+        #     echo "tags_ui=ghcr.io/${{ github.repository }}/app-ui:latest" >> $GITHUB_ENV
+        #   # starts with v* and only contains numbers and dots
+        #   elif [[ "${{ github.event.workflow_run.head_branch }}" =~ ^v[0-9.]+$ ]]; then
+        #     # get tag name from the event
+        #     version=${{ github.event.workflow_run.head_branch }}
+        #     # remove the refs/tags/ prefix
+        #     echo "version string is $version"
+        #     echo "tags=ghcr.io/${{ github.repository }}/app-api:latest,ghcr.io/${{ github.repository }}/app-api:${version}" >> $GITHUB_ENV
+        #     echo "tags_ui=ghcr.io/${{ github.repository }}/app-ui:latest,ghcr.io/${{ github.repository }}/app-ui:${version}" >> $GITHUB_ENV
+        #   else
+        #     echo "Failed to determine the tags for the Docker images for branch ${{ github.event.workflow_run.head_branch }}"
+        #     exit 1
+        #   fi
         run: |
-          if [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
-            echo "tags=ghcr.io/${{ github.repository }}/app-api:latest" >> $GITHUB_ENV
-            echo "tags_ui=ghcr.io/${{ github.repository }}/app-ui:latest" >> $GITHUB_ENV
-          # starts with v* and only contains numbers and dots
-          if [[ "${{ github.event.workflow_run.head_branch }}" == "ghcr" ]]; then
-            echo "tags=ghcr.io/${{ github.repository }}/app-api:ghcr-testing" >> $GITHUB_ENV
-            echo "tags_ui=ghcr.io/${{ github.repository }}/app-ui:ghcr-testing" >> $GITHUB_ENV
-          # starts with v* and only contains numbers and dots
-          elif [[ "${{ github.event.workflow_run.head_branch }}" =~ ^v[0-9.]+$ ]]; then
-            # get tag name from the event
-            version=${{ github.event.workflow_run.head_branch }}
-            # remove the refs/tags/ prefix
-            echo "version string is $version"
-            echo "tags=ghcr.io/${{ github.repository }}/app-api:latest,ghcr.io/${{ github.repository }}/app-api:${version}" >> $GITHUB_ENV
-            echo "tags_ui=ghcr.io/${{ github.repository }}/app-ui:latest,ghcr.io/${{ github.repository }}/app-ui:${version}" >> $GITHUB_ENV
-          else
-            echo "Failed to determine the tags for the Docker images for branch ${{ github.event.workflow_run.head_branch }}"
-            exit 1
-          fi
+          echo "tags=ghcr.io/${{ github.repository }}/gateway:ghcr-testing" >> $GITHUB_ENV
 
-      - name: Build app-api
+      - name: build gateway image
         uses: docker/build-push-action@v5
         with:
           context: ./gateway
