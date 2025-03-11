@@ -2,7 +2,7 @@
 
 **LLM proxy to observe and debug what your AI agents are doing.**
 
-[Documentation](https://explorer.invariantlabs.ai/docs/gateway) | [Quickstart for Users](#quickstart-for-users) | [Quickstart for Developers](#quickstart-for-developers)
+[Documentation](https://explorer.invariantlabs.ai/docs/gateway) | [Quickstart for Users](#quickstart-for-users) | [Quickstart for Developers](#quickstart-for-developers) | [Run Locally](#run-the-gateway-locally)
 
 <a href="https://discord.gg/dZuZfhKnJ4"><img src="https://img.shields.io/discord/1265409784409231483?style=plastic&logo=discord&color=blueviolet&logoColor=white" height=18/></a>
 
