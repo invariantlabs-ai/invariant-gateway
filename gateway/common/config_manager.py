@@ -20,7 +20,7 @@ class GatewayConfig:
         policies_file = os.getenv("POLICIES_FILE_PATH", "")
 
         if not policies_file:
-            print("Warning: POLICIES_FILE_PATH is not set. Using empty policies.")
+            print("[warning: POLICIES_FILE_PATH is not set. Using empty policies]")
             return ""
 
         try:

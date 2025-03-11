@@ -38,6 +38,7 @@ To add Gateway to your agentic system, follow one of the integration guides belo
 ## **Integration Guides**
 
 ### **🔹 OpenAI Integration**
+
 Gateway supports the OpenAI Chat Completions API (`/v1/chat/completions` endpoint).
 
 1. Follow [these steps](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key) to obtain an OpenAI API key.
@@ -62,6 +63,7 @@ Gateway supports the OpenAI Chat Completions API (`/v1/chat/completions` endpoin
    > **Note:** Do not include the curly braces `{}`. If the dataset does not exist in Invariant Explorer, it will be created before adding traces.
 
 ### **🔹 Anthropic Integration**
+
 Gateway supports the Anthropic Messages API (`/v1/messages` endpoint).
 
 1. Follow [these steps](https://docs.anthropic.com/en/docs/initial-setup#set-your-api-key) to obtain an Anthropic API key.
@@ -84,6 +86,7 @@ Gateway supports the Anthropic Messages API (`/v1/messages` endpoint).
    > **Note:** Do not include the curly braces `{}`. If the dataset does not exist in Invariant Explorer, it will be created before adding traces.
 
 ### **🔹 Gemini Integration**
+
 Gateway supports the Gemini `generateContent` and `streamGenerateContent` methods.
 
 1. Follow [these steps](https://ai.google.dev/gemini-api/docs/api-key) to obtain a Gemini API key.
@@ -91,7 +94,7 @@ Gateway supports the Gemini `generateContent` and `streamGenerateContent` method
 
    ```python
    import os
-   
+
    from google import genai
 
    client = genai.Client(
@@ -249,13 +252,33 @@ This setup ensures that SWE-agent works seamlessly with Invariant Gateway, maint
 
 You can also operate your own instance of the Gateway, to ensure privacy and security.
 
-First, clone this repository. To start the Invariant Gateway, run:
+To run Gateway locally, you have two options:
+
+### 1. Run gateway from the repository
+
+1. Clone this repository.
+
+2. To start the Invariant Gateway, then run the following commands. Note that you need to have Docker installed.
 
 ```bash
+cd invariant-gateway
 bash run.sh build && bash run.sh up
 ```
 
 This will launch Gateway at [http://localhost:8005/api/v1/gateway/](http://localhost:8005/api/v1/gateway/docs/).
+
+### 2. Run the Gateway using the published Docker image
+
+You can also run the Gateway using the published Docker image. This is a good option if you want to run the Gateway in a cloud environment.
+
+```bash
+# pull the latest image
+docker pull ghcr.io/invariantlabs-ai/invariant-gateway:latest
+# run Gateway on localhost:8002
+docker run -p 8002:8002 -e PORT=8002 ghcr.io/invariantlabs-ai/invariant-gateway:latest
+```
+
+This will launch Gateway at [http://localhost:8002/api/v1/gateway/](http://localhost:8002/api/v1/gateway/docs/).
 
 ### **Set Up an Invariant API Key**
 
