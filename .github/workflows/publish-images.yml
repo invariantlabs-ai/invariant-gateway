@@ -9,8 +9,9 @@ on:
   #   branches:
   #     - main
   #     - v*
-  branches:
-    - ghcr
+  push:
+    branches:
+      - ghcr
 
 jobs:
   build-explorer-local-images:
