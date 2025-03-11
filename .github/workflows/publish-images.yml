@@ -1,0 +1,58 @@
+name: Build Docker Images
+
+on:
+  # workflow_run:
+  #   workflows:
+  #     - Invariant gateway testing CI
+  #   types:
+  #     - completed
+  #   branches:
+  #     - main
+  #     - v*
+  branches:
+    - ghcr
+
+jobs:
+  build-explorer-local-images:
+    runs-on: ubuntu-latest
+    # check that this is a tag or the 'main' branch but not a pull request
+    if: ${{ github.event.workflow_run.conclusion == 'success' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # based on whether this is a version tag or a branch, we will set the tags for the pushed images
+      - name: Set Docker Tags
+        id: set-tags
+        run: |
+          if [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
+            echo "tags=ghcr.io/${{ github.repository }}/app-api:latest" >> $GITHUB_ENV
+            echo "tags_ui=ghcr.io/${{ github.repository }}/app-ui:latest" >> $GITHUB_ENV
+          # starts with v* and only contains numbers and dots
+          elif [[ "${{ github.event.workflow_run.head_branch }}" =~ ^v[0-9.]+$ ]]; then
+            # get tag name from the event
+            version=${{ github.event.workflow_run.head_branch }}
+            # remove the refs/tags/ prefix
+            echo "version string is $version"
+            echo "tags=ghcr.io/${{ github.repository }}/app-api:latest,ghcr.io/${{ github.repository }}/app-api:${version}" >> $GITHUB_ENV
+            echo "tags_ui=ghcr.io/${{ github.repository }}/app-ui:latest,ghcr.io/${{ github.repository }}/app-ui:${version}" >> $GITHUB_ENV
+          else
+            echo "Failed to determine the tags for the Docker images for branch ${{ github.event.workflow_run.head_branch }}"
+            exit 1
+          fi
+
+      - name: Build app-api
+        uses: docker/build-push-action@v5
+        with:
+          context: ./gateway
+          file: ./gateway/Dockerfile.gateway
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.tags }}
