@@ -273,9 +273,9 @@ You can also run the Gateway using the published Docker image. This is a good op
 
 ```bash
 # pull the latest image
-docker pull ghcr.io/invariantlabs-ai/invariant-gateway:latest
+docker pull --platform linux/amd64 ghcr.io/invariantlabs-ai/invariant-gateway:latest
 # run Gateway on localhost:8005
-docker run -p 8005:8005 -e PORT=8005 ghcr.io/invariantlabs-ai/invariant-gateway:latest
+docker run -p 8005:8005 -e PORT=8005 --platform linux/amd64 ghcr.io/invariantlabs-ai/invariant-gateway/gateway:latest
 ```
 
 This will launch Gateway at [http://localhost:8002/api/v1/gateway/](http://localhost:8002/api/v1/gateway/docs/).
