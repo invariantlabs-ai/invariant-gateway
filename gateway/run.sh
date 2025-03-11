@@ -9,8 +9,10 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# using 'exec' belows ensures that signals like SIGTERM are passed to the child process
+# and not the shell script itself (important when running in a container)
 if [ "$DEV_MODE" = "true" ]; then
-    uvicorn serve:app --host 0.0.0.0 --port 8000 --reload
+    exec uvicorn serve:app --host 0.0.0.0 --port 8000 --reload
 else
-    uvicorn serve:app --host 0.0.0.0 --port 8000
+    exec uvicorn serve:app --host 0.0.0.0 --port 8000
 fi

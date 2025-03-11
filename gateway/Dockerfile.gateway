@@ -8,5 +8,7 @@ COPY . /srv/gateway
 
 # Ensure run.sh is executable
 RUN chmod +x /srv/gateway/run.sh
+WORKDIR /srv/gateway
 
-ENTRYPOINT ./run.sh
+# Run the application
+CMD ["./run.sh"]
