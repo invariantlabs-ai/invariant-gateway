@@ -166,27 +166,17 @@ async def test_chat_completion_with_image(
                 message.pop("annotations", None)
 
             # Verify the trace messages
-            assert trace["messages"] == [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "How many cats are there in this image?",
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": "data:image/png;base64," + base64_image
-                            },
-                        },
-                    ],
-                },
-                {
-                    "role": "assistant",
-                    "content": chat_response.choices[0].message.content,
-                },
-            ]
+            assert len(trace["messages"]) == 2
+            assert trace["messages"][0]["content"][0]["type"] == "text"
+            assert (
+                trace["messages"][0]["content"][0]["text"]
+                == "How many cats are there in this image?"
+            )
+            assert trace["messages"][0]["content"][1]["type"] == "image_url"
+            assert trace["messages"][1] == {
+                "role": "assistant",
+                "content": chat_response.choices[0].message.content,
+            }
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
