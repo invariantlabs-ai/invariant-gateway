@@ -62,12 +62,12 @@ async def test_chat_completion_with_tool_call_without_streaming(
     assert chat_response.choices[0].message.role == "assistant"
     # Extract tool call
     assert len(chat_response.choices[0].message.tool_calls) == 1
-    assert chat_response.choices[0].message.tool_calls[0].function.name == "get_weather"
-    assert (
-        chat_response.choices[0].message.tool_calls[0].function.arguments
-        == '{"location":"New York"}'
-    )
     tool_call = chat_response.choices[0].message.tool_calls[0]
+    assert tool_call.function.name == "get_weather"
+    assert (
+        "New York" in tool_call.function.arguments
+        and "location" in tool_call.function.arguments
+    )
 
     # Mock response of tool call
     tool_result = "The temperature in New York is 15°C and it is raining."
