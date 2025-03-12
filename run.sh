@@ -45,11 +45,16 @@ build() {
 down() {
   # Bring down local services
   docker compose -f docker-compose.local.yml down
-  docker compose -f tests/docker-compose.test.yml down
+  docker compose -f tests/integration/docker-compose.test.yml down
 }
 
+unit_tests() {
+  echo "Running unit tests..."
+  
+  pytest tests/unit_tests $@
+}
 
-tests() {
+integration_tests() {
   echo "Setting up test environment to run integration tests..."
 
   # Ensure test network exists
@@ -70,9 +75,9 @@ tests() {
   echo "File successfully downloaded: $FILE"
 
   # Start containers
-  docker compose -f tests/docker-compose.test.yml down
-  docker compose -f tests/docker-compose.test.yml build
-  docker compose -f tests/docker-compose.test.yml up -d
+  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml down
+  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml build
+  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml up -d
 
   until [ "$(docker inspect -f '{{.State.Health.Status}}' invariant-gateway-test-explorer-app-api)" = "healthy" ]; do
     echo "Explorer backend app-api instance container starting..."
@@ -100,15 +105,15 @@ tests() {
   # Make call to signup endpoint
   curl -k -X POST http://127.0.0.1/api/v1/user/signup
 
-  docker build -t 'invariant-gateway-tests' -f ./tests/Dockerfile.test ./tests
+  docker build -t 'invariant-gateway-tests' -f ./tests/integration/Dockerfile.test ./tests
 
   docker run \
-    --mount type=bind,source=./tests,target=/tests \
+    --mount type=bind,source=./tests/integration,target=/tests \
     --network invariant-gateway-web-test \
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
     -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\
     -e GEMINI_API_KEY="$GEMINI_API_KEY" \
-    --env-file ./tests/.env.test \
+    --env-file ./tests/integration/.env.test \
     invariant-gateway-tests $@
 }
 
@@ -129,12 +134,16 @@ case "$1" in
   "logs")
     docker compose -f docker-compose.local.yml logs -f
     ;;
-  "tests")
+  "unit-tests")
     shift
-    tests $@
+    unit_tests $@
+    ;;
+  "integration-tests")
+    shift
+    integration_tests $@
     ;;
   *)
-    echo "Usage: $0 [up|build|down|logs|tests]"
+    echo "Usage: $0 [up|build|down|logs|unit-tests|integration-tests]"
     exit 1
     ;;
 esac

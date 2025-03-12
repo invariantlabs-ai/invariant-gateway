@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-# Add tests folder (parent) to sys.path
+# Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
@@ -128,7 +128,7 @@ async def test_generate_content_with_image(
         },
     )
 
-    image_path = Path(__file__).parent.parent / "images" / "two-cats.png"
+    image_path = Path(__file__).parent.parent / "resources" / "images" / "two-cats.png"
     image = PIL.Image.open(image_path)
 
     chat_response = client.models.generate_content(

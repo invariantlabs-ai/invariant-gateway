@@ -24,8 +24,8 @@ services:
   invariant-gateway:
     container_name: invariant-gateway-test
     build:
-      context: ../gateway
-      dockerfile: ../gateway/Dockerfile.gateway
+      context: ${GATEWAY_PATH}
+      dockerfile: ${GATEWAY_PATH}/Dockerfile.gateway
     depends_on:
       app-api:
         condition: service_healthy
@@ -36,7 +36,7 @@ services:
       - DEV_MODE=true
     volumes:
       - type: bind
-        source: ../gateway
+        source: ${GATEWAY_PATH}
         target: /srv/gateway
     networks:
       - invariant-gateway-web-test

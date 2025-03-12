@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
-# Add tests folder (parent) to sys.path
+# Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
@@ -113,7 +113,7 @@ async def test_chat_completion_with_image(
         if push_to_explorer
         else f"{gateway_url}/api/v1/gateway/openai",
     )
-    image_path = Path(__file__).parent.parent / "images" / "two-cats.png"
+    image_path = Path(__file__).parent.parent / "resources" / "images" / "two-cats.png"
     with image_path.open("rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
