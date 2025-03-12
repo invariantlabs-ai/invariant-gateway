@@ -45,7 +45,7 @@ build() {
 down() {
   # Bring down local services
   docker compose -f docker-compose.local.yml down
-  docker compose -f tests/integration/docker-compose.test.yml down
+  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml down
 }
 
 unit_tests() {
