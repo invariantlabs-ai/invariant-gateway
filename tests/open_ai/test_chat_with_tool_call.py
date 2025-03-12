@@ -119,6 +119,9 @@ async def test_chat_completion_with_tool_call_without_streaming(
         )
         trace = await trace_response.json()
 
+        for message in trace["messages"]:
+            message.pop("annotations", None)
+
         # Verify the trace messages
         expected_messages = history + [
             {

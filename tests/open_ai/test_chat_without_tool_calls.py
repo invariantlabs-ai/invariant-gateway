@@ -79,6 +79,9 @@ async def test_chat_completion(
         )
         trace = await trace_response.json()
 
+        for message in trace["messages"]:
+            message.pop("annotations", None)
+
         # Verify the trace messages
         assert trace["messages"] == [
             {
@@ -159,6 +162,9 @@ async def test_chat_completion_with_image(
             )
             trace = await trace_response.json()
 
+            for message in trace["messages"]:
+                message.pop("annotations", None)
+
             # Verify the trace messages
             assert trace["messages"] == [
                 {
@@ -226,6 +232,9 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
             f"{explorer_api_url}/api/v1/trace/{trace_id}"
         )
         trace = await trace_response.json()
+
+        for message in trace["messages"]:
+            message.pop("annotations", None)
 
         # Verify the trace messages
         assert trace["messages"] == [
