@@ -1,6 +1,5 @@
 """Converts the request and response formats from Anthropic to Invariant API format."""
 
-
 def convert_anthropic_to_invariant_message_format(
     messages: list[dict], keep_empty_tool_response: bool = False
 ) -> list[dict]:

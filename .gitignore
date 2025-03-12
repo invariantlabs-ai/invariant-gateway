@@ -4,6 +4,7 @@ __pycache__/
 .py[oc]
 data/
 tests/results/
+tests/integration/results/
 
 # Coverage and build artifacts
 .coverage

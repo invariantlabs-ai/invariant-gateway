@@ -1,8 +1,5 @@
 """Converts the request and response formats from Gemini to Invariant API format."""
 
-import base64
-
-
 def convert_request(request: dict) -> list[dict]:
     """Converts the request from Gemini API to Invariant API format."""
     openai_messages = []

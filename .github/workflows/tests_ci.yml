@@ -15,10 +15,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
         - name: Checkout
-          uses: actions/checkout@v1
-        - name: Run tests
+          uses: actions/checkout@v4
+
+        - name: Set Up Python
+          uses: actions/setup-python@v4
+          with:
+            python-version: "3.10"
+
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install pytest
+
+        - name: Run unit tests
+          run: ./run.sh unit-tests -s -vv
+          continue-on-error: true
+
+        - name: Run integration tests
           env:
             OPENAI_API_KEY: ${{ secrets.INVARIANT_TESTING_OPENAI_KEY }}
             ANTHROPIC_API_KEY: ${{ secrets.INVARIANT_TESTING_ANTHROPIC_KEY}}
             GEMINI_API_KEY: ${{ secrets.INVARIANT_TESTING_GEMINI_KEY }}
-          run: ./run.sh tests -s -vv
+          run: ./run.sh integration-tests -s -vv

@@ -5,7 +5,7 @@ import sys
 import time
 import uuid
 
-# Add tests folder (parent) to sys.path
+# Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest

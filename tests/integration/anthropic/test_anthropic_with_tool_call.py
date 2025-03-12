@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
-# Add tests folder (parent) to sys.path
+# Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import anthropic
@@ -311,7 +311,7 @@ async def test_response_with_tool_call_with_image(
     """Test the chat completion with image for the weather agent."""
     weather_agent = WeatherAgent(gateway_url, push_to_explorer)
 
-    image_path = Path(__file__).parent.parent / "images" / "new-york.jpeg"
+    image_path = Path(__file__).parent.parent / "resources" / "images" / "new-york.jpeg"
 
     with image_path.open("rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
