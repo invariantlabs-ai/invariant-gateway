@@ -278,7 +278,7 @@ docker pull --platform linux/amd64 ghcr.io/invariantlabs-ai/invariant-gateway/ga
 docker run -p 8005:8005 -e PORT=8005 --platform linux/amd64 ghcr.io/invariantlabs-ai/invariant-gateway/gateway:latest
 ```
 
-This will launch Gateway at [http://localhost:8002/api/v1/gateway/](http://localhost:8002/api/v1/gateway/docs/).
+This will launch Gateway at [http://localhost:8002/api/v1/gateway/](http://localhost:8005/api/v1/gateway/docs/). This instance will automatically push your traces to `https://explorer.invariantlabs.ai`. 
 
 ### **Set Up an Invariant API Key**
 
