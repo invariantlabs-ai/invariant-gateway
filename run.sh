@@ -102,9 +102,6 @@ integration_tests() {
 
   echo "Running integration tests..."
 
-  # Make call to signup endpoint
-  curl -k -X POST http://127.0.0.1/api/v1/user/signup
-
   docker build -t 'invariant-gateway-tests' -f ./tests/integration/Dockerfile.test ./tests
 
   docker run \
