@@ -292,10 +292,24 @@ This will launch Gateway at [http://localhost:8005/api/v1/gateway/](http://local
 
 By default Gateway points to the public Explorer instance at `explorer.invariantlabs.ai`. To point it to your local Explorer instance, modify the `INVARIANT_API_URL` value inside `.env`. Follow instructions in `.env` on how to point to the local instance.
 
-### **Run Tests**
+### **Run Unit Tests**
 
-To run tests, execute:
+To run the unit tests, execute:
 
 ```bash
-./run.sh tests
+bash run.sh unit-tests
+```
+
+### **Run Integration Tests**
+
+To run the integration tests, execute:
+
+```bash
+bash run.sh integration-tests
+```
+
+To run a subset of the integration tests, execute:
+
+```bash
+bash run.sh integration-tests open_ai/test_chat_with_tool_call.py
 ```

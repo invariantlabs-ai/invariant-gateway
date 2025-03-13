@@ -1,11 +1,11 @@
 """Test the Anthropic messages API with tool call for the weather agent."""
 
 import base64
-import datetime
 import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Dict, List
 
@@ -14,9 +14,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import anthropic
 import pytest
+import requests
 from httpx import Client
-
-from util import *  # Needed for pytest fixtures
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -26,9 +25,7 @@ class WeatherAgent:
     """Weather agent to get the current weather in a given location."""
 
     def __init__(self, gateway_url, push_to_explorer):
-        self.dataset_name = "claude_weather_agent_test" + str(
-            datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        )
+        self.dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
         invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
         self.client = anthropic.Anthropic(
             http_client=Client(
@@ -183,9 +180,7 @@ class WeatherAgent:
     not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set"
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
-async def test_response_with_tool_call(
-    context, explorer_api_url, gateway_url, push_to_explorer
-):
+async def test_response_with_tool_call(explorer_api_url, gateway_url, push_to_explorer):
     """Test the chat completion without streaming for the weather agent."""
 
     weather_agent = WeatherAgent(gateway_url, push_to_explorer)
@@ -213,17 +208,18 @@ async def test_response_with_tool_call(
         # Wait for the trace to be saved
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         trace = traces[-1]
         trace_id = trace["id"]
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}", timeout=5
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
         trace_messages = trace["messages"]
 
         assert trace_messages[0]["role"] == "user"
@@ -248,7 +244,7 @@ async def test_response_with_tool_call(
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_streaming_response_with_tool_call(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the chat completion with streaming for the weather agent."""
     weather_agent = WeatherAgent(gateway_url, push_to_explorer)
@@ -271,18 +267,19 @@ async def test_streaming_response_with_tool_call(
         # Wait for the trace to be saved
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
 
         trace = traces[-1]
         trace_id = trace["id"]
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}", timeout=5
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
         trace_messages = trace["messages"]
         assert trace_messages[0]["role"] == "user"
         assert trace_messages[0]["content"] == query
@@ -306,7 +303,7 @@ async def test_streaming_response_with_tool_call(
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_response_with_tool_call_with_image(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the chat completion with image for the weather agent."""
     weather_agent = WeatherAgent(gateway_url, push_to_explorer)
@@ -348,17 +345,18 @@ async def test_response_with_tool_call_with_image(
             # Wait for the trace to be saved
             # This is needed because the trace is saved asynchronously
             time.sleep(2)
-            traces_response = await context.request.get(
-                f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces"
+            traces_response = requests.get(
+                f"{explorer_api_url}/api/v1/dataset/byuser/developer/{weather_agent.dataset_name}/traces",
+                timeout=5,
             )
-            traces = await traces_response.json()
+            traces = traces_response.json()
 
             trace = traces[-1]
             trace_id = trace["id"]
-            trace_response = await context.request.get(
-                f"{explorer_api_url}/api/v1/trace/{trace_id}"
+            trace_response = requests.get(
+                f"{explorer_api_url}/api/v1/trace/{trace_id}", timeout=5
             )
-            trace = await trace_response.json()
+            trace = trace_response.json()
             trace_messages = trace["messages"]
             assert trace_messages[0]["role"] == "user"
             assert trace_messages[1]["role"] == "assistant"

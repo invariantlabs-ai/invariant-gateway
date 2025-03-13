@@ -9,13 +9,13 @@ import uuid
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
+import requests
 from google import genai
 from google.genai import types
 
-from util import *  # Needed for pytest fixtures
-
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
+
 
 def set_light_values(brightness: int, color_temp: str) -> dict[str, int | str]:
     """Set the brightness and color temperature of a room light. (mock API).
@@ -49,32 +49,35 @@ SET_LIGHT_VALUES_TOOL_CALL = {
 }
 
 
-async def _verify_trace_from_explorer(
-    context, explorer_api_url, dataset_name, expected_final_assistant_message
+def _verify_trace_from_explorer(
+    explorer_api_url, dataset_name, expected_final_assistant_message
 ) -> None:
     # Fetch the trace ids for the dataset.
     # There will be 2 traces - the first will contain the system instruction, user prompt
     # and the assistant tool call.
     # The second will contain the system instruction, user prompt, the assistant tool call,
     # the tool response and the assistant response.
-    traces_response = await context.request.get(
-        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+    traces_response = requests.get(
+        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+        timeout=5,
     )
-    traces = await traces_response.json()
+    traces = traces_response.json()
     assert len(traces) == 2
     trace_id_1 = traces[0]["id"]
     trace_id_2 = traces[1]["id"]
 
     # Fetch the trace
-    trace_response_1 = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id_1}"
+    trace_response_1 = requests.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id_1}",
+        timeout=5,
     )
-    trace_1 = await trace_response_1.json()
+    trace_1 = trace_response_1.json()
 
-    trace_response_2 = await context.request.get(
-        f"{explorer_api_url}/api/v1/trace/{trace_id_2}"
+    trace_response_2 = requests.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id_2}",
+        timeout=5,
     )
-    trace_2 = await trace_response_2.json()
+    trace_2 = trace_response_2.json()
 
     # Verify the trace messages
     assert trace_1["messages"] == [
@@ -133,13 +136,13 @@ async def _verify_trace_from_explorer(
     [(True, True), (True, False), (False, True), (False, False)],
 )
 async def test_generate_content_with_tool_call(
-    context, explorer_api_url, gateway_url, push_to_explorer, do_stream
+    explorer_api_url, gateway_url, push_to_explorer, do_stream
 ):
     """
     Test the generate content gateway calls with tool calling and response processing
     without streaming.
     """
-    dataset_name = "test-dataset-gemini-tool-call-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
 
     client = genai.Client(
         api_key=os.getenv("GEMINI_API_KEY"),
@@ -190,6 +193,6 @@ async def test_generate_content_with_tool_call(
         # Wait for the trace to be saved
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
-        await _verify_trace_from_explorer(
-            context, explorer_api_url, dataset_name, expected_final_assistant_message
+        _verify_trace_from_explorer(
+            explorer_api_url, dataset_name, expected_final_assistant_message
         )

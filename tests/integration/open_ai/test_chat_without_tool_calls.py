@@ -12,10 +12,9 @@ from unittest.mock import patch
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
+import requests
 from httpx import Client
 from openai import NotFoundError, OpenAI
-
-from util import *  # Needed for pytest fixtures
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -27,10 +26,10 @@ pytest_plugins = ("pytest_asyncio",)
     [(True, True), (True, False), (False, True), (False, False)],
 )
 async def test_chat_completion(
-    context, explorer_api_url, gateway_url, do_stream, push_to_explorer
+    explorer_api_url, gateway_url, do_stream, push_to_explorer
 ):
     """Test the chat completions gateway calls without tool calling."""
-    dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
 
     client = OpenAI(
         http_client=Client(
@@ -66,18 +65,20 @@ async def test_chat_completion(
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
         # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == 1
         trace_id = traces[0]["id"]
 
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}",
+            timeout=5,
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
 
         for message in trace["messages"]:
             message.pop("annotations", None)
@@ -98,10 +99,10 @@ async def test_chat_completion(
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
 @pytest.mark.parametrize("push_to_explorer", [True, False])
 async def test_chat_completion_with_image(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the chat completions gateway works with image."""
-    dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
 
     client = OpenAI(
         http_client=Client(
@@ -149,18 +150,20 @@ async def test_chat_completion_with_image(
             # This is needed because the trace is saved asynchronously
             time.sleep(2)
             # Fetch the trace ids for the dataset
-            traces_response = await context.request.get(
-                f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+            traces_response = requests.get(
+                f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+                timeout=5,
             )
-            traces = await traces_response.json()
+            traces = traces_response.json()
             assert len(traces) == 1
             trace_id = traces[0]["id"]
 
             # Fetch the trace
-            trace_response = await context.request.get(
-                f"{explorer_api_url}/api/v1/trace/{trace_id}"
+            trace_response = requests.get(
+                f"{explorer_api_url}/api/v1/trace/{trace_id}",
+                timeout=5,
             )
-            trace = await trace_response.json()
+            trace = trace_response.json()
 
             for message in trace["messages"]:
                 message.pop("annotations", None)
@@ -181,10 +184,10 @@ async def test_chat_completion_with_image(
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
 async def test_chat_completion_with_invariant_key_in_openai_key_header(
-    context, explorer_api_url, gateway_url
+    explorer_api_url, gateway_url
 ):
     """Test the chat completions gateway calls with the Invariant API Key in the OpenAI Key header."""
-    dataset_name = "test-dataset-open-ai-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
     openai_api_key = os.getenv("OPENAI_API_KEY")
     with patch.dict(
         os.environ,
@@ -210,18 +213,20 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
         time.sleep(2)
 
         # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == 1
         trace_id = traces[0]["id"]
 
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}",
+            timeout=5,
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
 
         for message in trace["messages"]:
             message.pop("annotations", None)
@@ -243,14 +248,14 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
 @pytest.mark.parametrize("do_stream", [True, False])
 async def test_chat_completion_with_openai_exception(gateway_url, do_stream):
     """Test the chat completions gateway call when OpenAI API fails."""
-
+    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
     client = OpenAI(
         http_client=Client(
             headers={
                 "Invariant-Authorization": "Bearer <some-key>"
             },  # This key is not used for local tests
         ),
-        base_url=f"{gateway_url}/api/v1/gateway/{"test-dataset-open-ai-" + str(uuid.uuid4())}/openai",
+        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai",
     )
 
     with pytest.raises(Exception) as exc_info:

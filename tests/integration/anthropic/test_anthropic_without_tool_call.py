@@ -1,18 +1,17 @@
 """Tests for the Anthropic API without tool call."""
 
-import datetime
 import os
 import sys
 import time
+import uuid
 
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import anthropic
 import pytest
+import requests
 from httpx import Client
-
-from util import *  # Needed for pytest fixtures
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -23,12 +22,10 @@ pytest_plugins = ("pytest_asyncio",)
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_response_without_tool_call(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the Anthropic gateway without tool calling."""
-    dataset_name = "claude_streaming_response_without_tool_call_test" + str(
-        datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    )
+    dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
     invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
 
     client = anthropic.Anthropic(
@@ -64,19 +61,21 @@ async def test_response_without_tool_call(
         # Wait for the trace to be saved
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == len(queries)
 
         for index, trace in enumerate(traces):
             trace_id = trace["id"]
             # Fetch the trace
-            trace_response = await context.request.get(
-                f"{explorer_api_url}/api/v1/trace/{trace_id}"
+            trace_response = requests.get(
+                f"{explorer_api_url}/api/v1/trace/{trace_id}",
+                timeout=5,
             )
-            trace = await trace_response.json()
+            trace = trace_response.json()
             assert trace["messages"] == [
                 {"role": "user", "content": queries[index]},
                 {"role": "assistant", "content": responses[index]},
@@ -88,12 +87,10 @@ async def test_response_without_tool_call(
 )
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_streaming_response_without_tool_call(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test the Anthropic gateway without tool calling."""
-    dataset_name = "claude_streaming_response_without_tool_call_test" + str(
-        datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    )
+    dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
     invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
 
     client = anthropic.Anthropic(
@@ -133,19 +130,21 @@ async def test_streaming_response_without_tool_call(
         # Wait for the trace to be saved
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == len(queries)
 
         for index, trace in enumerate(traces):
             trace_id = trace["id"]
             # Fetch the trace
-            trace_response = await context.request.get(
-                f"{explorer_api_url}/api/v1/trace/{trace_id}"
+            trace_response = requests.get(
+                f"{explorer_api_url}/api/v1/trace/{trace_id}",
+                timeout=5,
             )
-            trace = await trace_response.json()
+            trace = trace_response.json()
             assert trace["messages"] == [
                 {"role": "user", "content": queries[index]},
                 {"role": "assistant", "content": responses[index]},
