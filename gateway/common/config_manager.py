@@ -10,35 +10,35 @@ class GatewayConfig:
     """Common configurations for the Gateway Server."""
 
     def __init__(self):
-        self.policies = self._load_policies()
+        self.guardrails = self._load_guardrails()
 
-    def _load_policies(self) -> str:
+    def _load_guardrails(self) -> str:
         """
-        Loads and validates policies from the file specified in POLICIES_FILE_PATH.
-        Returns the policy file content as a string if valid; otherwise, raises an error.
+        Loads and validates guardrails from the file specified in GUARDRAILS_FILE_PATH.
+        Returns the guardrails file content as a string if valid; otherwise, raises an error.
         """
-        policies_file = os.getenv("POLICIES_FILE_PATH", "")
+        guardrails_file = os.getenv("GUARDRAILS_FILE_PATH", "")
 
-        if not policies_file:
-            print("[warning: POLICIES_FILE_PATH is not set. Using empty policies]")
+        if not guardrails_file:
+            print("[warning: GUARDRAILS_FILE_PATH is not set. Using empty guardrails]")
             return ""
 
         try:
-            with open(policies_file, "r", encoding="utf-8") as f:
-                policy_file_content = f.read()
-            _ = Policy.from_string(policy_file_content)
-            return policy_file_content
+            with open(guardrails_file, "r", encoding="utf-8") as f:
+                guardrails_file_content = f.read()
+            _ = Policy.from_string(guardrails_file_content)
+            return guardrails_file_content
 
         except (FileNotFoundError, PermissionError, OSError) as e:
             raise ValueError(
-                f"Error: Unable to read policies file ({policies_file}): {e}"
+                f"Error: Unable to read guardrails file ({guardrails_file}): {e}"
             ) from e
 
         except Exception as e:
-            raise ValueError(f"Invalid policy content in {policies_file}: {e}") from e
+            raise ValueError(f"Invalid policy content in {guardrails_file}: {e}") from e
 
     def __repr__(self) -> str:
-        return f"GatewayConfig(policies={repr(self.policies)})"
+        return f"GatewayConfig(guardrails={repr(self.guardrails)})"
 
 
 class GatewayConfigManager:

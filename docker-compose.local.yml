@@ -9,14 +9,14 @@ services:
       - .env
     environment:
       - DEV_MODE=true
-      - POLICIES_FILE_PATH=${POLICIES_FILE_PATH:+/srv/resources/policies.py}
+      - GUARDRAILS_FILE_PATH=${GUARDRAILS_FILE_PATH:+/srv/resources/guardrails.py}
     volumes:
       - type: bind
         source: ./gateway
         target: /srv/gateway
       - type: bind
-        source: ${POLICIES_FILE_PATH:-/dev/null}
-        target: /srv/resources/policies.py
+        source: ${GUARDRAILS_FILE_PATH:-/dev/null}
+        target: /srv/resources/guardrails.py
     networks:
       - invariant-explorer-web
     ports:

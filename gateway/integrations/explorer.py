@@ -5,8 +5,32 @@ from typing import Any, Dict, List
 
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesResponse
+from invariant_sdk.types.annotations import AnnotationCreate
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
+
+
+def create_annotations_from_guardrails_errors(
+    guardrails_errors: List[dict],
+) -> List[AnnotationCreate]:
+    """Create Explorer annotations from the guardrails errors."""
+    annotations = []
+    for error in guardrails_errors:
+        content = error.get("args")[0]
+        address = None
+        for r in error.get("ranges", []):
+            # Choose the longest path as the address
+            if address is None or len(r) > len(address):
+                address = r
+        annotations.append(
+            AnnotationCreate(
+                content=content,
+                address=address,
+                extra_metadata={"source": "guardrails-error"},
+            )
+        )
+    return annotations
+
 
 async def push_trace(
     messages: List[List[Dict[str, Any]]],

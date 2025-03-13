@@ -4,13 +4,13 @@ up() {
     docker network create invariant-explorer-web
 
   # Default values
-  POLICIES_FILE_PATH=""
+  GUARDRAILS_FILE_PATH=""
 
   # Parse command-line arguments
   while [[ "$#" -gt 0 ]]; do
       case "$1" in
-          --policies-file=*)
-              POLICIES_FILE_PATH="${1#*=}"
+          --guardrails-file=*)
+              GUARDRAILS_FILE_PATH="${1#*=}"
               ;;
           *)
               echo "Unknown parameter: $1"
@@ -20,21 +20,21 @@ up() {
       shift
   done
 
-  if [[ -n "$POLICIES_FILE_PATH" ]]; then
-    if [[ -f "$POLICIES_FILE_PATH" ]]; then
-      POLICIES_FILE_PATH=$(realpath "$POLICIES_FILE_PATH")
+  if [[ -n "$GUARDRAILS_FILE_PATH" ]]; then
+    if [[ -f "$GUARDRAILS_FILE_PATH" ]]; then
+      GUARDRAILS_FILE_PATH=$(realpath "$GUARDRAILS_FILE_PATH")
     else
-      echo "Error: Specified policies file does not exist: $POLICIES_FILE_PATH"
+      echo "Error: Specified guardrails file does not exist: $GUARDRAILS_FILE_PATH"
       exit 1
     fi
   fi
 
   # Start Docker Compose with the correct environment variable
-  POLICIES_FILE_PATH="$POLICIES_FILE_PATH" docker compose -f docker-compose.local.yml up -d
+  GUARDRAILS_FILE_PATH="$GUARDRAILS_FILE_PATH" docker compose -f docker-compose.local.yml up -d
 
   echo "Gateway started at http://localhost:8005/api/v1/gateway/"
   echo "See http://localhost:8005/api/v1/gateway/docs for API documentation"
-  echo "Using Policies File: ${POLICIES_FILE_PATH:-None}"
+  echo "Using Guardrails File: ${GUARDRAILS_FILE_PATH:-None}"
 }
 
 build() {
