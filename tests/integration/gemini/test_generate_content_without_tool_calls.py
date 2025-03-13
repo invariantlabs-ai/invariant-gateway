@@ -12,9 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import PIL.Image
+import requests
 from google import genai
-
-from util import *  # Needed for pytest fixtures
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -26,10 +25,10 @@ pytest_plugins = ("pytest_asyncio",)
     [(True, True), (True, False), (False, True), (False, False)],
 )
 async def test_generate_content(
-    context, explorer_api_url, gateway_url, do_stream, push_to_explorer
+    explorer_api_url, gateway_url, do_stream, push_to_explorer
 ):
     """Test the generate content gateway calls without tool calling."""
-    dataset_name = "test-dataset-gemini-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
     client = genai.Client(
         api_key=os.getenv("GEMINI_API_KEY"),
         http_options={
@@ -78,18 +77,19 @@ async def test_generate_content(
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
         # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == 1
         trace_id = traces[0]["id"]
 
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}", timeout=5
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
 
         # Verify the trace messages
         assert trace["messages"] == [
@@ -111,10 +111,10 @@ async def test_generate_content(
 @pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="No GEMINI_API_KEY set")
 @pytest.mark.parametrize("push_to_explorer", [True, False])
 async def test_generate_content_with_image(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """Test that generate content gateway calls work with image."""
-    dataset_name = "test-dataset-gemini-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
 
     client = genai.Client(
         api_key=os.getenv("GEMINI_API_KEY"),
@@ -147,18 +147,19 @@ async def test_generate_content_with_image(
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
         # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == 1
         trace_id = traces[0]["id"]
 
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}", timeout=5
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
         # Verify the trace messages
         assert len(trace["messages"]) == 2
         assert trace["messages"][0]["role"] == "user"
@@ -175,10 +176,10 @@ async def test_generate_content_with_image(
 
 @pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="No GEMINI_API_KEY set")
 async def test_generate_content_with_invariant_key_in_gemini_key_header(
-    context, explorer_api_url, gateway_url
+    explorer_api_url, gateway_url
 ):
     """Test the generate content gateway calls with the Invariant API Key in the Gemini Key header."""
-    dataset_name = "test-dataset-gemini-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     with patch.dict(
         os.environ,
@@ -208,18 +209,20 @@ async def test_generate_content_with_invariant_key_in_gemini_key_header(
         time.sleep(2)
 
         # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == 1
         trace_id = traces[0]["id"]
 
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}",
+            timeout=5,
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
 
         # Verify the trace messages
         assert trace["messages"] == [

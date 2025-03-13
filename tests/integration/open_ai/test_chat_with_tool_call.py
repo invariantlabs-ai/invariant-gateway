@@ -10,10 +10,9 @@ import uuid
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
+import requests
 from httpx import Client
 from openai import OpenAI
-
-from util import *  # Needed for pytest fixtures
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -22,13 +21,13 @@ pytest_plugins = ("pytest_asyncio",)
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_chat_completion_with_tool_call_without_streaming(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """
     Test the chat completions gateway calls with tool calling and response processing
     without streaming.
     """
-    dataset_name = "test-dataset-open-ai-tool-call-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
 
     client = OpenAI(
         http_client=Client(
@@ -106,18 +105,20 @@ async def test_chat_completion_with_tool_call_without_streaming(
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
         # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == 1
         trace_id = traces[0]["id"]
 
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}",
+            timeout=5,
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
 
         for message in trace["messages"]:
             message.pop("annotations", None)
@@ -138,13 +139,13 @@ async def test_chat_completion_with_tool_call_without_streaming(
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
 @pytest.mark.parametrize("push_to_explorer", [False, True])
 async def test_chat_completion_with_tool_call_with_streaming(
-    context, explorer_api_url, gateway_url, push_to_explorer
+    explorer_api_url, gateway_url, push_to_explorer
 ):
     """
     Test the chat completions gateway calls with tool calling and response processing
     while streaming.
     """
-    dataset_name = "test-dataset-open-ai-tool-call-" + str(uuid.uuid4())
+    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
 
     client = OpenAI(
         http_client=Client(
@@ -229,18 +230,20 @@ async def test_chat_completion_with_tool_call_with_streaming(
         # This is needed because the trace is saved asynchronously
         time.sleep(2)
         # Fetch the trace ids for the dataset
-        traces_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces"
+        traces_response = requests.get(
+            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+            timeout=5,
         )
-        traces = await traces_response.json()
+        traces = traces_response.json()
         assert len(traces) == 1
         trace_id = traces[0]["id"]
 
         # Fetch the trace
-        trace_response = await context.request.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}"
+        trace_response = requests.get(
+            f"{explorer_api_url}/api/v1/trace/{trace_id}",
+            timeout=5,
         )
-        trace = await trace_response.json()
+        trace = trace_response.json()
 
         # Verify the trace messages
         expected_messages = history + [final_response]

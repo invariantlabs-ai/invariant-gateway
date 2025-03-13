@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright/python:v1.50.0-noble
+FROM python:3.11-slim
 
 RUN mkdir -p /tests
 COPY ./integration/requirements.txt /tests/requirements.txt
@@ -6,4 +6,4 @@ WORKDIR /tests
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-ENTRYPOINT ["pytest",  "--capture=tee-sys", "--tracing", "off", "--junit-xml=/tests/results/test-results-all.xml", "-s", "-vv"]
+ENTRYPOINT ["pytest",  "--capture=tee-sys",  "--junit-xml=/tests/results/test-results-all.xml", "-s", "-vv"]

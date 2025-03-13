@@ -4,5 +4,4 @@ openai
 pillow
 pytest
 pytest-asyncio
-pytest-playwright
 tavily-python
