@@ -17,18 +17,14 @@ def create_annotations_from_guardrails_errors(
     annotations = []
     for error in guardrails_errors:
         content = error.get("args")[0]
-        address = None
         for r in error.get("ranges", []):
-            # Choose the longest path as the address
-            if address is None or len(r) > len(address):
-                address = r
-        annotations.append(
-            AnnotationCreate(
-                content=content,
-                address=address,
-                extra_metadata={"source": "guardrails-error"},
+            annotations.append(
+                AnnotationCreate(
+                    content=content,
+                    address=r,
+                    extra_metadata={"source": "guardrails-error"},
+                )
             )
-        )
     return annotations
 
 
@@ -36,6 +32,7 @@ async def push_trace(
     messages: List[List[Dict[str, Any]]],
     dataset_name: str,
     invariant_authorization: str,
+    annotations: List[List[AnnotationCreate]] = None,
 ) -> PushTracesResponse:
     """Pushes traces to the dataset on the Invariant Explorer.
 
@@ -55,7 +52,9 @@ async def push_trace(
         [{k: v for k, v in msg.items() if v is not None} for msg in msg_list]
         for msg_list in messages
     ]
-    request = PushTracesRequest(messages=update_messages, dataset=dataset_name)
+    request = PushTracesRequest(
+        messages=update_messages, annotations=annotations, dataset=dataset_name
+    )
     client = AsyncClient(
         api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/"),
         api_key=invariant_authorization.split("Bearer ")[1],

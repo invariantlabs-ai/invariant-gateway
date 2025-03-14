@@ -32,9 +32,20 @@ up() {
   # Start Docker Compose with the correct environment variable
   GUARDRAILS_FILE_PATH="$GUARDRAILS_FILE_PATH" docker compose -f docker-compose.local.yml up -d
 
+  # Get the status of the container
+  sleep 2
+
+  if [ -z "$(docker ps -qf 'name=invariant-gateway')" ]; then
+    echo "The invariant-gateway container failed to start."
+    docker logs invariant-gateway | tail -20  # Show last 20 lines of logs
+    exit 1
+  fi
+
   echo "Gateway started at http://localhost:8005/api/v1/gateway/"
   echo "See http://localhost:8005/api/v1/gateway/docs for API documentation"
-  echo "Using Guardrails File: ${GUARDRAILS_FILE_PATH:-None}"
+  if [ -n "$GUARDRAILS_FILE_PATH" ]; then
+    echo "Using Guardrails File: $GUARDRAILS_FILE_PATH"
+  fi
 }
 
 build() {

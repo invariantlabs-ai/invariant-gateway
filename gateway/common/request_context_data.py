@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from config_manager import GatewayConfig
+from common.config_manager import GatewayConfig
 
 
 @dataclass(frozen=True)
