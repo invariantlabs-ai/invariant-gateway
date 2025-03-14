@@ -332,9 +332,14 @@ async def handle_non_streaming_response(
     response_code = response.status_code
 
     if context.config and context.config.guardrails:
-        # Block on the guardrails check
         messages = list(context.request_json.get("messages", []))
         messages += [choice["message"] for choice in json_response.get("choices", [])]
+        # TODO: Remove this once the guardrails API is fixed
+        for message in messages:
+            if "tool_calls" in message and message["tool_calls"] is None:
+                message["tool_calls"] = []
+
+        # Block on the guardrails check
         guardrails_execution_result = await check_guardrails(
             messages=messages,
             guardrails=context.config.guardrails,
