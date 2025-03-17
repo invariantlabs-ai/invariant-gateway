@@ -131,9 +131,6 @@ async def stream_response(
             if not chunk_text:
                 continue
 
-            # Yield chunk immediately to the client
-            yield chunk
-
             # Process the chunk
             # This will update merged_response with the data from the chunk
             process_chunk_text(
@@ -142,6 +139,40 @@ async def stream_response(
                 choice_mapping_by_index,
                 tool_call_mapping_by_index,
             )
+
+            # Check guardrails on the last chunk.
+            if (
+                chunk_text == "data: [DONE]"
+                and context.config
+                and context.config.guardrails
+            ):
+                # Block on the guardrails check
+                guardrails_execution_result = await get_guardrails_check_result(
+                    context, merged_response
+                )
+                if guardrails_execution_result.get("errors", []):
+                    error_chunk = json.dumps(
+                        {
+                            "error": {
+                                "message": "[Invariant] The response did not pass the guardrails",
+                                "details": guardrails_execution_result,
+                            }
+                        }
+                    )
+                    # Push annotated trace to the explorer - don't block on its response
+                    if context.dataset_name:
+                        asyncio.create_task(
+                            push_to_explorer(
+                                context,
+                                merged_response,
+                                guardrails_execution_result,
+                            )
+                        )
+                    yield f"data: {error_chunk}\n\n".encode()
+                    return
+
+            # Yield chunk to the client
+            yield chunk
 
         # Send full merged response to the explorer
         # Don't block on the response from explorer
@@ -359,8 +390,8 @@ async def handle_non_streaming_response(
         if guardrails_execution_result.get("errors", []):
             response_string = json.dumps(
                 {
-                    "error": "The request did not pass the guardrails",
-                    "guadrails_check_result": guardrails_execution_result,
+                    "error": "[Invariant] The response did not pass the guardrails",
+                    "details": guardrails_execution_result,
                 }
             )
             response_code = 400
