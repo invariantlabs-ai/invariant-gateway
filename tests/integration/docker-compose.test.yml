@@ -34,10 +34,14 @@ services:
       - .env.test
     environment:
       - DEV_MODE=true
+      - GUARDRAILS_FILE_PATH=${GUARDRAILS_FILE_PATH:+/srv/resources/guardrails.py}
     volumes:
       - type: bind
         source: ${GATEWAY_PATH}
         target: /srv/gateway
+      - type: bind
+        source: ${GUARDRAILS_FILE_PATH:-/dev/null}
+        target: /srv/resources/guardrails.py
     networks:
       - invariant-gateway-web-test
     ports: []
