@@ -142,7 +142,7 @@ async def stream_response(
 
             # Check guardrails on the last chunk.
             if (
-                chunk_text == "data: [DONE]"
+                "data: [DONE]" in chunk_text
                 and context.config
                 and context.config.guardrails
             ):
@@ -347,10 +347,6 @@ async def get_guardrails_check_result(
     """Get the guardrails check result"""
     messages = list(context.request_json.get("messages", []))
     messages += [choice["message"] for choice in json_response.get("choices", [])]
-    # TODO: Remove this once the guardrails API is fixed
-    for message in messages:
-        if "tool_calls" in message and message["tool_calls"] is None:
-            message["tool_calls"] = []
 
     # Block on the guardrails check
     guardrails_execution_result = await check_guardrails(
