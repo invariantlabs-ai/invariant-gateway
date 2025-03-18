@@ -85,10 +85,21 @@ integration_tests() {
   fi
   echo "File successfully downloaded: $FILE"
 
+  TEST_GUARDRAILS_FILE_PATH="tests/integration/resources/guardrails/find_capital_guardrails.py"
+  if [[ -n "$TEST_GUARDRAILS_FILE_PATH" ]]; then
+    if [[ -f "$TEST_GUARDRAILS_FILE_PATH" ]]; then
+      TEST_GUARDRAILS_FILE_PATH=$(realpath "$TEST_GUARDRAILS_FILE_PATH")
+    else
+      echo "Error: Specified test guardrails file does not exist: $TEST_GUARDRAILS_FILE_PATH"
+      exit 1
+    fi
+  fi
+
+
   # Start containers
   GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml down
   GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml build
-  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml up -d
+  GUARDRAILS_FILE_PATH="$TEST_GUARDRAILS_FILE_PATH" GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml up -d
 
   until [ "$(docker inspect -f '{{.State.Health.Status}}' invariant-gateway-test-explorer-app-api)" = "healthy" ]; do
     echo "Explorer backend app-api instance container starting..."
@@ -121,6 +132,7 @@ integration_tests() {
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
     -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\
     -e GEMINI_API_KEY="$GEMINI_API_KEY" \
+    -e GUARDRAILS_API_KEY="$GUARDRAILS_API_KEY" \
     --env-file ./tests/integration/.env.test \
     invariant-gateway-tests $@
 }

@@ -36,4 +36,5 @@ jobs:
             OPENAI_API_KEY: ${{ secrets.INVARIANT_TESTING_OPENAI_KEY }}
             ANTHROPIC_API_KEY: ${{ secrets.INVARIANT_TESTING_ANTHROPIC_KEY}}
             GEMINI_API_KEY: ${{ secrets.INVARIANT_TESTING_GEMINI_KEY }}
+            GUARDRAILS_API_KEY: ${{ secrets.INVARIANT_TESTING_GUARDRAILS_KEY }}
           run: ./run.sh integration-tests -s -vv
