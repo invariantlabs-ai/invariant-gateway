@@ -18,6 +18,7 @@ from converters.anthropic_to_invariant import (
 )
 from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
+from integrations.guardails import preload_guardrails
 
 gateway = APIRouter()
 
@@ -79,7 +80,9 @@ async def anthropic_v1_messages_gateway(
         request_json=request_json,
         dataset_name=dataset_name,
         invariant_authorization=invariant_authorization,
+        config=config,
     )
+    asyncio.create_task(preload_guardrails(context))
 
     if request_json.get("stream"):
         return await handle_streaming_response(context, client, anthropic_request)
