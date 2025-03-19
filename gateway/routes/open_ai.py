@@ -13,7 +13,7 @@ from common.constants import (
     IGNORED_HEADERS,
 )
 from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
-from integrations.guardails import check_guardrails
+from integrations.guardails import check_guardrails, preload_guardrails
 from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
 
@@ -71,6 +71,7 @@ async def openai_chat_completions_gateway(
         invariant_authorization=invariant_authorization,
         config=config,
     )
+    asyncio.create_task(preload_guardrails(context))
 
     if request_json.get("stream", False):
         return await stream_response(
