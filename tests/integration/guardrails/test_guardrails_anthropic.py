@@ -1,4 +1,4 @@
-"""Test the guardrails from file with the OpenAI route."""
+"""Test the guardrails from file with the Anthropic route."""
 
 import os
 import sys
@@ -11,13 +11,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import requests
 from httpx import Client
-from openai import OpenAI, BadRequestError, APIError
+from anthropic import Anthropic, APIStatusError, BadRequestError
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
 
 
-@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
+@pytest.mark.skipif(
+    not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set"
+)
 @pytest.mark.parametrize(
     "do_stream, push_to_explorer",
     [(True, True), (True, False), (False, True), (False, False)],
@@ -29,27 +31,28 @@ async def test_message_content_guardrail_from_file(
     if not os.getenv("GUARDRAILS_API_KEY"):
         pytest.fail("No GUARDRAILS_API_KEY set, failing")
 
-    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
+    dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
 
-    client = OpenAI(
+    client = Anthropic(
         http_client=Client(
             headers={
                 "Invariant-Authorization": f"Bearer {os.getenv('GUARDRAILS_API_KEY')}"
             },
         ),
-        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
+        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"
         if push_to_explorer
-        else f"{gateway_url}/api/v1/gateway/openai",
+        else f"{gateway_url}/api/v1/gateway/anthropic",
     )
 
     request = {
-        "model": "gpt-4o",
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 100,
         "messages": [{"role": "user", "content": "What is the capital of Spain?"}],
     }
 
     if not do_stream:
         with pytest.raises(BadRequestError) as exc_info:
-            chat_response = client.chat.completions.create(
+            chat_response = client.messages.create(
                 **request,
                 stream=False,
             )
@@ -61,8 +64,8 @@ async def test_message_content_guardrail_from_file(
         assert "Madrid detected in the response" in str(exc_info.value)
 
     else:
-        with pytest.raises(APIError) as exc_info:
-            chat_response = client.chat.completions.create(
+        with pytest.raises(APIStatusError) as exc_info:
+            chat_response = client.messages.create(
                 **request,
                 stream=True,
             )
@@ -120,7 +123,9 @@ async def test_message_content_guardrail_from_file(
         )
 
 
-@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
+@pytest.mark.skipif(
+    not os.getenv("ANTHROPIC_API_KEY"), reason="No ANTHROPIC_API_KEY set"
+)
 @pytest.mark.parametrize(
     "do_stream, push_to_explorer",
     [(True, True), (True, False), (False, True), (False, False)],
@@ -134,55 +139,47 @@ async def test_tool_call_guardrail_from_file(
 
     tools = [
         {
-            "type": "function",
-            "function": {
-                "name": "get_capital",
-                "description": "Get the capital for a given country.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "country_name": {
-                            "type": "string",
-                            "description": "The country name example Germany or France.",
-                        }
-                    },
-                    "required": ["country_name"],
+            "name": "get_capital",
+            "description": "Get the capital of a country.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "country_name": {
+                        "type": "string",
+                        "description": "The name of the country we want the capital for.",
+                    }
                 },
+                "required": ["country_name"],
             },
         }
     ]
-    system_message = {
-        "role": "system",
-        "content": "Use the get_capital tool call to get the capital of a country. If the user input doesn't contain a country name, fail the request with a pretty message. If the get_capital tool call returns 'not_found' then fail the request with a pretty message. Do not return the capital if the get_capital tool call returns 'not_found'.",
-    }
+    system_message = "Use the get_capital tool call to get the capital of a country. If the user input doesn't contain a country name, fail the request with a pretty message. If the get_capital tool call returns 'not_found' then fail the request with a pretty message. Do not return the capital if the get_capital tool call returns 'not_found'."
     request = {
-        "model": "gpt-4o",
         "messages": [
-            system_message,
             {"role": "user", "content": "What is the capital of Germany?"},
         ],
         "tools": tools,
+        "system": system_message,
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 150,
     }
 
-    dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
+    dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
 
-    client = OpenAI(
+    client = Anthropic(
         http_client=Client(
             headers={
                 "Invariant-Authorization": f"Bearer {os.getenv('GUARDRAILS_API_KEY')}"
             },
         ),
-        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
+        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"
         if push_to_explorer
-        else f"{gateway_url}/api/v1/gateway/openai",
+        else f"{gateway_url}/api/v1/gateway/anthropic",
     )
 
     if not do_stream:
         with pytest.raises(BadRequestError) as exc_info:
-            chat_response = client.chat.completions.create(
-                **request,
-                stream=False,
-            )
+            chat_response = client.messages.create(**request, stream=False)
 
         assert exc_info.value.status_code == 400
         assert "[Invariant] The response did not pass the guardrails" in str(
@@ -191,11 +188,8 @@ async def test_tool_call_guardrail_from_file(
         assert "get_capital is called with Germany as argument" in str(exc_info.value)
 
     else:
-        with pytest.raises(APIError) as exc_info:
-            chat_response = client.chat.completions.create(
-                **request,
-                stream=True,
-            )
+        with pytest.raises(APIStatusError) as exc_info:
+            chat_response = client.messages.create(**request, stream=True)
 
             for _ in chat_response:
                 pass
@@ -228,8 +222,8 @@ async def test_tool_call_guardrail_from_file(
         )
         trace = trace_response.json()
 
-        assert len(trace["messages"]) == 3
-        assert trace["messages"][0] == system_message
+        assert len(trace["messages"]) >= 3
+        assert trace["messages"][0] == {"role": "system", "content": system_message}
         assert trace["messages"][1] == {
             "role": "user",
             "content": "What is the capital of Germany?",
