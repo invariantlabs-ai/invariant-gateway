@@ -33,6 +33,7 @@ async def push_trace(
     dataset_name: str,
     invariant_authorization: str,
     annotations: List[List[AnnotationCreate]] = None,
+    metadata: List[Dict[str, Any]] = None,
 ) -> PushTracesResponse:
     """Pushes traces to the dataset on the Invariant Explorer.
 
@@ -53,7 +54,10 @@ async def push_trace(
         for msg_list in messages
     ]
     request = PushTracesRequest(
-        messages=update_messages, annotations=annotations, dataset=dataset_name
+        messages=update_messages,
+        annotations=annotations,
+        dataset=dataset_name,
+        metadata=metadata,
     )
     client = AsyncClient(
         api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/"),

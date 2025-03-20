@@ -184,6 +184,26 @@ def update_merged_response(merged_response: dict[str, Any], chunk_json: dict) ->
             merged_response["candidates"][0]["finishReason"] = candidate["finishReason"]
 
 
+def create_metadata(
+    context: RequestContextData, response_json: dict[str, Any]
+) -> dict[str, Any]:
+    """Creates metadata for the trace"""
+    metadata = {
+        k: v
+        for k, v in context.request_json.items()
+        if k not in ("systemInstruction", "contents")
+    }
+    metadata["via_gateway"] = True
+    metadata.update(
+        {
+            key: value
+            for key, value in response_json.items()
+            if key in ("usageMetadata", "modelVersion")
+        }
+    )
+    return metadata
+
+
 async def push_to_explorer(
     context: RequestContextData,
     response_json: dict[str, Any],
@@ -195,6 +215,7 @@ async def push_to_explorer(
         dataset_name=context.dataset_name,
         messages=[converted_requests + converted_responses],
         invariant_authorization=context.invariant_authorization,
+        metadata=[create_metadata(context, response_json)],
     )
 
 
