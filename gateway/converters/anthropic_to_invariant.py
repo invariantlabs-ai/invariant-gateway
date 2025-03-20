@@ -1,5 +1,6 @@
 """Converts the request and response formats from Anthropic to Invariant API format."""
 
+
 def convert_anthropic_to_invariant_message_format(
     messages: list[dict], keep_empty_tool_response: bool = False
 ) -> list[dict]:
@@ -32,7 +33,7 @@ def handle_user_message(message, keep_empty_tool_response):
                         {
                             "role": "tool",
                             "content": sub_message["content"],
-                            "tool_id": sub_message["tool_use_id"],
+                            "tool_call_id": sub_message["tool_use_id"],
                         }
                     )
                 elif keep_empty_tool_response and any(sub_message.values()):
@@ -42,7 +43,7 @@ def handle_user_message(message, keep_empty_tool_response):
                             "content": {"is_error": True}
                             if sub_message["is_error"]
                             else {},
-                            "tool_id": sub_message["tool_use_id"],
+                            "tool_call_id": sub_message["tool_use_id"],
                         }
                     )
             elif sub_message["type"] == "text":
@@ -69,27 +70,24 @@ def handle_user_message(message, keep_empty_tool_response):
 def handle_assistant_message(message):
     """Handle the assistant message from the Anthropic API"""
     output = []
-    if isinstance(message["content"], list):
-        for sub_message in message["content"]:
-            if sub_message["type"] == "text":
-                output.append({"role": "assistant", "content": sub_message.get("text")})
-            elif sub_message["type"] == "tool_use":
-                output.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "tool_id": sub_message.get("id"),
-                                "type": "function",
-                                "function": {
-                                    "name": sub_message.get("name"),
-                                    "arguments": sub_message.get("input"),
-                                },
-                            }
-                        ],
-                    }
-                )
-    else:
-        output.append({"role": "assistant", "content": message["content"]})
+    for sub_message in message["content"]:
+        if sub_message["type"] == "text":
+            output.append({"role": "assistant", "content": sub_message.get("text")})
+        elif sub_message["type"] == "tool_use":
+            output.append(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": sub_message.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": sub_message.get("name"),
+                                "arguments": sub_message.get("input"),
+                            },
+                        }
+                    ],
+                }
+            )
     return output
