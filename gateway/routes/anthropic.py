@@ -100,12 +100,25 @@ def create_metadata(
     return metadata
 
 
+def combine_request_and_response_messages(
+    context: RequestContextData, json_response: dict[str, Any]
+):
+    """Combine the request and response messages"""
+    messages = []
+    if "system" in context.request_json:
+        messages.append(
+            {"role": "system", "content": context.request_json.get("system")}
+        )
+    messages.extend(context.request_json.get("messages", []))
+    messages.append(json_response)
+    return messages
+
+
 async def get_guardrails_check_result(
     context: RequestContextData, json_response: dict[str, Any]
 ) -> dict[str, Any]:
     """Get the guardrails check result"""
-    messages = list(context.request_json.get("messages", []))
-    messages.append(json_response)
+    messages = combine_request_and_response_messages(context, json_response)
     converted_messages = convert_anthropic_to_invariant_message_format(messages)
 
     # Block on the guardrails check
@@ -129,8 +142,8 @@ async def push_to_explorer(
     )
 
     # Combine the messages from the request body and Anthropic response
-    messages = list(context.request_json.get("messages", []))
-    messages.append(merged_response)
+    messages = combine_request_and_response_messages(context, merged_response)
+
     converted_messages = convert_anthropic_to_invariant_message_format(messages)
     _ = await push_trace(
         dataset_name=context.dataset_name,

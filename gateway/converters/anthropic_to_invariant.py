@@ -15,7 +15,11 @@ def convert_anthropic_to_invariant_message_format(
     for message in messages:
         handler = role_mapping.get(message["role"])
         if handler:
-            output.extend(handler(message))
+            result = handler(message)
+            if isinstance(result, list):
+                output.extend(result)
+            else:
+                output.append(result)
 
     return output
 
