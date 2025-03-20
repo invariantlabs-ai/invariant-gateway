@@ -352,7 +352,7 @@ async def push_to_explorer(
     ):
         annotations = create_annotations_from_guardrails_errors(guardrails_errors)
         # Combine the messages from the request body and the choices from the OpenAI response
-        messages = context.request_json.get("messages", [])
+        messages = list(context.request_json.get("messages", []))
         messages += [choice["message"] for choice in merged_response.get("choices", [])]
         _ = await push_trace(
             dataset_name=context.dataset_name,
