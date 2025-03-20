@@ -140,11 +140,13 @@ async def handle_non_streaming_response(
     # Don't block on the response from explorer
     if context.dataset_name:
         asyncio.create_task(push_to_explorer(context, json_response))
+    updated_headers = response.headers.copy()
+    updated_headers.pop("Content-Length", None)
     return Response(
         content=json.dumps(json_response),
         status_code=response.status_code,
         media_type="application/json",
-        headers=dict(response.headers),
+        headers=dict(updated_headers),
     )
 
 
