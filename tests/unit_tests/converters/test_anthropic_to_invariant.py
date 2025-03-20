@@ -60,6 +60,16 @@ def test_convert_messages_with_tool_call():
                 },
             ],
         },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "content": "Paris is the capital of France.",
+                    "tool_use_id": "toolu_013btUg7dbaEq7NbPGzw4K9u",
+                }
+            ],
+        },
     ]
 
     converted_messages = convert_anthropic_to_invariant_message_format(messages)
@@ -83,5 +93,10 @@ def test_convert_messages_with_tool_call():
                     },
                 }
             ],
+        },
+        {
+            "role": "tool",
+            "content": "Paris is the capital of France.",
+            "tool_call_id": "toolu_013btUg7dbaEq7NbPGzw4K9u",
         },
     ]
