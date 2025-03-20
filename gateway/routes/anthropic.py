@@ -90,6 +90,17 @@ async def anthropic_v1_messages_gateway(
     return await handle_non_streaming_response(context, response)
 
 
+def create_metadata(
+    context: RequestContextData, response_json: dict[str, Any]
+) -> dict[str, Any]:
+    """Creates metadata for the trace"""
+    metadata = {k: v for k, v in context.request_json.items() if k != "messages"}
+    metadata["via_gateway"] = True
+    if response_json.get("usage"):
+        metadata["usage"] = response_json.get("usage")
+    return metadata
+
+
 async def push_to_explorer(
     context: RequestContextData,
     merged_response: dict[str, Any],
@@ -104,6 +115,7 @@ async def push_to_explorer(
         dataset_name=context.dataset_name,
         messages=[converted_messages],
         invariant_authorization=context.invariant_authorization,
+        metadata=[create_metadata(context, merged_response)],
     )
 
 

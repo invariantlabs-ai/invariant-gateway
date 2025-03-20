@@ -315,6 +315,26 @@ def update_existing_choice_with_delta(
         existing_choice["finish_reason"] = finish_reason
 
 
+def create_metadata(
+    context: RequestContextData, merged_response: dict[str, Any]
+) -> dict[str, Any]:
+    """Creates metadata for the trace"""
+    metadata = {
+        k: v
+        for k, v in context.request_json.items()
+        if k != "messages" and v is not None
+    }
+    metadata["via_gateway"] = True
+    metadata.update(
+        {
+            key: value
+            for key, value in merged_response.items()
+            if key in ("usage", "model")
+        }
+    )
+    return metadata
+
+
 async def push_to_explorer(
     context: RequestContextData,
     merged_response: dict[str, Any],
@@ -339,6 +359,7 @@ async def push_to_explorer(
             invariant_authorization=context.invariant_authorization,
             messages=[messages],
             annotations=[annotations],
+            metadata=[create_metadata(context, merged_response)],
         )
 
 
