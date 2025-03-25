@@ -183,6 +183,11 @@ def update_merged_response(merged_response: dict[str, Any], chunk_json: dict) ->
         if "finishReason" in candidate:
             merged_response["candidates"][0]["finishReason"] = candidate["finishReason"]
 
+    if "usageMetadata" in chunk_json:
+        merged_response["usageMetadata"] = chunk_json["usageMetadata"]
+    if "modelVersion" in chunk_json:
+        merged_response["modelVersion"] = chunk_json["modelVersion"]
+
 
 def create_metadata(
     context: RequestContextData, response_json: dict[str, Any]
