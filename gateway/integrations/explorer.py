@@ -59,9 +59,6 @@ async def push_trace(
         dataset=dataset_name,
         metadata=metadata,
     )
-    print(
-        "[DEBUG] Pushing trace to Invariant Explorer: ", request.to_json(), flush=True
-    )
     client = AsyncClient(
         api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/"),
         api_key=invariant_authorization.split("Bearer ")[1],

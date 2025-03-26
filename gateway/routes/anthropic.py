@@ -93,13 +93,10 @@ def create_metadata(
     context: RequestContextData, response_json: dict[str, Any]
 ) -> dict[str, Any]:
     """Creates metadata for the trace"""
-    print("[DEBUG] Anthropic Request JSON: ", context.request_json, flush=True)
-    print("[DEBUG] Anthropic Response JSON: ", response_json, flush=True)
     metadata = {k: v for k, v in context.request_json.items() if k != "messages"}
     metadata["via_gateway"] = True
     if response_json.get("usage"):
         metadata["usage"] = response_json.get("usage")
-    print("[DEBUG] Anthropic Metadata: ", metadata, flush=True)
     return metadata
 
 
