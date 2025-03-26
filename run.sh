@@ -23,14 +23,21 @@ up() {
   if [[ -n "$GUARDRAILS_FILE_PATH" ]]; then
     if [[ -f "$GUARDRAILS_FILE_PATH" ]]; then
       GUARDRAILS_FILE_PATH=$(realpath "$GUARDRAILS_FILE_PATH")
+      export GUARDRAILS_FILE_PATH="$GUARDRAILS_FILE_PATH"
     else
       echo "Error: Specified guardrails file does not exist: $GUARDRAILS_FILE_PATH"
+      exit 1
+    fi
+
+    # If GUARDRAILS_FILE_PATH is set, then INVARIANT_API_KEY **must** be set
+    if [[ -z "$INVARIANT_API_KEY" ]]; then
+      echo "Error: A guardrails file is specified, but INVARIANT_API_KEY env var is not set. This is required to validate guardrails."
       exit 1
     fi
   fi
 
   # Start Docker Compose with the correct environment variable
-  GUARDRAILS_FILE_PATH="$GUARDRAILS_FILE_PATH" docker compose -f docker-compose.local.yml up -d
+  docker compose -f docker-compose.local.yml up -d
 
   # Get the status of the container
   sleep 2
@@ -46,6 +53,7 @@ up() {
   if [ -n "$GUARDRAILS_FILE_PATH" ]; then
     echo "Using Guardrails File: $GUARDRAILS_FILE_PATH"
   fi
+  unset GUARDRAILS_FILE_PATH
 }
 
 build() {

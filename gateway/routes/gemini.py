@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from common.config_manager import GatewayConfig, GatewayConfigManager
@@ -15,8 +15,8 @@ from common.constants import (
 from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
 from converters.gemini_to_invariant import convert_request, convert_response
-from integrations.explorer import push_trace
-from integrations.guardails import preload_guardrails
+from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
+from integrations.guardails import check_guardrails, preload_guardrails
 
 gateway = APIRouter()
 
@@ -117,11 +117,44 @@ async def stream_response(
             if not chunk_text:
                 continue
 
-            # Yield chunk immediately to the client
-            yield chunk
-
             # Parse and update merged_response incrementally
             process_chunk_text(merged_response, chunk_text)
+
+            if (
+                merged_response.get("candidates", [])
+                and merged_response.get("candidates")[0].get("finishReason", "")
+                and context.config
+                and context.config.guardrails
+            ):
+                # Block on the guardrails check
+                guardrails_execution_result = await get_guardrails_check_result(
+                    context, merged_response
+                )
+                if guardrails_execution_result.get("errors", []):
+                    error_chunk = json.dumps(
+                        {
+                            "error": {
+                                "code": 400,
+                                "message": "[Invariant] The response did not pass the guardrails",
+                                "details": guardrails_execution_result,
+                                "status": "INVARIANT_GUARDRAILS_VIOLATION",
+                            },
+                        }
+                    )
+                    # Push annotated trace to the explorer - don't block on its response
+                    if context.dataset_name:
+                        asyncio.create_task(
+                            push_to_explorer(
+                                context,
+                                merged_response,
+                                guardrails_execution_result,
+                            )
+                        )
+                    yield f"data: {error_chunk}\n\n".encode()
+                    return
+
+            # Yield chunk immediately to the client
+            yield chunk
 
         if context.dataset_name:
             # Push to Explorer - don't block on the response
@@ -209,18 +242,42 @@ def create_metadata(
     return metadata
 
 
+async def get_guardrails_check_result(
+    context: RequestContextData, response_json: dict[str, Any]
+) -> dict[str, Any]:
+    """Get the guardrails check result"""
+    converted_requests = convert_request(context.request_json)
+    converted_responses = convert_response(response_json)
+
+    # Block on the guardrails check
+    guardrails_execution_result = await check_guardrails(
+        messages=converted_requests + converted_responses,
+        guardrails=context.config.guardrails,
+        invariant_authorization=context.invariant_authorization,
+    )
+    return guardrails_execution_result
+
+
 async def push_to_explorer(
     context: RequestContextData,
     response_json: dict[str, Any],
+    guardrails_execution_result: Optional[dict] = None,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
+    guardrails_execution_result = guardrails_execution_result or {}
+    annotations = create_annotations_from_guardrails_errors(
+        guardrails_execution_result.get("errors", [])
+    )
+
     converted_requests = convert_request(context.request_json)
     converted_responses = convert_response(response_json)
+
     _ = await push_trace(
         dataset_name=context.dataset_name,
         messages=[converted_requests + converted_responses],
         invariant_authorization=context.invariant_authorization,
         metadata=[create_metadata(context, response_json)],
+        annotations=[annotations] if annotations else None,
     )
 
 
@@ -241,13 +298,36 @@ async def handle_non_streaming_response(
             status_code=response.status_code,
             detail=response_json.get("error", "Unknown error from Gemini API"),
         )
+    guardrails_execution_result = {}
+    response_string = json.dumps(response_json)
+    response_code = response.status_code
+
+    if context.config and context.config.guardrails:
+        # Block on the guardrails check
+        guardrails_execution_result = await get_guardrails_check_result(
+            context, response_json
+        )
+        if guardrails_execution_result.get("errors", []):
+            response_string = json.dumps(
+                {
+                    "error": {
+                        "code": 400,
+                        "message": "[Invariant] The response did not pass the guardrails",
+                        "details": guardrails_execution_result,
+                        "status": "INVARIANT_GUARDRAILS_VIOLATION",
+                    },
+                }
+            )
+            response_code = 400
     if context.dataset_name:
-        # Push to Explorer - don't block on the response
-        asyncio.create_task(push_to_explorer(context, response_json))
+        # Push to Explorer - don't block on its response
+        asyncio.create_task(
+            push_to_explorer(context, response_json, guardrails_execution_result)
+        )
 
     return Response(
-        content=json.dumps(response_json),
-        status_code=response.status_code,
+        content=response_string,
+        status_code=response_code,
         media_type="application/json",
         headers=dict(response.headers),
     )
