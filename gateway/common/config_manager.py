@@ -1,41 +1,51 @@
 """Common Configurations for the Gateway Server."""
 
+import asyncio
 import os
 import threading
 
-from invariant.analyzer import Policy
+from integrations.guardails import _preload
+
+from httpx import HTTPStatusError
 
 
 class GatewayConfig:
     """Common configurations for the Gateway Server."""
 
     def __init__(self):
-        self.guardrails = self._load_guardrails()
+        self.guardrails = self._load_guardrails_from_file()
 
-    def _load_guardrails(self) -> str:
+    def _load_guardrails_from_file(self) -> str:
         """
-        Loads and validates guardrails from the file specified in GUARDRAILS_FILE_PATH.
-        Returns the guardrails file content as a string if valid; otherwise, raises an error.
+        Loads the guardrails from the file specified in GUARDRAILS_FILE_PATH.
+        Returns the guardrails file content as a string.
         """
         guardrails_file = os.getenv("GUARDRAILS_FILE_PATH", "")
-
         if not guardrails_file:
             print("[warning: GUARDRAILS_FILE_PATH is not set. Using empty guardrails]")
             return ""
 
+        invariant_api_key = os.getenv("INVARIANT_API_KEY", "")
+        if not invariant_api_key:
+            raise ValueError(
+                "Error: INVARIANT_API_KEY is not set."
+                "It is required to validate guardrails file content."
+            )
+
         try:
             with open(guardrails_file, "r", encoding="utf-8") as f:
                 guardrails_file_content = f.read()
-            _ = Policy.from_string(guardrails_file_content)
-            return guardrails_file_content
+                asyncio.run(
+                    _preload(guardrails_file_content, "Bearer " + invariant_api_key)
+                )
+                return guardrails_file_content
 
         except (FileNotFoundError, PermissionError, OSError) as e:
             raise ValueError(
-                f"Error: Unable to read guardrails file ({guardrails_file}): {e}"
+                f"Unable to read guardrails file ({guardrails_file}): {e}"
             ) from e
-
-        except Exception as e:
-            raise ValueError(f"Invalid policy content in {guardrails_file}: {e}") from e
+        except HTTPStatusError as e:
+            raise ValueError(f"Cannot load guardrails, {e}, {e.response.text}") from e
 
     def __repr__(self) -> str:
         return f"GatewayConfig(guardrails={repr(self.guardrails)})"

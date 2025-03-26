@@ -15,9 +15,32 @@ def create_annotations_from_guardrails_errors(
 ) -> List[AnnotationCreate]:
     """Create Explorer annotations from the guardrails errors."""
     annotations = []
+
+    def _remove_prefixes(ranges: list[str]) -> list[str]:
+        """
+        Remove prefixes from the list of ranges.
+
+        If the ranges are ['messages.2', 'messages.2.content:25-30', 'messages.2.content']
+        then this returns ['messages.2.content:25-30'].
+        """
+        ranges = sorted(ranges, key=len)
+        result = []
+
+        for i, s in enumerate(ranges):
+            is_prefix = False
+            for t in ranges[i + 1 :]:
+                if t.startswith(s) and t != s:
+                    is_prefix = True
+                    break
+            if not is_prefix:
+                result.append(s)
+
+        return result
+
     for error in guardrails_errors:
         content = error.get("args")[0]
-        for r in error.get("ranges", []):
+        filtered_ranges = _remove_prefixes(list(error.get("ranges", [])))
+        for r in filtered_ranges:
             annotations.append(
                 AnnotationCreate(
                     content=content,
