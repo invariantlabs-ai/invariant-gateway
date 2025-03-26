@@ -193,6 +193,8 @@ def create_metadata(
     context: RequestContextData, response_json: dict[str, Any]
 ) -> dict[str, Any]:
     """Creates metadata for the trace"""
+    print("[DEBUG] Gemimini Request JSON: ", context.request_json, flush=True)
+    print("[DEBUG] Gemini Response JSON: ", response_json, flush=True)
     metadata = {
         k: v
         for k, v in context.request_json.items()
@@ -206,6 +208,7 @@ def create_metadata(
             if key in ("usageMetadata", "modelVersion")
         }
     )
+    print("[DEBUG] Gemini Metadata: ", metadata, flush=True)
     return metadata
 
 
