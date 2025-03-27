@@ -105,7 +105,7 @@ async def stream_response(
 
     async def request_and_stream():
         """
-        Sets of the request and then streams the result.
+        Sets off the request and then streams the result.
         """
         response = await client.send(open_ai_request, stream=True)
         if response.status_code != 200:
@@ -146,7 +146,7 @@ async def stream_response(
 
         @instrumentor.on("start")
         async def precheck_guardrails() -> None:
-            # Check guardrails on the first chunk
+            # check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)
             if context.config and context.config.guardrails:
                 # Block on the guardrails check
                 guardrails_execution_result = await get_guardrails_check_result(
@@ -169,6 +169,7 @@ async def stream_response(
 
         @instrumentor.on("chunk")
         async def process_chunk(chunk: bytes) -> None:
+            # process and check each chunk
             chunk_text = chunk.decode().strip()
             if not chunk_text:
                 return
@@ -182,7 +183,7 @@ async def stream_response(
                 tool_call_mapping_by_index,
             )
 
-            # Check guardrails on the 'DONE' SSE chunk.
+            # check guardrails at the end of the stream (on the '[DONE]' SSE chunk.)
             if (
                 "data: [DONE]" in chunk_text
                 and context.config
