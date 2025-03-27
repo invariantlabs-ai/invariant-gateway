@@ -14,6 +14,7 @@ from common.constants import (
 )
 from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
 from integrations.guardails import (
+    RequestInstrumentor,
     StreamInstrumentor,
     YieldException,
     check_guardrails,
@@ -84,11 +85,8 @@ async def openai_chat_completions_gateway(
             client,
             open_ai_request,
         )
-    response = await client.send(open_ai_request)
-    return await handle_non_streaming_response(
-        context,
-        response,
-    )
+
+    return await handle_non_streaming_response(context, client, open_ai_request)
 
 
 async def stream_response(
@@ -156,7 +154,7 @@ async def stream_response(
                     error_chunk = json.dumps(
                         {
                             "error": {
-                                "message": "[Invariant] The response did not pass the guardrails",
+                                "message": "[Invariant] The request did not pass the guardrails",
                                 "details": guardrails_execution_result,
                             }
                         }
@@ -386,7 +384,7 @@ def create_metadata(
         {
             key: value
             for key, value in merged_response.items()
-            if key in ("usage", "model")
+            if key in ("usage", "model") and merged_response.get(key) is not None
         }
     )
     return metadata
@@ -421,11 +419,13 @@ async def push_to_explorer(
 
 
 async def get_guardrails_check_result(
-    context: RequestContextData, json_response: dict[str, Any]
+    context: RequestContextData, json_response: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Get the guardrails check result"""
     messages = list(context.request_json.get("messages", []))
-    messages += [choice["message"] for choice in json_response.get("choices", [])]
+
+    if json_response is not None:
+        messages += [choice["message"] for choice in json_response.get("choices", [])]
 
     # Block on the guardrails check
     guardrails_execution_result = await check_guardrails(
@@ -437,48 +437,113 @@ async def get_guardrails_check_result(
 
 
 async def handle_non_streaming_response(
-    context: RequestContextData, response: httpx.Response
+    context: RequestContextData,
+    client: httpx.AsyncClient,
+    open_ai_request: httpx.Request,
 ) -> Response:
     """Handles non-streaming OpenAI responses"""
-    try:
-        json_response = response.json()
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail="Invalid JSON response received from OpenAI API",
-        ) from e
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=json_response.get("error", "Unknown error from OpenAI API"),
-        )
 
-    guardrails_execution_result = {}
-    response_string = json.dumps(json_response)
-    response_code = response.status_code
+    instrumentor = RequestInstrumentor()
 
-    if context.config and context.config.guardrails:
-        # Block on the guardrails check
-        guardrails_execution_result = await get_guardrails_check_result(
-            context, json_response
-        )
-        if guardrails_execution_result.get("errors", []):
-            response_string = json.dumps(
-                {
-                    "error": "[Invariant] The response did not pass the guardrails",
-                    "details": guardrails_execution_result,
-                }
+    # respond we get and its JSON decoded version
+    # available once the 'send_request' function has progressed to the point of
+    # being able to call 'response.json()'
+    response = None
+    json_response = None
+
+    async def send_request():
+        nonlocal response, json_response
+
+        response = await client.send(open_ai_request)
+
+        try:
+            json_response = response.json()
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail="Invalid JSON response received from OpenAI API",
+            ) from e
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=json_response.get("error", "Unknown error from OpenAI API"),
             )
-            response_code = 400
-    if context.dataset_name:
-        # Push to Explorer - don't block on its response
-        asyncio.create_task(
-            push_to_explorer(context, json_response, guardrails_execution_result)
+
+        response_string = json.dumps(json_response)
+        response_code = response.status_code
+
+        return Response(
+            content=response_string,
+            status_code=response_code,
+            media_type="application/json",
+            headers=dict(response.headers),
         )
 
-    return Response(
-        content=response_string,
-        status_code=response_code,
-        media_type="application/json",
-        headers=dict(response.headers),
-    )
+    @instrumentor.on("start")
+    async def precheck_guardrails() -> None:
+        # check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)
+        if context.config and context.config.guardrails:
+            # block on the guardrails check
+            guardrails_execution_result = await get_guardrails_check_result(context)
+            if guardrails_execution_result.get("errors", []):
+                # replace the response with the error message
+                raise YieldException(
+                    Response(
+                        content=json.dumps(
+                            {
+                                "error": "[Invariant] The response did not pass the guardrails",
+                                "details": guardrails_execution_result,
+                            }
+                        ),
+                        status_code=400,
+                        media_type="application/json",
+                    ),
+                    end_of_stream=True,
+                )
+
+    @instrumentor.on("end")
+    async def postprocess_guardrails() -> None:
+        # at this point, we are guaranteed that 'send_request' has already been executed successfully
+        response_code = response.status_code
+
+        # if we have guardrails, check the response
+        if context.config and context.config.guardrails:
+            # run guardrails again, this time on request + response
+            guardrails_execution_result = await get_guardrails_check_result(
+                context, json_response
+            )
+            if guardrails_execution_result.get("errors", []):
+                response_string = json.dumps(
+                    {
+                        "error": "[Invariant] The response did not pass the guardrails",
+                        "details": guardrails_execution_result,
+                    }
+                )
+                response_code = 400
+
+                # Push annotated trace to the explorer - don't block on its response
+                if context.dataset_name:
+                    asyncio.create_task(
+                        push_to_explorer(
+                            context,
+                            json_response,
+                            guardrails_execution_result,
+                        )
+                    )
+
+                # replace the response with the error message
+                raise YieldException(
+                    Response(
+                        content=response_string,
+                        status_code=response_code,
+                        media_type="application/json",
+                    ),
+                )
+
+        # if we don't have guardrails or if the response passed the guardrails (only then, we reach this point)
+        if context.dataset_name:
+            # Push to Explorer - don't block on its response
+            asyncio.create_task(push_to_explorer(context, json_response))
+
+    # execute instrumented request
+    return await instrumentor.execute(send_request())

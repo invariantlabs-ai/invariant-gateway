@@ -205,7 +205,8 @@ class StreamInstrumentor:
 
             # schedule all before listeners which can be run concurrently
             before_tasks = [
-                asyncio.create_task(listener()) for listener in self.before_listeners
+                asyncio.create_task(listener(), name="instrumentor:start")
+                for listener in self.before_listeners
             ]
 
             # create async iterator from async_iterable
@@ -224,7 +225,9 @@ class StreamInstrumentor:
                     self.stat_first_item_time = time.time() - start_first_item_request
                 return r
 
-            next_item_task = asyncio.create_task(wait_for_first_item())
+            next_item_task = asyncio.create_task(
+                wait_for_first_item(), name="instrumentor:next:first"
+            )
 
             # wait for all before listeners to finish
             has_end_of_stream = False
@@ -263,7 +266,9 @@ class StreamInstrumentor:
                     break
 
                 # schedule next item
-                next_item_task = asyncio.create_task(aiterable.__anext__())
+                next_item_task = asyncio.create_task(
+                    aiterable.__anext__(), name="instrumentor:next"
+                )
 
                 # [STAT] capture token time stamp
                 if len(self.stat_token_times) == 0:
@@ -274,8 +279,8 @@ class StreamInstrumentor:
                     )
 
                 # invoke on_chunk listeners
+                any_end_of_stream = False
                 for listener in self.on_chunk_listeners:
-                    any_end_of_stream = False
                     try:
                         await listener(item)
                     except YieldException as e:
@@ -293,7 +298,7 @@ class StreamInstrumentor:
 
             # finally, execute on complete listeners
             on_complete_tasks = [
-                asyncio.create_task(listener())
+                asyncio.create_task(listener(), name="instrumentor:end")
                 for listener in self.on_complete_listeners
             ]
             for result in asyncio.as_completed(on_complete_tasks):
@@ -306,7 +311,6 @@ class StreamInstrumentor:
 
             # [STAT] capture after time stamp
             self.stat_after_time = time.time() - start
-
         finally:
             # [STAT] end all open intervals if not already closed
             if self.stat_after_time is None:
@@ -335,6 +339,31 @@ class StreamInstrumentor:
                     f" [average token time: {sum(self.stat_token_times) / len(self.stat_token_times):.2f}s]"
                 )
             print(f" [total: {time.time() - start:.2f}s]")
+
+
+class RequestInstrumentor(StreamInstrumentor):
+    """
+    Like 'StreamInstrumentor', but for non-streaming requests.
+
+    Supports similar 'start', 'end' events, but not 'chunk', since everything is assumed
+    to be processed in one chunk (i.e., the request).
+    """
+
+    def on(self, event):
+        assert event in [
+            "start",
+            "end",
+        ], "RequestInstrumentor does not support 'chunk' events"
+        return super().on(event)
+
+    async def execute(self, request_task):
+        async def wrapped_request_task():
+            yield await request_task
+
+        # pretend the 'request_task' is an async iterable with a single item
+        result = [item async for item in self.stream(wrapped_request_task())]
+        assert len(result) == 1, "RequestInstrumentor should yield exactly one item"
+        return result[0]
 
 
 async def check_guardrails(
