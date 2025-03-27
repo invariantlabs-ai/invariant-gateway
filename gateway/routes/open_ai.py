@@ -486,6 +486,16 @@ async def handle_non_streaming_response(
             # block on the guardrails check
             guardrails_execution_result = await get_guardrails_check_result(context)
             if guardrails_execution_result.get("errors", []):
+                # Push annotated trace to the explorer - don't block on its response
+                if context.dataset_name:
+                    asyncio.create_task(
+                        push_to_explorer(
+                            context,
+                            {},
+                            guardrails_execution_result,
+                        )
+                    )
+
                 # replace the response with the error message
                 raise YieldException(
                     Response(
