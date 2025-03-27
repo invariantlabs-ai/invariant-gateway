@@ -365,8 +365,8 @@ class RequestInstrumentor(StreamInstrumentor):
 
         # pretend the 'request_task' is an async iterable with a single item
         result = [item async for item in self.stream(wrapped_request_task())]
-        assert len(result) == 1, "RequestInstrumentor should yield exactly one item"
-        return result[0]
+        assert len(result) >= 1, "RequestInstrumentor must yield at least one item"
+        return result[-1]
 
 
 async def check_guardrails(
