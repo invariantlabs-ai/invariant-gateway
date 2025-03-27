@@ -225,7 +225,7 @@ async def stream_response(
                     raise YieldException(f"data: {error_chunk}\n\n".encode())
 
         @instrumentor.on("end")
-        def send_to_explorer() -> None:
+        async def send_to_explorer() -> None:
             # Send full merged response to the explorer
             # Don't block on the response from explorer
             if context.dataset_name:
