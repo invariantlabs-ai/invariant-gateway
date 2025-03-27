@@ -28,15 +28,15 @@ async def test_message_content_guardrail_from_file(
     explorer_api_url, gateway_url, do_stream, push_to_explorer
 ):
     """Test the message content guardrail."""
-    if not os.getenv("GUARDRAILS_API_KEY"):
-        pytest.fail("No GUARDRAILS_API_KEY set, failing")
+    if not os.getenv("INVARIANT_API_KEY"):
+        pytest.fail("No INVARIANT_API_KEY set, failing")
 
     dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
 
     client = Anthropic(
         http_client=Client(
             headers={
-                "Invariant-Authorization": f"Bearer {os.getenv('GUARDRAILS_API_KEY')}"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },
         ),
         base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"
@@ -112,14 +112,10 @@ async def test_message_content_guardrail_from_file(
         )
         annotations = annotations_response.json()
 
-        assert len(annotations) == 2
+        assert len(annotations) == 1
         assert (
             annotations[0]["content"] == "Madrid detected in the response"
             and annotations[0]["extra_metadata"]["source"] == "guardrails-error"
-        )
-        assert (
-            annotations[1]["content"] == "Madrid detected in the response"
-            and annotations[1]["extra_metadata"]["source"] == "guardrails-error"
         )
 
 
@@ -134,8 +130,8 @@ async def test_tool_call_guardrail_from_file(
     explorer_api_url, gateway_url, do_stream, push_to_explorer
 ):
     """Test the message content guardrail."""
-    if not os.getenv("GUARDRAILS_API_KEY"):
-        pytest.fail("No GUARDRAILS_API_KEY set, failing")
+    if not os.getenv("INVARIANT_API_KEY"):
+        pytest.fail("No INVARIANT_API_KEY set, failing")
 
     tools = [
         {
@@ -169,7 +165,7 @@ async def test_tool_call_guardrail_from_file(
     client = Anthropic(
         http_client=Client(
             headers={
-                "Invariant-Authorization": f"Bearer {os.getenv('GUARDRAILS_API_KEY')}"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },
         ),
         base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"

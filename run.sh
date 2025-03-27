@@ -103,11 +103,13 @@ integration_tests() {
     fi
   fi
 
+  export GATEWAY_PATH=$(pwd)/gateway
+  export GUARDRAILS_FILE_PATH="$TEST_GUARDRAILS_FILE_PATH"
 
   # Start containers
-  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml down
-  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml build
-  GUARDRAILS_FILE_PATH="$TEST_GUARDRAILS_FILE_PATH" GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml up -d
+  docker compose -f tests/integration/docker-compose.test.yml down
+  docker compose -f tests/integration/docker-compose.test.yml build
+  docker compose -f tests/integration/docker-compose.test.yml up -d
 
   until [ "$(docker inspect -f '{{.State.Health.Status}}' invariant-gateway-test-explorer-app-api)" = "healthy" ]; do
     echo "Explorer backend app-api instance container starting..."
@@ -140,9 +142,12 @@ integration_tests() {
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
     -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\
     -e GEMINI_API_KEY="$GEMINI_API_KEY" \
-    -e GUARDRAILS_API_KEY="$GUARDRAILS_API_KEY" \
+    -e INVARIANT_API_KEY="$INVARIANT_API_KEY" \
     --env-file ./tests/integration/.env.test \
     invariant-gateway-tests $@
+
+  unset GATEWAY_PATH
+  unset GUARDRAILS_FILE_PATH
 }
 
 # -----------------------------
