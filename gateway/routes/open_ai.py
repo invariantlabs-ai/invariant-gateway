@@ -13,7 +13,12 @@ from common.constants import (
     IGNORED_HEADERS,
 )
 from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
-from integrations.guardails import check_guardrails, preload_guardrails
+from integrations.guardails import (
+    StreamInstrumentor,
+    YieldException,
+    check_guardrails,
+    preload_guardrails,
+)
 from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
 
@@ -98,15 +103,23 @@ async def stream_response(
     It is sent to the Invariant Explorer at the end of the stream
     """
 
-    response = await client.send(open_ai_request, stream=True)
-    if response.status_code != 200:
-        error_content = await response.aread()
-        try:
-            error_json = json.loads(error_content.decode("utf-8"))
-            error_detail = error_json.get("error", "Unknown error from OpenAI API")
-        except json.JSONDecodeError:
-            error_detail = {"error": "Failed to parse OpenAI error response"}
-        raise HTTPException(status_code=response.status_code, detail=error_detail)
+    async def request_and_stream():
+        """
+        Sets of the request and then streams the result.
+        """
+        response = await client.send(open_ai_request, stream=True)
+        if response.status_code != 200:
+            error_content = await response.aread()
+            try:
+                error_json = json.loads(error_content.decode("utf-8"))
+                error_detail = error_json.get("error", "Unknown error from OpenAI API")
+            except json.JSONDecodeError:
+                error_detail = {"error": "Failed to parse OpenAI error response"}
+            raise HTTPException(status_code=response.status_code, detail=error_detail)
+
+        # stream out chunks
+        async for chunk in response.aiter_bytes():
+            yield chunk
 
     async def event_generator() -> Any:
         # merged_response will be updated with the data from the chunks in the stream
@@ -119,6 +132,7 @@ async def stream_response(
             "choices": [],
             "usage": None,
         }
+
         # Each chunk in the stream contains a list called "choices" each entry in the list
         # has an index.
         # A choice has a field called "delta" which may contain a list called "tool_calls".
@@ -127,10 +141,37 @@ async def stream_response(
         # Combines the choice index and tool call index to uniquely identify a tool call
         tool_call_mapping_by_index = {}
 
-        async for chunk in response.aiter_bytes():
+        # prepare stream instrumentor
+        instrumentor = StreamInstrumentor()
+
+        @instrumentor.on("start")
+        async def precheck_guardrails() -> None:
+            # Check guardrails on the first chunk
+            if context.config and context.config.guardrails:
+                # Block on the guardrails check
+                guardrails_execution_result = await get_guardrails_check_result(
+                    context, merged_response
+                )
+                if guardrails_execution_result.get("errors", []):
+                    error_chunk = json.dumps(
+                        {
+                            "error": {
+                                "message": "[Invariant] The response did not pass the guardrails",
+                                "details": guardrails_execution_result,
+                            }
+                        }
+                    )
+                    # if we find something, we end the stream prematurely (end_of_stream=True)
+                    # and yield an error chunk instead of actually beginning the stream
+                    raise YieldException(
+                        f"data: {error_chunk}\n\n".encode(), end_of_stream=True
+                    )
+
+        @instrumentor.on("chunk")
+        async def process_chunk(chunk: bytes) -> None:
             chunk_text = chunk.decode().strip()
             if not chunk_text:
-                continue
+                return
 
             # Process the chunk
             # This will update merged_response with the data from the chunk
@@ -141,7 +182,7 @@ async def stream_response(
                 tool_call_mapping_by_index,
             )
 
-            # Check guardrails on the last chunk.
+            # Check guardrails on the 'DONE' SSE chunk.
             if (
                 "data: [DONE]" in chunk_text
                 and context.config
@@ -169,9 +210,11 @@ async def stream_response(
                                 guardrails_execution_result,
                             )
                         )
-                    yield f"data: {error_chunk}\n\n".encode()
-                    return
 
+                    # yield an extra error chunk (without preventing the original chunk to go through after)
+                    raise YieldException(f"data: {error_chunk}\n\n".encode())
+
+        async for chunk in instrumentor.stream(request_and_stream()):
             # Yield chunk to the client
             yield chunk
 
