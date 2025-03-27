@@ -171,6 +171,10 @@ class StreamInstrumentor:
         """
 
         def decorator(func):
+            assert asyncio.iscoroutinefunction(
+                func
+            ), "Listener must be an async function"
+
             if event == "chunk":
                 if self.on_chunk_listeners is None:
                     self.on_chunk_listeners = []
@@ -296,7 +300,6 @@ class StreamInstrumentor:
                 # yield item
                 yield item
 
-            # finally, execute on complete listeners
             on_complete_tasks = [
                 asyncio.create_task(listener(), name="instrumentor:end")
                 for listener in self.on_complete_listeners
