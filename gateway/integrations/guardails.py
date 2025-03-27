@@ -118,6 +118,29 @@ class StreamInstrumentor:
     """
     A class to instrument async iterables with hooks for processing
     chunks, before processing, and on completion.
+
+    Use `@on('chunk')`, `@on('start')`, and `@on('end')` decorators
+    to register listeners for different events.
+
+    Listeners can simply process data, or alternatively raise a designated
+    YieldException to yield additional values or stop the stream.
+
+    Example usage:
+
+    ```
+    instrumentor = StreamInstrumentor()
+
+    @instrumentor.on('chunk')
+    async def process_chunk(chunk):
+        # Process the chunk
+        print(f"Processing chunk: {chunk}")
+
+        if some_condition:
+            # Yield an additional value that will be interleaved in the stream
+            # Pass `end_of_stream=True` to stop the stream after yielding
+            # Pass `end_of_stream=False` to continue the stream after the interleaved value
+            raise YieldException("Extra value", end_of_stream=True)
+    ```
     """
 
     def __init__(self):
