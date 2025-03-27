@@ -161,6 +161,17 @@ async def stream_response(
                             }
                         }
                     )
+
+                    # Push annotated trace to the explorer - don't block on its response
+                    if context.dataset_name:
+                        asyncio.create_task(
+                            push_to_explorer(
+                                context,
+                                merged_response,
+                                guardrails_execution_result,
+                            )
+                        )
+
                     # if we find something, we end the stream prematurely (end_of_stream=True)
                     # and yield an error chunk instead of actually beginning the stream
                     raise YieldException(
@@ -215,14 +226,16 @@ async def stream_response(
                     # yield an extra error chunk (without preventing the original chunk to go through after)
                     raise YieldException(f"data: {error_chunk}\n\n".encode())
 
+        @instrumentor.on("end")
+        def send_to_explorer() -> None:
+            # Send full merged response to the explorer
+            # Don't block on the response from explorer
+            if context.dataset_name:
+                asyncio.create_task(push_to_explorer(context, merged_response))
+
         async for chunk in instrumentor.stream(request_and_stream()):
             # Yield chunk to the client
             yield chunk
-
-        # Send full merged response to the explorer
-        # Don't block on the response from explorer
-        if context.dataset_name:
-            asyncio.create_task(push_to_explorer(context, merged_response))
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

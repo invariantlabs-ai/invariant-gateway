@@ -219,12 +219,15 @@ class StreamInstrumentor:
                 nonlocal start_first_item_request, aiterable
 
                 r = await aiterable.__anext__()
-                self.stat_first_item_time = time.time() - start_first_item_request
+                if self.stat_first_item_time is None:
+                    # [STAT] capture time to first item
+                    self.stat_first_item_time = time.time() - start_first_item_request
                 return r
 
             next_item_task = asyncio.create_task(wait_for_first_item())
 
             # wait for all before listeners to finish
+            has_end_of_stream = False
             for before_task in before_tasks:
                 try:
                     await before_task
@@ -240,12 +243,14 @@ class StreamInstrumentor:
                             # [STAT] capture time to first item to be now +0.01
                             if self.stat_first_item_time is None:
                                 self.stat_first_item_time = (
-                                    time.time() - start_first_item_request + 0.01
-                                )
-                        else:
-                            print(
-                                "before yields, but next item already ready", flush=True
-                            )
+                                    time.time() - start_first_item_request
+                                ) + 0.01
+                        has_end_of_stream = True
+
+            # don't wait for the first item if end_of stream is True
+            if has_end_of_stream:
+                # if end_of_stream is True, stop the stream
+                return
 
             # [STAT] capture before time stamp
             self.stat_before_time = time.time() - start
@@ -281,11 +286,12 @@ class StreamInstrumentor:
 
                 # if end_of_stream is True, stop the stream
                 if any_end_of_stream:
-                    break
+                    return
 
                 # yield item
                 yield item
-            # execute on complete listeners
+
+            # finally, execute on complete listeners
             on_complete_tasks = [
                 asyncio.create_task(listener())
                 for listener in self.on_complete_listeners
@@ -310,6 +316,7 @@ class StreamInstrumentor:
             if self.stat_first_item_time is None:
                 self.stat_first_item_time = 0
 
+            # print statistics
             token_times_5_decimale = str([f"{x:.5f}" for x in self.stat_token_times])
             print(
                 f"[STATS]\n [token times: {token_times_5_decimale} ({len(self.stat_token_times)})]"
