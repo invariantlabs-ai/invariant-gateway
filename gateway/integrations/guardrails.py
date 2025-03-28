@@ -6,9 +6,7 @@ import time
 from typing import Any, Dict, List
 from functools import wraps
 
-from fastapi.responses import StreamingResponse
 import httpx
-from zmq import IO_THREADS
 from common.request_context_data import RequestContextData
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
@@ -72,17 +70,15 @@ async def _preload(guardrails: str, invariant_authorization: str) -> None:
     """
     async with httpx.AsyncClient() as client:
         url = os.getenv("GUADRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
-        try:
-            await client.post(
-                f"{url}/api/v1/policy/load",
-                json={"policy": guardrails},
-                headers={
-                    "Authorization": invariant_authorization,
-                    "Accept": "application/json",
-                },
-            )
-        except Exception as e:
-            print(f"Failed to load guardrails: {e}")
+        result = await client.post(
+            f"{url}/api/v1/policy/load",
+            json={"policy": guardrails},
+            headers={
+                "Authorization": invariant_authorization,
+                "Accept": "application/json",
+            },
+        )
+        result.raise_for_status()
 
 
 async def preload_guardrails(context: RequestContextData) -> None:

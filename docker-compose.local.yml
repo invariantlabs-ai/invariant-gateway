@@ -10,6 +10,7 @@ services:
     environment:
       - DEV_MODE=true
       - GUARDRAILS_FILE_PATH=${GUARDRAILS_FILE_PATH:+/srv/resources/guardrails.py}
+      - ${INVARIANT_API_KEY:+INVARIANT_API_KEY=${INVARIANT_API_KEY}}
     volumes:
       - type: bind
         source: ./gateway
