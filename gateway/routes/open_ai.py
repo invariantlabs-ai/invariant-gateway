@@ -500,7 +500,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
                     Response(
                         content=json.dumps(
                             {
-                                "error": "[Invariant] The response did not pass the guardrails",
+                                "error": "[Invariant] The request did not pass the guardrails",
                                 "details": self.guardrails_execution_result,
                             }
                         ),
