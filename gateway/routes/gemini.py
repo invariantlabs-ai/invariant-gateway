@@ -16,7 +16,7 @@ from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
 from converters.gemini_to_invariant import convert_request, convert_response
 from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
-from integrations.guardails import check_guardrails, preload_guardrails
+from integrations.guardrails import check_guardrails, preload_guardrails
 
 gateway = APIRouter()
 

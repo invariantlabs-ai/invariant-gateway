@@ -6,7 +6,13 @@ import time
 from typing import Any, Dict, List
 from functools import wraps
 
+from fastapi.responses import StreamingResponse
 import httpx
+<<<<<<< HEAD:gateway/integrations/guardails.py
+=======
+from zmq import IO_THREADS
+from common.request_context_data import RequestContextData
+>>>>>>> 91684ce (simplify request instrumentation):gateway/integrations/guardrails.py
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
@@ -99,102 +105,59 @@ async def preload_guardrails(context: "RequestContextData") -> None:
         print(f"Error scheduling preload_guardrails task: {e}")
 
 
-class YieldException(Exception):
+class ExtraItem:
     """
-    Raise this exception in stream instrumentor listeners to
-    end the stream early, or to emit additional items in a stream.
+    Return this class in a instrumented stream callback, to yield an extra item in the resulting stream.
     """
 
     def __init__(self, value, end_of_stream=False):
-        super().__init__(value)
         self.value = value
         self.end_of_stream = end_of_stream
 
     def __str__(self):
-        return f"YieldException: {self.value}"
+        return f"<ExtraItem value={self.value} end_of_stream={self.end_of_stream}>"
 
 
-class StreamInstrumentor:
-    """
-    A class to instrument async iterables with hooks for processing
-    chunks, before processing, and on completion.
-
-    Use `@on('chunk')`, `@on('start')`, and `@on('end')` decorators
-    to register listeners for different events.
-
-    Listeners can simply process data, or alternatively raise a designated
-    YieldException to yield additional values or stop the stream.
-
-    Example usage:
-
-    ```
-    instrumentor = StreamInstrumentor()
-
-    @instrumentor.on('chunk')
-    async def process_chunk(chunk):
-        # Process the chunk
-        print(f"Processing chunk: {chunk}")
-
-        if some_condition:
-            # Yield an additional value that will be interleaved in the stream
-            # Pass `end_of_stream=True` to stop the stream after yielding
-            # Pass `end_of_stream=False` to continue the stream after the interleaved value
-            raise YieldException("Extra value", end_of_stream=True)
-    ```
-    """
-
+class InstrumentedStreamingResponse:
     def __init__(self):
-        # called on every chunk (async)
-        self.on_chunk_listeners = []
-        # called once before the first chunk is processed, or even earlier (async)
-        self.before_listeners = []
-        # called once on stream completion (async)
-        self.on_complete_listeners = []
-
+        # request statistics
         self.stat_token_times = []
         self.stat_before_time = None
         self.stat_after_time = None
 
         self.stat_first_item_time = None
 
-    # decorator
-    def on(self, event: str):
+    async def on_chunk(self, chunk: Any) -> ExtraItem | None:
         """
-        Decorator to register listeners for different events.
+        This called will be called on every chunk (async).
+        """
+        pass
+
+    async def on_start(self) -> ExtraItem | None:
+        """
+        Decorator to register a listener for start events.
+        """
+        pass
+
+    async def on_end(self) -> ExtraItem | None:
+        """
+        Decorator to register a listener for end events.
+        """
+        pass
+
+    async def event_generator(self):
+        """
+        Streams the async iterable and invokes all instrumented hooks.
 
         Args:
-            event (str): The event to listen for. Can be 'on_chunk',
-                         'before', or 'on_complete'.
+            async_iterable: An async iterable to stream.
 
-        Returns:
-            Callable: A decorator to register the listener.
+        Yields:
+            The streamed data.
         """
+        raise NotImplementedError("This method should be implemented in a subclass.")
 
-        def decorator(func):
-            assert asyncio.iscoroutinefunction(
-                func
-            ), "Listener must be an async function"
-
-            if event == "chunk":
-                if self.on_chunk_listeners is None:
-                    self.on_chunk_listeners = []
-                self.on_chunk_listeners.append(func)
-            elif event == "start":
-                if self.before_listeners is None:
-                    self.before_listeners = []
-                self.before_listeners.append(func)
-            elif event == "end":
-                if self.on_complete_listeners is None:
-                    self.on_complete_listeners = []
-                self.on_complete_listeners.append(func)
-            else:
-                raise ValueError("Invalid event type. Use 'chunk', 'before', or 'end'.")
-
-            return func
-
-        return decorator
-
-    async def stream(self, async_iterable):
+    async def instrumented_event_generator(self):
         """
         Streams the async iterable and invokes all instrumented hooks.
 
@@ -207,14 +170,11 @@ class StreamInstrumentor:
         try:
             start = time.time()
 
-            # schedule all before listeners which can be run concurrently
-            before_tasks = [
-                asyncio.create_task(listener(), name="instrumentor:start")
-                for listener in self.before_listeners
-            ]
+            # schedule on_start which can be run concurrently
+            start_task = asyncio.create_task(self.on_start(), name="instrumentor:start")
 
             # create async iterator from async_iterable
-            aiterable = aiter(async_iterable)
+            aiterable = aiter(self.event_generator())
 
             # [STAT] capture start time of first item
             start_first_item_request = time.time()
@@ -233,31 +193,23 @@ class StreamInstrumentor:
                 wait_for_first_item(), name="instrumentor:next:first"
             )
 
-            # wait for all before listeners to finish
-            has_end_of_stream = False
-            for before_task in before_tasks:
-                try:
-                    await before_task
-                except YieldException as e:
-                    # yield extra value before any real items
-                    yield e.value
-                    # stop the stream if end_of_stream is True
-                    if e.end_of_stream:
-                        # if first item is already available
-                        if not next_item_task.done():
-                            # cancel the task
-                            next_item_task.cancel()
-                            # [STAT] capture time to first item to be now +0.01
-                            if self.stat_first_item_time is None:
-                                self.stat_first_item_time = (
-                                    time.time() - start_first_item_request
-                                ) + 0.01
-                        has_end_of_stream = True
-
-            # don't wait for the first item if end_of stream is True
-            if has_end_of_stream:
-                # if end_of_stream is True, stop the stream
-                return
+            # check if 'start_task' yields an extra item
+            if extra_item := await start_task:
+                # yield extra value before any real items
+                yield extra_item.value
+                # stop the stream if end_of_stream is True
+                if extra_item.end_of_stream:
+                    # if first item is already available
+                    if not next_item_task.done():
+                        # cancel the task
+                        next_item_task.cancel()
+                        # [STAT] capture time to first item to be now +0.01
+                        if self.stat_first_item_time is None:
+                            self.stat_first_item_time = (
+                                time.time() - start_first_item_request
+                            ) + 0.01
+                    # don't wait for the first item if end_of stream is True
+                    return
 
             # [STAT] capture before time stamp
             self.stat_before_time = time.time() - start
@@ -282,35 +234,20 @@ class StreamInstrumentor:
                         time.time() - start - sum(self.stat_token_times)
                     )
 
-                # invoke on_chunk listeners
-                any_end_of_stream = False
-                for listener in self.on_chunk_listeners:
-                    try:
-                        await listener(item)
-                    except YieldException as e:
-                        yield e.value
-                        # if end_of_stream is True, stop the stream
-                        if e.end_of_stream:
-                            any_end_of_stream = True
-
-                # if end_of_stream is True, stop the stream
-                if any_end_of_stream:
-                    return
+                if extra_item := await self.on_chunk(item):
+                    yield extra_item.value
+                    # if end_of_stream is True, stop the stream
+                    if extra_item.end_of_stream:
+                        return
 
                 # yield item
                 yield item
 
-            on_complete_tasks = [
-                asyncio.create_task(listener(), name="instrumentor:end")
-                for listener in self.on_complete_listeners
-            ]
-            for result in asyncio.as_completed(on_complete_tasks):
-                try:
-                    await result
-                except YieldException as e:
-                    # yield extra value before any real items
-                    yield e.value
-                    # we ignore end_of_stream here, because we are already at the end
+            # run on_end, before closing the stream (may yield an extra value)
+            if extra_item := await self.on_end():
+                # yield extra value before any real items
+                yield extra_item.value
+                # we ignore end_of_stream here, because we are already at the end
 
             # [STAT] capture after time stamp
             self.stat_after_time = time.time() - start
@@ -344,29 +281,35 @@ class StreamInstrumentor:
             print(f" [total: {time.time() - start:.2f}s]")
 
 
-class RequestInstrumentor(StreamInstrumentor):
+class InstrumentedResponse(InstrumentedStreamingResponse):
     """
-    Like 'StreamInstrumentor', but for non-streaming requests.
-
-    Supports similar 'start', 'end' events, but not 'chunk', since everything is assumed
-    to be processed in one chunk (i.e., the request).
+    A class to instrument an async request with hooks for concurrent
+    pre-processing and post-processing (input and output guardrailing).
     """
 
-    def on(self, event):
-        assert event in [
-            "start",
-            "end",
-        ], "RequestInstrumentor does not support 'chunk' events"
-        return super().on(event)
+    async def event_generator(self):
+        """
+        We implement the 'event_generator' as a single item stream,
+        where the item is the full result of the request.
+        """
+        yield await self.request()
 
-    async def execute(self, request_task):
-        async def wrapped_request_task():
-            yield await request_task
+    async def request(self):
+        """
+        This method should be implemented in a subclass to perform the actual request.
+        """
+        raise NotImplementedError("This method should be implemented in a subclass.")
 
-        # pretend the 'request_task' is an async iterable with a single item
-        result = [item async for item in self.stream(wrapped_request_task())]
-        assert len(result) >= 1, "RequestInstrumentor must yield at least one item"
-        return result[-1]
+    async def instrumented_request(self):
+        """
+        Returns the 'Response' object of the request, after applying all instrumented hooks.
+        """
+        results = [r async for r in self.instrumented_event_generator()]
+        assert len(results) >= 1, "InstrumentedResponse must yield at least one item"
+
+        # we return the last item, in case the end callback yields an extra item. Then,
+        # don't return the actual result but the 'end' result, e.g. for output guardrailing.
+        return results[-1]
 
 
 async def check_guardrails(
@@ -395,6 +338,10 @@ async def check_guardrails(
                     "Accept": "application/json",
                 },
             )
+            if not result.is_success:
+                raise Exception(
+                    f"Guardrails check failed: {result.status_code} - {result.text}"
+                )
             print(f"Guardrail check response: {result.json()}")
             return result.json()
         except Exception as e:

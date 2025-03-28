@@ -18,7 +18,7 @@ from converters.anthropic_to_invariant import (
 )
 from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
-from integrations.guardails import check_guardrails, preload_guardrails
+from integrations.guardrails import check_guardrails, preload_guardrails
 
 gateway = APIRouter()
 
