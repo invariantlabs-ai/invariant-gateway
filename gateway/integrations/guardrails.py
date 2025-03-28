@@ -6,13 +6,8 @@ import time
 from typing import Any, Dict, List
 from functools import wraps
 
-from fastapi.responses import StreamingResponse
 import httpx
-<<<<<<< HEAD:gateway/integrations/guardails.py
-=======
-from zmq import IO_THREADS
 from common.request_context_data import RequestContextData
->>>>>>> 91684ce (simplify request instrumentation):gateway/integrations/guardrails.py
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
@@ -250,6 +245,8 @@ class InstrumentedStreamingResponse:
                     yield extra_item.value
                     # if end_of_stream is True, stop the stream
                     if extra_item.end_of_stream:
+                        # cancel next task
+                        next_item_task.cancel()
                         return
 
                 # yield item
