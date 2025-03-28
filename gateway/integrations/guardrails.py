@@ -118,6 +118,18 @@ class ExtraItem:
         return f"<ExtraItem value={self.value} end_of_stream={self.end_of_stream}>"
 
 
+class Replacement(ExtraItem):
+    """
+    Like ExtraItem, but used to replace the full request result in case of 'InstrumentedResponse'.
+    """
+
+    def __init__(self, value):
+        super().__init__(value, end_of_stream=True)
+
+    def __str__(self):
+        return f"<Replacement value={self.value}>"
+
+
 class InstrumentedStreamingResponse:
     def __init__(self):
         # request statistics
