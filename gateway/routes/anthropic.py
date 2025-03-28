@@ -5,6 +5,7 @@ import json
 from typing import Any, Optional
 
 import httpx
+from regex import R
 from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
@@ -18,7 +19,14 @@ from converters.anthropic_to_invariant import (
 )
 from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
-from integrations.guardails import check_guardrails, preload_guardrails
+from integrations.guardrails import (
+    ExtraItem,
+    InstrumentedResponse,
+    InstrumentedStreamingResponse,
+    Replacement,
+    check_guardrails,
+    preload_guardrails,
+)
 
 gateway = APIRouter()
 
@@ -85,8 +93,7 @@ async def anthropic_v1_messages_gateway(
 
     if request_json.get("stream"):
         return await handle_streaming_response(context, client, anthropic_request)
-    response = await client.send(anthropic_request)
-    return await handle_non_streaming_response(context, response)
+    return await handle_non_streaming_response(context, client, anthropic_request)
 
 
 def create_metadata(
@@ -110,7 +117,8 @@ def combine_request_and_response_messages(
             {"role": "system", "content": context.request_json.get("system")}
         )
     messages.extend(context.request_json.get("messages", []))
-    messages.append(json_response)
+    if len(json_response) > 0:
+        messages.append(json_response)
     return messages
 
 
@@ -154,55 +162,281 @@ async def push_to_explorer(
     )
 
 
+class InstrumentedAnthropicResponse(InstrumentedResponse):
+    def __init__(
+        self,
+        context: RequestContextData,
+        client: httpx.AsyncClient,
+        anthropic_request: httpx.Request,
+    ):
+        super().__init__()
+        self.context: RequestContextData = context
+        self.client: httpx.AsyncClient = client
+        self.anthropic_request: httpx.Request = anthropic_request
+
+        # response data
+        self.response: Optional[httpx.Response] = None
+        self.response_string: Optional[str] = None
+        self.json_response: Optional[dict[str, Any]] = None
+
+        # guardrailing response (if any)
+        self.guardrails_execution_result = {}
+
+    async def on_start(self):
+        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        if self.context.config and self.context.config.guardrails:
+            self.guardrails_execution_result = await get_guardrails_check_result(
+                self.context, {}
+            )
+            if self.guardrails_execution_result.get("errors", []):
+                error_chunk = json.dumps(
+                    {
+                        "error": {
+                            "message": "[Invariant] The request did not pass the guardrails",
+                            "details": self.guardrails_execution_result,
+                        }
+                    }
+                )
+
+                # Push annotated trace to the explorer - don't block on its response
+                if self.context.dataset_name:
+                    asyncio.create_task(
+                        push_to_explorer(
+                            self.context,
+                            {},
+                            self.guardrails_execution_result,
+                        )
+                    )
+
+                # if we find something, we prevent the request from going through
+                # and return an error instead
+                return Replacement(
+                    Response(
+                        content=error_chunk,
+                        status_code=400,
+                        media_type="application/json",
+                        headers={"content-type": "application/json"},
+                    )
+                )
+
+    async def request(self):
+        self.response = await self.client.send(self.anthropic_request)
+
+        try:
+            json_response = self.response.json()
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=self.response.status_code,
+                detail=f"Invalid JSON response received from Anthropic: {self.response.text}, got error{e}",
+            ) from e
+        if self.response.status_code != 200:
+            raise HTTPException(
+                status_code=self.response.status_code,
+                detail=json_response.get("error", "Unknown error from Anthropic"),
+            )
+
+        self.json_response = json_response
+        self.response_string = json.dumps(json_response)
+
+        return self._make_response(
+            content=self.response_string,
+            status_code=self.response.status_code,
+        )
+
+    def _make_response(self, content: str, status_code: int):
+        """Creates a new Response object with the correct headers and content"""
+        assert self.response is not None, "response is None"
+
+        updated_headers = self.response.headers.copy()
+        updated_headers.pop("Content-Length", None)
+
+        return Response(
+            content=content,
+            status_code=status_code,
+            media_type="application/json",
+            headers=dict(updated_headers),
+        )
+
+    async def on_end(self):
+        """Checks guardrails after the response is received, and asynchronously pushes to Explorer."""
+        # ensure the response data is available
+        assert self.response is not None, "response is None"
+        assert self.json_response is not None, "json_response is None"
+        assert self.response_string is not None, "response_string is None"
+
+        if self.context.config and self.context.config.guardrails:
+            # Block on the guardrails check
+            guardrails_execution_result = await get_guardrails_check_result(
+                self.context, self.json_response
+            )
+            if guardrails_execution_result.get("errors", []):
+                guardrail_response_string = json.dumps(
+                    {
+                        "error": "[Invariant] The response did not pass the guardrails",
+                        "details": guardrails_execution_result,
+                    }
+                )
+
+                # push to explorer (if configured)
+                if self.context.dataset_name:
+                    # Push to Explorer - don't block on its response
+                    asyncio.create_task(
+                        push_to_explorer(
+                            self.context,
+                            self.json_response,
+                            guardrails_execution_result,
+                        )
+                    )
+
+                return Replacement(
+                    self._make_response(
+                        content=guardrail_response_string,
+                        status_code=400,
+                    )
+                )
+
+        # push to explorer (if configured)
+        if self.context.dataset_name:
+            # Push to Explorer - don't block on its response
+            asyncio.create_task(
+                push_to_explorer(
+                    self.context, self.json_response, guardrails_execution_result
+                )
+            )
+
+
 async def handle_non_streaming_response(
     context: RequestContextData,
-    response: httpx.Response,
+    client: httpx.AsyncClient,
+    anthropic_request: httpx.Request,
 ) -> Response:
     """Handles non-streaming Anthropic responses"""
-    try:
-        json_response = response.json()
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=f"Invalid JSON response received from Anthropic: {response.text}, got error{e}",
-        ) from e
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=json_response.get("error", "Unknown error from Anthropic"),
-        )
-
-    guardrails_execution_result = {}
-    response_string = json.dumps(json_response)
-    response_code = response.status_code
-
-    if context.config and context.config.guardrails:
-        # Block on the guardrails check
-        guardrails_execution_result = await get_guardrails_check_result(
-            context, json_response
-        )
-        if guardrails_execution_result.get("errors", []):
-            response_string = json.dumps(
-                {
-                    "error": "[Invariant] The response did not pass the guardrails",
-                    "details": guardrails_execution_result,
-                }
-            )
-            response_code = 400
-    if context.dataset_name:
-        # Push to Explorer - don't block on its response
-        asyncio.create_task(
-            push_to_explorer(context, json_response, guardrails_execution_result)
-        )
-
-    updated_headers = response.headers.copy()
-    updated_headers.pop("Content-Length", None)
-    return Response(
-        content=response_string,
-        status_code=response_code,
-        media_type="application/json",
-        headers=dict(updated_headers),
+    response = InstrumentedAnthropicResponse(
+        context=context,
+        client=client,
+        anthropic_request=anthropic_request,
     )
+
+    return await response.instrumented_request()
+
+
+class InstrumentedAnthropicStreamingResposne(InstrumentedStreamingResponse):
+    def __init__(
+        self,
+        context: RequestContextData,
+        client: httpx.AsyncClient,
+        anthropic_request: httpx.Request,
+    ):
+        super().__init__()
+
+        # request parameters
+        self.context: RequestContextData = context
+        self.client: httpx.AsyncClient = client
+        self.anthropic_request: httpx.Request = anthropic_request
+
+        # response data
+        self.merged_response = {}
+
+        # guardrailing response (if any)
+        self.guardrails_execution_result = {}
+
+    async def on_start(self):
+        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        if self.context.config and self.context.config.guardrails:
+            self.guardrails_execution_result = await get_guardrails_check_result(
+                self.context, self.merged_response
+            )
+            if self.guardrails_execution_result.get("errors", []):
+                error_chunk = json.dumps(
+                    {
+                        "error": {
+                            "message": "[Invariant] The request did not pass the guardrails",
+                            "details": self.guardrails_execution_result,
+                        }
+                    }
+                )
+
+                # Push annotated trace to the explorer - don't block on its response
+                if self.context.dataset_name:
+                    asyncio.create_task(
+                        push_to_explorer(
+                            self.context,
+                            self.merged_response,
+                            self.guardrails_execution_result,
+                        )
+                    )
+
+                # if we find something, we end the stream prematurely (end_of_stream=True)
+                # and yield an error chunk instead of actually beginning the stream
+                return ExtraItem(
+                    f"event: error\ndata: {error_chunk}\n\n".encode(),
+                    end_of_stream=True,
+                )
+
+    async def event_generator(self):
+        """Actual streaming response generator"""
+        response = await self.client.send(self.anthropic_request, stream=True)
+        if response.status_code != 200:
+            error_content = await response.aread()
+            try:
+                error_json = json.loads(error_content)
+                error_detail = error_json.get("error", "Unknown error from Anthropic")
+            except json.JSONDecodeError:
+                error_detail = {
+                    "error": "Failed to decode error response from Anthropic"
+                }
+            raise HTTPException(status_code=response.status_code, detail=error_detail)
+
+        # iterate over the response stream
+        async for chunk in response.aiter_bytes():
+            yield chunk
+
+    async def on_chunk(self, chunk):
+        decoded_chunk = chunk.decode().strip()
+        if not decoded_chunk:
+            return
+
+        # process chunk and extend the merged_response
+        process_chunk(decoded_chunk, self.merged_response)
+
+        # on last stream chunk, run output guardrails
+        if (
+            "event: message_stop" in decoded_chunk
+            and self.context.config
+            and self.context.config.guardrails
+        ):
+            # Block on the guardrails check
+            self.guardrails_execution_result = await get_guardrails_check_result(
+                self.context, self.merged_response
+            )
+            if self.guardrails_execution_result.get("errors", []):
+                error_chunk = json.dumps(
+                    {
+                        "type": "error",
+                        "error": {
+                            "message": "[Invariant] The response did not pass the guardrails",
+                            "details": self.guardrails_execution_result,
+                        },
+                    }
+                )
+
+                # yield an extra error chunk (without preventing the original chunk to go through after,
+                # so client gets the proper message_stop event still)
+                return ExtraItem(
+                    value=f"event: error\ndata: {error_chunk}\n\n".encode()
+                )
+
+    async def on_end(self):
+        """on_end: send full merged response to the exploree (if configured)"""
+        # don't block on the response from explorer (.create_task)
+        if self.context.dataset_name:
+            asyncio.create_task(
+                push_to_explorer(
+                    self.context,
+                    self.merged_response,
+                    self.guardrails_execution_result,
+                )
+            )
 
 
 async def handle_streaming_response(
@@ -211,63 +445,15 @@ async def handle_streaming_response(
     anthropic_request: httpx.Request,
 ) -> StreamingResponse:
     """Handles streaming Anthropic responses"""
-    merged_response = {}
+    response = InstrumentedAnthropicStreamingResposne(
+        context=context,
+        client=client,
+        anthropic_request=anthropic_request,
+    )
 
-    response = await client.send(anthropic_request, stream=True)
-    if response.status_code != 200:
-        error_content = await response.aread()
-        try:
-            error_json = json.loads(error_content)
-            error_detail = error_json.get("error", "Unknown error from Anthropic")
-        except json.JSONDecodeError:
-            error_detail = {"error": "Failed to decode error response from Anthropic"}
-        raise HTTPException(status_code=response.status_code, detail=error_detail)
-
-    async def event_generator() -> Any:
-        async for chunk in response.aiter_bytes():
-            decoded_chunk = chunk.decode().strip()
-            if not decoded_chunk:
-                continue
-            process_chunk(decoded_chunk, merged_response)
-            if (
-                "event: message_stop" in decoded_chunk
-                and context.config
-                and context.config.guardrails
-            ):
-                # Block on the guardrails check
-                guardrails_execution_result = await get_guardrails_check_result(
-                    context, merged_response
-                )
-                if guardrails_execution_result.get("errors", []):
-                    error_chunk = json.dumps(
-                        {
-                            "type": "error",
-                            "error": {
-                                "message": "[Invariant] The response did not pass the guardrails",
-                                "details": guardrails_execution_result,
-                            },
-                        }
-                    )
-                    # Push annotated trace to the explorer - don't block on its response
-                    if context.dataset_name:
-                        asyncio.create_task(
-                            push_to_explorer(
-                                context,
-                                merged_response,
-                                guardrails_execution_result,
-                            )
-                        )
-                    yield f"event: error\ndata: {error_chunk}\n\n".encode()
-                    return
-            yield chunk
-
-        if context.dataset_name:
-            # Push to Explorer - don't block on the response
-            asyncio.create_task(push_to_explorer(context, merged_response))
-
-    generator = event_generator()
-
-    return StreamingResponse(generator, media_type="text/event-stream")
+    return StreamingResponse(
+        response.instrumented_event_generator(), media_type="text/event-stream"
+    )
 
 
 def process_chunk(chunk: str, merged_response: dict[str, Any]) -> None:
