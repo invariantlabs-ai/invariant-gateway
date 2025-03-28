@@ -245,6 +245,8 @@ class InstrumentedStreamingResponse:
                     yield extra_item.value
                     # if end_of_stream is True, stop the stream
                     if extra_item.end_of_stream:
+                        # cancel next task
+                        next_item_task.cancel()
                         return
 
                 # yield item
