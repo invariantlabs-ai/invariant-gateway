@@ -86,10 +86,14 @@ async def openai_chat_completions_gateway(
             open_ai_request,
         )
 
-    return await handle_non_streaming_response(context, client, open_ai_request)
+    return await non_stream_response(context, client, open_ai_request)
 
 
 class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
+    """
+    Does a streaming OpenAI completion request at the core, but also checks guardrails before (concurrent) and after the request.
+    """
+
     def __init__(
         self,
         context: RequestContextData,
@@ -126,9 +130,8 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
         self.tool_call_mapping_by_index = {}
 
     async def on_start(self):
-        # check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)
+        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
         if self.context.config and self.context.config.guardrails:
-            # Block on the guardrails check
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context, self.merged_response
             )
@@ -199,8 +202,8 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
                 # push will happen in on_end
 
     async def on_end(self):
-        # Send full merged response to the explorer
-        # Don't block on the response from explorer
+        """Sends full merged response to the exploree."""
+        # don't block on the response from explorer (.create_task)
         if self.context.dataset_name:
             asyncio.create_task(
                 push_to_explorer(
@@ -450,6 +453,10 @@ async def get_guardrails_check_result(
 
 
 class InstrumentedOpenAIResponse(InstrumentedResponse):
+    """
+    Does an OpenAI completion request at the core, but also checks guardrails before (concurrent) and after the request.
+    """
+
     def __init__(
         self,
         context: RequestContextData,
@@ -467,10 +474,11 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
         self.response: Optional[httpx.Response] = None
         self.json_response: Optional[dict[str, Any]] = None
 
+        # guardrailing output (if any)
         self.guardrails_execution_result: Optional[dict] = None
 
     async def on_start(self):
-        # check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)
+        """Checks guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)"""
         if self.context.config and self.context.config.guardrails:
             # block on the guardrails check
             self.guardrails_execution_result = await get_guardrails_check_result(
@@ -503,9 +511,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
                 )
 
     async def request(self):
-        """
-        Actual OpenAI request.
-        """
+        """Actual OpenAI request."""
         self.response = await self.client.send(self.open_ai_request)
 
         try:
@@ -532,10 +538,10 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
         )
 
     async def on_end(self):
-        """
-        Postprocess the OpenAI response and potentially replace it with a guardrails error.
-        """
-        # these two are guaranteed to be set by the time we reach this point (after self.request() was executed)
+        """Postprocesses the OpenAI response and potentially replace it with a guardrails error."""
+
+        # these two request outputs are guaranteed to be available by the time we reach this point (after self.request() was executed)
+        # nevertheless, we check for them to avoid any potential issues
         assert (
             self.response is not None
         ), "on_end called before 'self.response' was available"
@@ -543,7 +549,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
             self.json_response is not None
         ), "on_end called before 'self.json_response' was available"
 
-        # at this point, we are guaranteed that 'send_request' has already been executed successfully
+        # extract original response status code
         response_code = self.response.status_code
 
         # if we have guardrails, check the response
@@ -580,18 +586,19 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
                     ),
                 )
 
-        # Push annotated trace to the explorer - don't block on its response
+        # Push annotated trace to the explorer in any case - don't block on its response
         if self.context.dataset_name:
             asyncio.create_task(
                 push_to_explorer(
                     self.context,
                     self.json_response,
+                    # include any guardrailing errors if available
                     self.guardrails_execution_result,
                 )
             )
 
 
-async def handle_non_streaming_response(
+async def non_stream_response(
     context: RequestContextData,
     client: httpx.AsyncClient,
     open_ai_request: httpx.Request,
