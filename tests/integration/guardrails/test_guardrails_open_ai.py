@@ -330,7 +330,7 @@ async def test_input_from_guardrail_from_file(
         trace = trace_response.json()
 
         # in case of input guardrailing, the pushed trace will not contain a response
-        assert len(trace["messages"]) == 1
+        assert len(trace["messages"]) == 1, "Trace should only contain the user message"
         assert trace["messages"][0] == {
             "role": "user",
             "content": "Tell me more about Fight Club.",

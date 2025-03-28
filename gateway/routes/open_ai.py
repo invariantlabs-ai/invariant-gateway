@@ -80,13 +80,13 @@ async def openai_chat_completions_gateway(
     asyncio.create_task(preload_guardrails(context))
 
     if request_json.get("stream", False):
-        return await stream_response(
+        return await handle_stream_response(
             context,
             client,
             open_ai_request,
         )
 
-    return await non_stream_response(context, client, open_ai_request)
+    return await handle_non_stream_response(context, client, open_ai_request)
 
 
 class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
@@ -158,7 +158,8 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
                 # if we find something, we end the stream prematurely (end_of_stream=True)
                 # and yield an error chunk instead of actually beginning the stream
                 return ExtraItem(
-                    f"data: {error_chunk}\n\n".encode(), end_of_stream=True
+                    f"data: {error_chunk}\n\n".encode(),
+                    end_of_stream=True,
                 )
 
     async def on_chunk(self, chunk):
@@ -231,7 +232,7 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
             yield chunk
 
 
-async def stream_response(
+async def handle_stream_response(
     context: RequestContextData,
     client: httpx.AsyncClient,
     open_ai_request: httpx.Request,
@@ -598,7 +599,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
             )
 
 
-async def non_stream_response(
+async def handle_non_stream_response(
     context: RequestContextData,
     client: httpx.AsyncClient,
     open_ai_request: httpx.Request,
