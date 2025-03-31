@@ -4,8 +4,6 @@ import asyncio
 import os
 import threading
 
-from integrations.guardails import _preload
-
 from httpx import HTTPStatusError
 
 
@@ -20,6 +18,8 @@ class GatewayConfig:
         Loads the guardrails from the file specified in GUARDRAILS_FILE_PATH.
         Returns the guardrails file content as a string.
         """
+        from integrations.guardrails import _preload
+
         guardrails_file = os.getenv("GUARDRAILS_FILE_PATH", "")
         if not guardrails_file:
             print("[warning: GUARDRAILS_FILE_PATH is not set. Using empty guardrails]")

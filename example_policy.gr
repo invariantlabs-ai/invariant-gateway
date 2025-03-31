@@ -1,0 +1,7 @@
+from invariant.detectors import prompt_injection
+
+raise "Don't say 'Hello'" if:
+    (msg: Message)
+    msg.role == "user"
+    prompt_injection(msg.content)
+    # "Hello" in msg.content

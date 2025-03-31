@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import httpx
 from common.config_manager import GatewayConfig, GatewayConfigManager
@@ -15,8 +15,16 @@ from common.constants import (
 from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
 from converters.gemini_to_invariant import convert_request, convert_response
+from integrations.guardrails import (
+    ExtraItem,
+    InstrumentedResponse,
+    InstrumentedStreamingResponse,
+    Replacement,
+    preload_guardrails,
+    check_guardrails,
+)
 from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
-from integrations.guardails import check_guardrails, preload_guardrails
+from integrations.guardrails import check_guardrails, preload_guardrails
 
 gateway = APIRouter()
 
@@ -82,11 +90,167 @@ async def gemini_generate_content_gateway(
             client,
             gemini_request,
         )
-    response = await client.send(gemini_request)
     return await handle_non_streaming_response(
         context,
-        response,
+        client,
+        gemini_request,
     )
+
+
+class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
+    def __init__(
+        self,
+        context: RequestContextData,
+        client: httpx.AsyncClient,
+        gemini_request: httpx.Request,
+    ):
+        super().__init__()
+
+        # request data
+        self.context: RequestContextData = context
+        self.client: httpx.AsyncClient = client
+        self.gemini_request: httpx.Request = gemini_request
+
+        # Store the progressively merged response
+        self.merged_response = {
+            "candidates": [{"content": {"parts": []}, "finishReason": None}]
+        }
+
+        # guardrailing execution result (if any)
+        self.guardrails_execution_result: Optional[dict[str, Any]] = None
+
+    def make_refusal(
+        self,
+        location: Literal["request", "response"],
+        guardrails_execution_result: dict[str, Any],
+    ) -> dict:
+        return {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": f"[Invariant] The {location} did not pass the guardrails",
+                            }
+                        ],
+                    }
+                }
+            ],
+            "error": {
+                "code": 400,
+                "message": f"[Invariant] The {location} did not pass the guardrails",
+                "details": guardrails_execution_result,
+                "status": "INVARIANT_GUARDRAILS_VIOLATION",
+            },
+            "promptFeedback": {
+                "blockReason": "SAFETY",
+                "block_reason_message": f"[Invariant] The {location} did not pass the guardrails: "
+                + json.dumps(guardrails_execution_result),
+                "safetyRatings": [
+                    {
+                        "category": "HARM_CATEGORY_UNSPECIFIED",
+                        "probability": "HIGH",
+                        "blocked": True,
+                    }
+                ],
+            },
+        }
+
+    async def on_start(self):
+        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        if self.context.config and self.context.config.guardrails:
+            self.guardrails_execution_result = await get_guardrails_check_result(
+                self.context, {}
+            )
+            if self.guardrails_execution_result.get("errors", []):
+                error_chunk = json.dumps(
+                    self.make_refusal("request", self.guardrails_execution_result)
+                )
+
+                # Push annotated trace to the explorer - don't block on its response
+                if self.context.dataset_name:
+                    asyncio.create_task(
+                        push_to_explorer(
+                            self.context,
+                            {},
+                            self.guardrails_execution_result,
+                        )
+                    )
+
+                # if we find something, we end the stream prematurely (end_of_stream=True)
+                # and yield an error chunk instead of actually beginning the stream
+                return ExtraItem(
+                    f"data: {error_chunk}\r\n\r\n".encode(), end_of_stream=True
+                )
+
+    async def event_generator(self):
+        response = await self.client.send(self.gemini_request, stream=True)
+
+        if response.status_code != 200:
+            error_content = await response.aread()
+            try:
+                error_json = json.loads(error_content.decode("utf-8"))
+                error_detail = error_json.get("error", "Unknown error from Gemini API")
+            except json.JSONDecodeError:
+                error_detail = {"error": "Failed to parse Gemini error response"}
+            raise HTTPException(status_code=response.status_code, detail=error_detail)
+
+        async for chunk in response.aiter_bytes():
+            yield chunk
+
+    async def on_chunk(self, chunk):
+        chunk_text = chunk.decode().strip()
+        if not chunk_text:
+            return
+
+        # Parse and update merged_response incrementally
+        process_chunk_text(self.merged_response, chunk_text)
+
+        # runs on the last stream item
+        if (
+            self.merged_response.get("candidates", [])
+            and self.merged_response.get("candidates")[0].get("finishReason", "")
+            and self.context.config
+            and self.context.config.guardrails
+        ):
+            # Block on the guardrails check
+            self.guardrails_execution_result = await get_guardrails_check_result(
+                self.context, self.merged_response
+            )
+            if self.guardrails_execution_result.get("errors", []):
+                error_chunk = json.dumps(
+                    self.make_refusal("response", self.guardrails_execution_result)
+                )
+
+                # Push annotated trace to the explorer - don't block on its response
+                if self.context.dataset_name:
+                    asyncio.create_task(
+                        push_to_explorer(
+                            self.context,
+                            self.merged_response,
+                            self.guardrails_execution_result,
+                        )
+                    )
+
+                return ExtraItem(
+                    value=f"data: {error_chunk}\r\n\r\n".encode(),
+                    # for Gemini we have to end the stream prematurely, as the client SDK
+                    # will not stop streaming when it encounters an error
+                    end_of_stream=True,
+                )
+
+    async def on_end(self):
+        """Runs when the stream ends."""
+
+        # Push annotated trace to the explorer - don't block on its response
+        if self.context.dataset_name:
+            asyncio.create_task(
+                push_to_explorer(
+                    self.context,
+                    self.merged_response,
+                    self.guardrails_execution_result,
+                )
+            )
 
 
 async def stream_response(
@@ -96,76 +260,21 @@ async def stream_response(
 ) -> Response:
     """Handles streaming the Gemini response to the client"""
 
-    response = await client.send(gemini_request, stream=True)
-    if response.status_code != 200:
-        error_content = await response.aread()
-        try:
-            error_json = json.loads(error_content.decode("utf-8"))
-            error_detail = error_json.get("error", "Unknown error from Gemini API")
-        except json.JSONDecodeError:
-            error_detail = {"error": "Failed to parse Gemini error response"}
-        raise HTTPException(status_code=response.status_code, detail=error_detail)
+    response = InstrumentedStreamingGeminiResponse(
+        context=context,
+        client=client,
+        gemini_request=gemini_request,
+    )
 
-    async def event_generator() -> Any:
-        # Store the progressively merged response
-        merged_response = {
-            "candidates": [{"content": {"parts": []}, "finishReason": None}]
-        }
-
-        async for chunk in response.aiter_bytes():
-            chunk_text = chunk.decode().strip()
-            if not chunk_text:
-                continue
-
-            # Parse and update merged_response incrementally
-            process_chunk_text(merged_response, chunk_text)
-
-            if (
-                merged_response.get("candidates", [])
-                and merged_response.get("candidates")[0].get("finishReason", "")
-                and context.config
-                and context.config.guardrails
-            ):
-                # Block on the guardrails check
-                guardrails_execution_result = await get_guardrails_check_result(
-                    context, merged_response
-                )
-                if guardrails_execution_result.get("errors", []):
-                    error_chunk = json.dumps(
-                        {
-                            "error": {
-                                "code": 400,
-                                "message": "[Invariant] The response did not pass the guardrails",
-                                "details": guardrails_execution_result,
-                                "status": "INVARIANT_GUARDRAILS_VIOLATION",
-                            },
-                        }
-                    )
-                    # Push annotated trace to the explorer - don't block on its response
-                    if context.dataset_name:
-                        asyncio.create_task(
-                            push_to_explorer(
-                                context,
-                                merged_response,
-                                guardrails_execution_result,
-                            )
-                        )
-                    yield f"data: {error_chunk}\n\n".encode()
-                    return
-
-            # Yield chunk immediately to the client
+    async def event_generator():
+        async for chunk in response.instrumented_event_generator():
             yield chunk
+            print("chunk", chunk)
 
-        if context.dataset_name:
-            # Push to Explorer - don't block on the response
-            asyncio.create_task(
-                push_to_explorer(
-                    context,
-                    merged_response,
-                )
-            )
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+    )
 
 
 def process_chunk_text(
@@ -281,53 +390,165 @@ async def push_to_explorer(
     )
 
 
+class InstrumentedGeminiResponse(InstrumentedResponse):
+    def __init__(
+        self,
+        context: RequestContextData,
+        client: httpx.AsyncClient,
+        gemini_request: httpx.Request,
+    ):
+        super().__init__()
+
+        # request data
+        self.context: RequestContextData = context
+        self.client: httpx.AsyncClient = client
+        self.gemini_request: httpx.Request = gemini_request
+
+        # response data
+        self.response: Optional[httpx.Response] = None
+        self.response_json: Optional[dict[str, Any]] = None
+
+        # guardrails execution result (if any)
+        self.guardrails_execution_result: Optional[dict[str, Any]] = None
+
+    async def on_start(self):
+        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        if self.context.config and self.context.config.guardrails:
+            self.guardrails_execution_result = await get_guardrails_check_result(
+                self.context, {}
+            )
+            if self.guardrails_execution_result.get("errors", []):
+                error_chunk = json.dumps(
+                    {
+                        "error": {
+                            "code": 400,
+                            "message": "[Invariant] The request did not pass the guardrails",
+                            "details": self.guardrails_execution_result,
+                            "status": "INVARIANT_GUARDRAILS_VIOLATION",
+                        },
+                        "prompt_feedback": {
+                            "blockReason": "SAFETY",
+                            "safetyRatings": [
+                                {
+                                    "category": "HARM_CATEGORY_UNSPECIFIED",
+                                    "probability": 0.0,
+                                    "blocked": True,
+                                }
+                            ],
+                        },
+                    }
+                )
+
+                # Push annotated trace to the explorer - don't block on its response
+                if self.context.dataset_name:
+                    asyncio.create_task(
+                        push_to_explorer(
+                            self.context,
+                            {},
+                            self.guardrails_execution_result,
+                        )
+                    )
+
+                # if we find something, we end the stream prematurely (end_of_stream=True)
+                # and yield an error chunk instead of actually beginning the stream
+                return Replacement(
+                    Response(
+                        content=error_chunk,
+                        status_code=400,
+                        media_type="application/json",
+                        headers={
+                            "Content-Type": "application/json",
+                        },
+                    )
+                )
+
+    async def request(self):
+        self.response = await self.client.send(self.gemini_request)
+
+        response_string = self.response.text
+        response_code = self.response.status_code
+
+        try:
+            self.response_json = self.response.json()
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=self.response.status_code,
+                detail="Invalid JSON response received from Gemini API",
+            ) from e
+        if self.response.status_code != 200:
+            raise HTTPException(
+                status_code=self.response.status_code,
+                detail=self.response_json.get("error", "Unknown error from Gemini API"),
+            )
+
+        return Response(
+            content=response_string,
+            status_code=response_code,
+            media_type="application/json",
+            headers=dict(self.response.headers),
+        )
+
+    async def on_end(self):
+        response_string = json.dumps(self.response_json)
+        response_code = self.response.status_code
+
+        if self.context.config and self.context.config.guardrails:
+            # Block on the guardrails check
+            guardrails_execution_result = await get_guardrails_check_result(
+                self.context, self.response_json
+            )
+            if guardrails_execution_result.get("errors", []):
+                response_string = json.dumps(
+                    {
+                        "error": {
+                            "code": 400,
+                            "message": "[Invariant] The response did not pass the guardrails",
+                            "details": guardrails_execution_result,
+                            "status": "INVARIANT_GUARDRAILS_VIOLATION",
+                        },
+                    }
+                )
+                response_code = 400
+
+                if self.context.dataset_name:
+                    # Push to Explorer - don't block on its response
+                    asyncio.create_task(
+                        push_to_explorer(
+                            self.context,
+                            self.response_json,
+                            guardrails_execution_result,
+                        )
+                    )
+
+                return Replacement(
+                    Response(
+                        content=response_string,
+                        status_code=response_code,
+                        media_type="application/json",
+                        headers=dict(self.response.headers),
+                    )
+                )
+
+        # Otherwise, also push to Explorer - don't block on its response
+        if self.context.dataset_name:
+            asyncio.create_task(
+                push_to_explorer(
+                    self.context, self.response_json, guardrails_execution_result
+                )
+            )
+
+
 async def handle_non_streaming_response(
     context: RequestContextData,
-    response: httpx.Response,
+    client: httpx.AsyncClient,
+    gemini_request: httpx.Request,
 ) -> Response:
     """Handles non-streaming Gemini responses"""
-    try:
-        response_json = response.json()
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail="Invalid JSON response received from Gemini API",
-        ) from e
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=response_json.get("error", "Unknown error from Gemini API"),
-        )
-    guardrails_execution_result = {}
-    response_string = json.dumps(response_json)
-    response_code = response.status_code
 
-    if context.config and context.config.guardrails:
-        # Block on the guardrails check
-        guardrails_execution_result = await get_guardrails_check_result(
-            context, response_json
-        )
-        if guardrails_execution_result.get("errors", []):
-            response_string = json.dumps(
-                {
-                    "error": {
-                        "code": 400,
-                        "message": "[Invariant] The response did not pass the guardrails",
-                        "details": guardrails_execution_result,
-                        "status": "INVARIANT_GUARDRAILS_VIOLATION",
-                    },
-                }
-            )
-            response_code = 400
-    if context.dataset_name:
-        # Push to Explorer - don't block on its response
-        asyncio.create_task(
-            push_to_explorer(context, response_json, guardrails_execution_result)
-        )
-
-    return Response(
-        content=response_string,
-        status_code=response_code,
-        media_type="application/json",
-        headers=dict(response.headers),
+    response = InstrumentedGeminiResponse(
+        context=context,
+        client=client,
+        gemini_request=gemini_request,
     )
+
+    return await response.instrumented_request()
