@@ -355,4 +355,13 @@ async def check_guardrails(
             return result.json()
         except Exception as e:
             print(f"Failed to verify guardrails: {e}")
-            return {"error": str(e)}
+            # make sure runtime errors are also visible in e.g. Explorer
+            return {
+                "errors": [
+                    {
+                        "args": ["Gateway: " + str(e)],
+                        "kwargs": {},
+                        "ranges": ["messages[0].content:L0"],
+                    }
+                ]
+            }

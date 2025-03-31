@@ -3,15 +3,31 @@
 import asyncio
 import os
 import threading
+from typing import Optional
 
+import fastapi
 from httpx import HTTPStatusError
+
+
+def extract_policy_from_headers(request: fastapi.Request) -> Optional[str]:
+    """
+    Extracts the guardrailing policy from the request headers if present.
+
+    Returns 'None' if no such header is present.
+    """
+    policy = request.headers.get("Invariant-Guardrails")
+    # undo unicode_escape
+    if policy:
+        # interpret as bytes then decode
+        policy = policy.encode("utf-8").decode("unicode_escape")
+    return policy
 
 
 class GatewayConfig:
     """Common configurations for the Gateway Server."""
 
-    def __init__(self):
-        self.guardrails = self._load_guardrails_from_file()
+    def __init__(self, guardrails: Optional[str] = None):
+        self.guardrails = guardrails or self._load_guardrails_from_file()
 
     def _load_guardrails_from_file(self) -> str:
         """
@@ -50,6 +66,12 @@ class GatewayConfig:
     def __repr__(self) -> str:
         return f"GatewayConfig(guardrails={repr(self.guardrails)})"
 
+    def with_guardrails(self, guardrails: str) -> "GatewayConfig":
+        """
+        Returns a new GatewayConfig instance with the specified guardrails.
+        """
+        return GatewayConfig(guardrails)
+
 
 class GatewayConfigManager:
     """Manager for Gateway Configuration."""
@@ -58,7 +80,7 @@ class GatewayConfigManager:
     _lock = threading.Lock()
 
     @classmethod
-    def get_config(cls):
+    def get_config(cls, request: fastapi.Request = None) -> GatewayConfig:
         """Initializes and returns the gateway configuration using double-checked locking."""
         local_config = cls._config_instance
 
@@ -68,4 +90,9 @@ class GatewayConfigManager:
                 if local_config is None:
                     local_config = GatewayConfig()
                     cls._config_instance = local_config
+
+        # if provided in header, use custom guardrailing policy
+        if guardrail_file_contents := extract_policy_from_headers(request):
+            local_config = local_config.with_guardrails(guardrail_file_contents)
+
         return local_config
