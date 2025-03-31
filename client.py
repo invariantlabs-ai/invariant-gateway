@@ -12,7 +12,7 @@ raise "Rule 1: Do not talk about Fight Club" if:
 openai_client = OpenAI(
     default_headers={
         "Invariant-Authorization": "Bearer " + os.getenv("INVARIANT_API_KEY"),
-        "Invariant-Guardrails": open("guardrails.py").read().encode("unicode_escape"),
+        "Invariant-Guardrails": guardrails,
     },
     base_url="http://localhost:8000/api/v1/gateway/non-streaming/openai",
 )
