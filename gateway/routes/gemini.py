@@ -5,16 +5,18 @@ import json
 from typing import Any, Literal, Optional
 
 import httpx
-from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
+
+from common.authorization import extract_authorization_from_headers
+from common.config_manager import GatewayConfig, GatewayConfigManager
 from common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
 )
-from common.authorization import extract_authorization_from_headers
 from common.request_context_data import RequestContextData
 from converters.gemini_to_invariant import convert_request, convert_response
+from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
 from integrations.guardrails import (
     ExtraItem,
     InstrumentedResponse,
@@ -23,8 +25,6 @@ from integrations.guardrails import (
     preload_guardrails,
     check_guardrails,
 )
-from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
-from integrations.guardrails import check_guardrails, preload_guardrails
 
 gateway = APIRouter()
 
