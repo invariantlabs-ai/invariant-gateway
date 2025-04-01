@@ -5,20 +5,20 @@ import json
 from typing import Any, Optional
 
 import httpx
-from regex import R
-from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
+
+from common.authorization import extract_authorization_from_headers
+from common.config_manager import GatewayConfig, GatewayConfigManager
 from common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
 )
-from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
+from common.request_context_data import RequestContextData
 from converters.anthropic_to_invariant import (
     convert_anthropic_to_invariant_message_format,
 )
-from common.authorization import extract_authorization_from_headers
-from common.request_context_data import RequestContextData
+from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
 from integrations.guardrails import (
     ExtraItem,
     InstrumentedResponse,
