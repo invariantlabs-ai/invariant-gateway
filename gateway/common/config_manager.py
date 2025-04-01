@@ -9,12 +9,15 @@ import fastapi
 from httpx import HTTPStatusError
 
 
-def extract_policy_from_headers(request: fastapi.Request) -> Optional[str]:
+def extract_policy_from_headers(request: Optional[fastapi.Request]) -> Optional[str]:
     """
     Extracts the guardrailing policy from the request headers if present.
 
     Returns 'None' if no such header is present.
     """
+    if request is None:
+        return None
+
     policy = request.headers.get("Invariant-Guardrails")
     # undo unicode_escape
     if policy:
