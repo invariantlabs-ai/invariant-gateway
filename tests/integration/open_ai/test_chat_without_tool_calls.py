@@ -34,7 +34,7 @@ async def test_chat_completion(
     client = OpenAI(
         http_client=Client(
             headers={
-                "Invariant-Authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         ),
         base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
@@ -107,7 +107,7 @@ async def test_chat_completion_with_image(
     client = OpenAI(
         http_client=Client(
             headers={
-                "Invariant-Authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         ),
         base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
@@ -189,9 +189,10 @@ async def test_chat_completion_with_invariant_key_in_openai_key_header(
     """Test the chat completions gateway calls with the Invariant API Key in the OpenAI Key header."""
     dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    invariant_key_suffix = f";invariant-auth={os.getenv('INVARIANT_API_KEY')}"
     with patch.dict(
         os.environ,
-        {"OPENAI_API_KEY": openai_api_key + ";invariant-auth=<not needed for test>"},
+        {"OPENAI_API_KEY": openai_api_key + invariant_key_suffix},
     ):
         client = OpenAI(
             http_client=Client(),
@@ -252,7 +253,7 @@ async def test_chat_completion_with_openai_exception(gateway_url, do_stream):
     client = OpenAI(
         http_client=Client(
             headers={
-                "Invariant-Authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         ),
         base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai",

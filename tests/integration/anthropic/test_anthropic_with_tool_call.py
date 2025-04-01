@@ -26,7 +26,7 @@ class WeatherAgent:
 
     def __init__(self, gateway_url, push_to_explorer):
         self.dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
-        invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
+        invariant_api_key = os.environ.get("INVARIANT_API_KEY")
         self.client = anthropic.Anthropic(
             http_client=Client(
                 headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},

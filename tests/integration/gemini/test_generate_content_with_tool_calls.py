@@ -151,7 +151,7 @@ async def test_generate_content_with_tool_call(
             if push_to_explorer
             else f"{gateway_url}/api/v1/gateway/gemini",
             "headers": {
-                "invariant-authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         },
     )

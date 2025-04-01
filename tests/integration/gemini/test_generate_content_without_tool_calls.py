@@ -36,7 +36,7 @@ async def test_generate_content(
             if push_to_explorer
             else f"{gateway_url}/api/v1/gateway/gemini",
             "headers": {
-                "invariant-authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         },
     )
@@ -123,7 +123,7 @@ async def test_generate_content_with_image(
             if push_to_explorer
             else f"{gateway_url}/api/v1/gateway/gemini",
             "headers": {
-                "invariant-authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         },
     )
@@ -181,9 +181,10 @@ async def test_generate_content_with_invariant_key_in_gemini_key_header(
     """Test the generate content gateway calls with the Invariant API Key in the Gemini Key header."""
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
     gemini_api_key = os.getenv("GEMINI_API_KEY")
+    invariant_key_suffix = f";invariant-auth={os.getenv('INVARIANT_API_KEY')}"
     with patch.dict(
         os.environ,
-        {"GEMINI_API_KEY": gemini_api_key + ";invariant-auth=<not needed for test>"},
+        {"GEMINI_API_KEY": gemini_api_key + invariant_key_suffix},
     ):
         client = genai.Client(
             api_key=os.getenv("GEMINI_API_KEY"),
