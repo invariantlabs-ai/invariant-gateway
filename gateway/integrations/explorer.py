@@ -111,7 +111,7 @@ async def fetch_guardrails_from_explorer(
     client = httpx.AsyncClient(
         base_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/"),
         headers={
-            "Invariant-Authorization": invariant_authorization,
+            "Authorization": invariant_authorization,
         },
     )
 
