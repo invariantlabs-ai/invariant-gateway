@@ -1,7 +1,6 @@
 """Utility functions for Guardrails execution."""
 
 import asyncio
-import json
 import os
 import time
 from typing import Any, Dict, List
@@ -351,28 +350,6 @@ async def check_guardrails(
     async with httpx.AsyncClient() as client:
         url = os.getenv("GUADRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
         try:
-            print(
-                "Hello there this is the request to guardrails: ",
-                json.dumps(
-                    {
-                        "messages": messages,
-                        "policies": [g.content for g in guardrails],
-                    },
-                    indent=2,
-                ),
-                flush=True,
-            )
-            print(
-                "Hello there this is the request to guardrails: ",
-                json.dumps(
-                    {
-                        "Authorization": invariant_authorization,
-                        "Accept": "application/json",
-                    },
-                    indent=2,
-                ),
-                flush=True,
-            )
             result = await client.post(
                 f"{url}/api/v1/policy/check/batch",
                 json={

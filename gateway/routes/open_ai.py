@@ -152,7 +152,7 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
                 action=GuardrailAction.BLOCK,
-                json_response=self.merged_response,
+                response_json=self.merged_response,
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
@@ -203,7 +203,7 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
                 action=GuardrailAction.BLOCK,
-                json_response=self.merged_response,
+                response_json=self.merged_response,
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
@@ -438,6 +438,19 @@ async def push_to_explorer(
         not in FINISH_REASON_TO_PUSH_TRACE
     ):
         annotations = create_annotations_from_guardrails_errors(guardrails_errors)
+
+        # Execute the logging guardrails before pushing to Explorer
+        logging_guardrails_execution_result = await get_guardrails_check_result(
+            context,
+            action=GuardrailAction.LOG,
+            response_json=merged_response,
+        )
+        logging_annotations = create_annotations_from_guardrails_errors(
+            logging_guardrails_execution_result.get("errors", [])
+        )
+        # Update the annotations with the logging guardrails
+        annotations.extend(logging_annotations)
+
         # Combine the messages from the request body and the choices from the OpenAI response
         messages = list(context.request_json.get("messages", []))
         messages += [choice["message"] for choice in merged_response.get("choices", [])]
@@ -453,7 +466,7 @@ async def push_to_explorer(
 async def get_guardrails_check_result(
     context: RequestContext,
     action: GuardrailAction,
-    json_response: dict[str, Any] | None = None,
+    response_json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Get the guardrails check result"""
     # Determine which guardrails to apply based on the action
@@ -466,8 +479,8 @@ async def get_guardrails_check_result(
         return {}
 
     messages = list(context.request_json.get("messages", []))
-    if json_response is not None:
-        messages += [choice["message"] for choice in json_response.get("choices", [])]
+    if response_json is not None:
+        messages += [choice["message"] for choice in response_json.get("choices", [])]
 
     # Block on the guardrails check
     guardrails_execution_result = await check_guardrails(
@@ -499,7 +512,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
 
         # request outputs
         self.response: Optional[httpx.Response] = None
-        self.json_response: Optional[dict[str, Any]] = None
+        self.response_json: Optional[dict[str, Any]] = None
 
         # guardrailing output (if any)
         self.guardrails_execution_result: Optional[dict] = None
@@ -545,7 +558,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
         self.response = await self.client.send(self.open_ai_request)
 
         try:
-            self.json_response = self.response.json()
+            self.response_json = self.response.json()
         except json.JSONDecodeError as e:
             raise HTTPException(
                 status_code=self.response.status_code,
@@ -554,10 +567,10 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
         if self.response.status_code != 200:
             raise HTTPException(
                 status_code=self.response.status_code,
-                detail=self.json_response.get("error", "Unknown error from OpenAI API"),
+                detail=self.response_json.get("error", "Unknown error from OpenAI API"),
             )
 
-        response_string = json.dumps(self.json_response)
+        response_string = json.dumps(self.response_json)
         response_code = self.response.status_code
 
         return Response(
@@ -577,8 +590,8 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
             self.response is not None
         ), "on_end called before 'self.response' was available"
         assert (
-            self.json_response is not None
-        ), "on_end called before 'self.json_response' was available"
+            self.response_json is not None
+        ), "on_end called before 'self.response_json' was available"
 
         # extract original response status code
         response_code = self.response.status_code
@@ -589,7 +602,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
                 action=GuardrailAction.BLOCK,
-                json_response=self.json_response,
+                response_json=self.response_json,
             )
             if self.guardrails_execution_result.get("errors", []):
                 response_string = json.dumps(
@@ -605,7 +618,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
                     asyncio.create_task(
                         push_to_explorer(
                             self.context,
-                            self.json_response,
+                            self.response_json,
                             self.guardrails_execution_result,
                         )
                     )
@@ -624,7 +637,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
             asyncio.create_task(
                 push_to_explorer(
                     self.context,
-                    self.json_response,
+                    self.response_json,
                     # include any guardrailing errors if available
                     self.guardrails_execution_result,
                 )

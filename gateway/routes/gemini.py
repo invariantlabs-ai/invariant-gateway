@@ -290,7 +290,6 @@ async def stream_response(
     async def event_generator():
         async for chunk in response.instrumented_event_generator():
             yield chunk
-            print("chunk", chunk)
 
     return StreamingResponse(
         event_generator(),
@@ -407,6 +406,18 @@ async def push_to_explorer(
     annotations = create_annotations_from_guardrails_errors(
         guardrails_execution_result.get("errors", [])
     )
+
+    # Execute the logging guardrails before pushing to Explorer
+    logging_guardrails_execution_result = await get_guardrails_check_result(
+        context,
+        action=GuardrailAction.LOG,
+        response_json=response_json,
+    )
+    logging_annotations = create_annotations_from_guardrails_errors(
+        logging_guardrails_execution_result.get("errors", [])
+    )
+    # Update the annotations with the logging guardrails
+    annotations.extend(logging_annotations)
 
     converted_requests = convert_request(context.request_json)
     converted_responses = convert_response(response_json)
