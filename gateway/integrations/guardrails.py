@@ -1,13 +1,15 @@
 """Utility functions for Guardrails execution."""
 
 import asyncio
+import json
 import os
 import time
 from typing import Any, Dict, List
 from functools import wraps
 
 import httpx
-from common.request_context_data import RequestContextData
+from common.guardrails import Guardrail
+from common.request_context import RequestContext
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
@@ -81,21 +83,28 @@ async def _preload(guardrails: str, invariant_authorization: str) -> None:
         result.raise_for_status()
 
 
-async def preload_guardrails(context: "RequestContextData") -> None:
+async def preload_guardrails(context: "RequestContext") -> None:
     """
     Preloads the guardrails for faster checking later.
 
     Args:
-        context: RequestContextData object.
+        context: RequestContext object.
     """
-    if not context.config or not context.config.guardrails:
+    if not context.dataset_guardrails:
         return
 
     try:
-        task = asyncio.create_task(
-            _preload(context.config.guardrails, context.invariant_authorization)
-        )
-        asyncio.shield(task)
+        # Move these calls to a batch preload/validate API.
+        for blocking_guardrail in context.dataset_guardrails.blocking_guardrails:
+            task = asyncio.create_task(
+                _preload(blocking_guardrail.content, context.invariant_authorization)
+            )
+            asyncio.shield(task)
+        for logging_guadrail in context.dataset_guardrails.logging_guardrails:
+            task = asyncio.create_task(
+                _preload(logging_guadrail.content, context.invariant_authorization)
+            )
+            asyncio.shield(task)
     except Exception as e:
         print(f"Error scheduling preload_guardrails task: {e}")
 
@@ -322,14 +331,17 @@ class InstrumentedResponse(InstrumentedStreamingResponse):
 
 
 async def check_guardrails(
-    messages: List[Dict[str, Any]], guardrails: str, invariant_authorization: str
+    messages: List[Dict[str, Any]],
+    guardrails: List[Guardrail],
+    invariant_authorization: str,
 ) -> Dict[str, Any]:
     """
     Checks guardrails on the list of messages.
+    This calls the batch check API of the Guardrails service.
 
     Args:
         messages (List[Dict[str, Any]]): List of messages to verify the guardrails against.
-        guardrails (str): The guardrails to check against.
+        guardrails (List[Guardrail]): The guardrails to check against.
         invariant_authorization (str): Value of the
                                        invariant-authorization header.
 
@@ -339,9 +351,34 @@ async def check_guardrails(
     async with httpx.AsyncClient() as client:
         url = os.getenv("GUADRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
         try:
+            print(
+                "Hello there this is the request to guardrails: ",
+                json.dumps(
+                    {
+                        "messages": messages,
+                        "policies": [g.content for g in guardrails],
+                    },
+                    indent=2,
+                ),
+                flush=True,
+            )
+            print(
+                "Hello there this is the request to guardrails: ",
+                json.dumps(
+                    {
+                        "Authorization": invariant_authorization,
+                        "Accept": "application/json",
+                    },
+                    indent=2,
+                ),
+                flush=True,
+            )
             result = await client.post(
-                f"{url}/api/v1/policy/check",
-                json={"messages": messages, "policy": guardrails},
+                f"{url}/api/v1/policy/check/batch",
+                json={
+                    "messages": messages,
+                    "policies": [g.content for g in guardrails],
+                },
                 headers={
                     "Authorization": invariant_authorization,
                     "Accept": "application/json",
@@ -352,7 +389,12 @@ async def check_guardrails(
                     f"Guardrails check failed: {result.status_code} - {result.text}"
                 )
             print(f"Guardrail check response: {result.json()}")
-            return result.json()
+
+            guardrails_result = result.json()
+            aggregated_errors = {"errors": []}
+            for res in guardrails_result.get("result", []):
+                aggregated_errors["errors"].extend(res.get("errors", []))
+            return aggregated_errors
         except Exception as e:
             print(f"Failed to verify guardrails: {e}")
             return {"error": str(e)}

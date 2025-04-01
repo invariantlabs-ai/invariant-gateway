@@ -11,7 +11,7 @@ class GatewayConfig:
     """Common configurations for the Gateway Server."""
 
     def __init__(self):
-        self.guardrails = self._load_guardrails_from_file()
+        self.guardrails_from_file = self._load_guardrails_from_file()
 
     def _load_guardrails_from_file(self) -> str:
         """
@@ -48,7 +48,7 @@ class GatewayConfig:
             raise ValueError(f"Cannot load guardrails, {e}, {e.response.text}") from e
 
     def __repr__(self) -> str:
-        return f"GatewayConfig(guardrails={repr(self.guardrails)})"
+        return f"GatewayConfig(guardrails_from_file={repr(self.guardrails_from_file)})"
 
 
 class GatewayConfigManager:

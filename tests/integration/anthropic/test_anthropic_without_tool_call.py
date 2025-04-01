@@ -26,7 +26,7 @@ async def test_response_without_tool_call(
 ):
     """Test the Anthropic gateway without tool calling."""
     dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
-    invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
+    invariant_api_key = os.environ.get("INVARIANT_API_KEY")
 
     client = anthropic.Anthropic(
         http_client=Client(
@@ -91,7 +91,7 @@ async def test_streaming_response_without_tool_call(
 ):
     """Test the Anthropic gateway without tool calling."""
     dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
-    invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
+    invariant_api_key = os.environ.get("INVARIANT_API_KEY")
 
     client = anthropic.Anthropic(
         http_client=Client(

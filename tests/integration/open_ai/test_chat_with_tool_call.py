@@ -32,7 +32,7 @@ async def test_chat_completion_with_tool_call_without_streaming(
     client = OpenAI(
         http_client=Client(
             headers={
-                "Invariant-Authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         ),
         base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
@@ -150,7 +150,7 @@ async def test_chat_completion_with_tool_call_with_streaming(
     client = OpenAI(
         http_client=Client(
             headers={
-                "Invariant-Authorization": "Bearer <some-key>"
+                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },  # This key is not used for local tests
         ),
         base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"

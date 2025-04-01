@@ -3,9 +3,12 @@
 import os
 from typing import Any, Dict, List
 
+from common.guardrails import DatasetGuardrails, Guardrail, GuardrailAction
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesResponse
 from invariant_sdk.types.annotations import AnnotationCreate
+
+import httpx
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
@@ -91,3 +94,79 @@ async def push_trace(
     except Exception as e:
         print(f"Failed to push trace: {e}")
         return {"error": str(e)}
+
+
+async def fetch_guardrails_from_explorer(
+    dataset_name: str, invariant_authorization: str
+) -> DatasetGuardrails:
+    """Get the guardrails for the dataset.
+
+    Returns:
+        DatasetGuardrails: The guardrails for the dataset grouped by their action.
+    """
+
+    # TODO: Implement a single API in explorer backend which can return
+    # dataset details without requiring a username.
+
+    client = httpx.AsyncClient(
+        base_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/"),
+        headers={
+            "Invariant-Authorization": invariant_authorization,
+        },
+    )
+
+    # Get the user details.
+    user_info_response = await client.get("/api/v1/user/info")
+    if user_info_response.status_code != 200:
+        raise ValueError(
+            f"Failed to get user details from Explorer: {user_info_response.status_code}, {user_info_response.text}"
+        )
+    user_details = user_info_response.json()
+    username = user_details["username"]
+
+    # Get the dataset policies.
+    policies_response = await client.get(
+        f"/api/v1/dataset/byuser/{username}/{dataset_name}/policy"
+    )
+    if policies_response.status_code != 200:
+        if policies_response.status_code == 404:
+            # If the dataset does not exist, return empty guardrails.
+            return DatasetGuardrails(
+                blocking_guardrails=[],
+                logging_guardrails=[],
+            )
+        raise ValueError(
+            f"Failed to get dataset details from Explorer: {policies_response.status_code}, {policies_response.text}"
+        )
+    policies_details = policies_response.json()
+    guardrails = policies_details.get("policies", [])
+
+    blocking_guardrails = []
+    logging_guardrails = []
+    for g in guardrails:
+        action = g["action"]
+
+        if not g["enabled"]:
+            # Skip guardrails that are not enabled.
+            continue
+
+        if action not in (GuardrailAction.BLOCK, GuardrailAction.LOG):
+            print("[Warning] Skipping unknown guardrail action: ", action)
+            continue
+
+        guardrail = Guardrail(
+            id=g["id"],
+            name=g["name"],
+            content=g["content"],
+            action=GuardrailAction(action),
+        )
+
+        if action == GuardrailAction.BLOCK:
+            blocking_guardrails.append(guardrail)
+        else:
+            logging_guardrails.append(guardrail)
+
+    return DatasetGuardrails(
+        blocking_guardrails=blocking_guardrails,
+        logging_guardrails=logging_guardrails,
+    )
