@@ -120,7 +120,7 @@ def create_metadata(
 
 
 def combine_request_and_response_messages(
-    context: RequestContext, json_response: dict[str, Any]
+    context: RequestContext, response_json: dict[str, Any]
 ):
     """Combine the request and response messages"""
     messages = []
@@ -129,13 +129,13 @@ def combine_request_and_response_messages(
             {"role": "system", "content": context.request_json.get("system")}
         )
     messages.extend(context.request_json.get("messages", []))
-    if len(json_response) > 0:
-        messages.append(json_response)
+    if len(response_json) > 0:
+        messages.append(response_json)
     return messages
 
 
 async def get_guardrails_check_result(
-    context: RequestContext, action: GuardrailAction, json_response: dict[str, Any]
+    context: RequestContext, action: GuardrailAction, response_json: dict[str, Any]
 ) -> dict[str, Any]:
     """Get the guardrails check result"""
     # Determine which guardrails to apply based on the action
@@ -147,7 +147,7 @@ async def get_guardrails_check_result(
     if not guardrails:
         return {}
 
-    messages = combine_request_and_response_messages(context, json_response)
+    messages = combine_request_and_response_messages(context, response_json)
     converted_messages = convert_anthropic_to_invariant_message_format(messages)
 
     # Block on the guardrails check
@@ -170,10 +170,22 @@ async def push_to_explorer(
         guardrails_execution_result.get("errors", [])
     )
 
+    # Execute the logging guardrails before pushing to Explorer
+    logging_guardrails_execution_result = await get_guardrails_check_result(
+        context,
+        action=GuardrailAction.LOG,
+        response_json=merged_response,
+    )
+    logging_annotations = create_annotations_from_guardrails_errors(
+        logging_guardrails_execution_result.get("errors", [])
+    )
+    # Update the annotations with the logging guardrails
+    annotations.extend(logging_annotations)
+
     # Combine the messages from the request body and Anthropic response
     messages = combine_request_and_response_messages(context, merged_response)
-
     converted_messages = convert_anthropic_to_invariant_message_format(messages)
+
     _ = await push_trace(
         dataset_name=context.dataset_name,
         messages=[converted_messages],
@@ -200,7 +212,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         # response data
         self.response: Optional[httpx.Response] = None
         self.response_string: Optional[str] = None
-        self.json_response: Optional[dict[str, Any]] = None
+        self.response_json: Optional[dict[str, Any]] = None
 
         # guardrailing response (if any)
         self.guardrails_execution_result = {}
@@ -209,7 +221,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
         if self.context.dataset_guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context, action=GuardrailAction.BLOCK, json_response={}
+                self.context, action=GuardrailAction.BLOCK, response_json={}
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
@@ -243,10 +255,11 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
                 )
 
     async def request(self):
+        """Make the request to the Anthropic API."""
         self.response = await self.client.send(self.anthropic_request)
 
         try:
-            json_response = self.response.json()
+            response_json = self.response.json()
         except json.JSONDecodeError as e:
             raise HTTPException(
                 status_code=self.response.status_code,
@@ -255,11 +268,11 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         if self.response.status_code != 200:
             raise HTTPException(
                 status_code=self.response.status_code,
-                detail=json_response.get("error", "Unknown error from Anthropic"),
+                detail=response_json.get("error", "Unknown error from Anthropic"),
             )
 
-        self.json_response = json_response
-        self.response_string = json.dumps(json_response)
+        self.response_json = response_json
+        self.response_string = json.dumps(response_json)
 
         return self._make_response(
             content=self.response_string,
@@ -284,7 +297,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         """Checks guardrails after the response is received, and asynchronously pushes to Explorer."""
         # ensure the response data is available
         assert self.response is not None, "response is None"
-        assert self.json_response is not None, "json_response is None"
+        assert self.response_json is not None, "response_json is None"
         assert self.response_string is not None, "response_string is None"
 
         if self.context.dataset_guardrails:
@@ -292,12 +305,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
             guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
                 action=GuardrailAction.BLOCK,
-                json_response=self.json_response,
-            )
-            print(
-                "Here is the guardrails_execution_result in on_end in InstrumentedAnthropicResponse: ",
-                guardrails_execution_result,
-                flush=True,
+                response_json=self.response_json,
             )
             if guardrails_execution_result.get("errors", []):
                 guardrail_response_string = json.dumps(
@@ -313,7 +321,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
                     asyncio.create_task(
                         push_to_explorer(
                             self.context,
-                            self.json_response,
+                            self.response_json,
                             guardrails_execution_result,
                         )
                     )
@@ -330,7 +338,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
             # Push to Explorer - don't block on its response
             asyncio.create_task(
                 push_to_explorer(
-                    self.context, self.json_response, guardrails_execution_result
+                    self.context, self.response_json, guardrails_execution_result
                 )
             )
 
@@ -378,7 +386,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
                 action=GuardrailAction.BLOCK,
-                json_response=self.merged_response,
+                response_json=self.merged_response,
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
@@ -440,12 +448,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
                 action=GuardrailAction.BLOCK,
-                json_response=self.merged_response,
-            )
-            print(
-                "Here is the guardrails_execution_result in on_chunk in InstrumentedAnthropicStreamingResponse: ",
-                self.guardrails_execution_result,
-                flush=True,
+                response_json=self.merged_response,
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
