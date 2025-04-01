@@ -8,9 +8,10 @@ import time
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import get_gemini_client
+
 import pytest
 import requests
-from httpx import Client
 from google import genai
 
 # Pytest plugins
@@ -30,17 +31,10 @@ async def test_message_content_guardrail_from_file(
         pytest.fail("No INVARIANT_API_KEY set, failing")
 
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
-
-    client = genai.Client(
-        api_key=os.getenv("GEMINI_API_KEY"),
-        http_options={
-            "headers": {
-                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
-            },
-            "base_url": f"{gateway_url}/api/v1/gateway/{dataset_name}/gemini"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/gemini",
-        },
+    client = get_gemini_client(
+        gateway_url,
+        push_to_explorer,
+        dataset_name,
     )
 
     request = {
@@ -141,17 +135,10 @@ async def test_tool_call_guardrail_from_file(
     )
 
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
-
-    client = genai.Client(
-        api_key=os.getenv("GEMINI_API_KEY"),
-        http_options={
-            "headers": {
-                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
-            },
-            "base_url": f"{gateway_url}/api/v1/gateway/{dataset_name}/gemini"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/gemini",
-        },
+    client = get_gemini_client(
+        gateway_url,
+        push_to_explorer,
+        dataset_name,
     )
 
     request = {
@@ -244,17 +231,10 @@ async def test_input_from_guardrail_from_file(
         pytest.fail("No INVARIANT_API_KEY set, failing")
 
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
-
-    client = genai.Client(
-        api_key=os.getenv("GEMINI_API_KEY"),
-        http_options={
-            "headers": {
-                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
-            },
-            "base_url": f"{gateway_url}/api/v1/gateway/{dataset_name}/gemini"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/gemini",
-        },
+    client = get_gemini_client(
+        gateway_url,
+        push_to_explorer,
+        dataset_name,
     )
 
     request = {
