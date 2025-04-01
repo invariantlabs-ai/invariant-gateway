@@ -98,7 +98,7 @@ integration_tests() {
     exit 1
   fi
 
-  TEST_GUARDRAILS_FILE_PATH="tests/integration/resources/guardrails/find_capital_guardrails.py"
+  TEST_GUARDRAILS_FILE_PATH="tests/integration/resources/guardrails/integration_test_guardrails_via_file.py"
   if [[ -n "$TEST_GUARDRAILS_FILE_PATH" ]]; then
     if [[ -f "$TEST_GUARDRAILS_FILE_PATH" ]]; then
       TEST_GUARDRAILS_FILE_PATH=$(realpath "$TEST_GUARDRAILS_FILE_PATH")

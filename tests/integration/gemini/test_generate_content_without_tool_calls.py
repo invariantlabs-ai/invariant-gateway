@@ -10,6 +10,8 @@ from unittest.mock import patch
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import get_gemini_client
+
 import pytest
 import PIL.Image
 import requests
@@ -29,17 +31,8 @@ async def test_generate_content(
 ):
     """Test the generate content gateway calls without tool calling."""
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
-    client = genai.Client(
-        api_key=os.getenv("GEMINI_API_KEY"),
-        http_options={
-            "base_url": f"{gateway_url}/api/v1/gateway/{dataset_name}/gemini"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/gemini",
-            "headers": {
-                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
-            },  # This key is not used for local tests
-        },
-    )
+    client = get_gemini_client(gateway_url, push_to_explorer, dataset_name)
+
     request = {
         "model": "gemini-2.0-flash",
         "contents": "What is the capital of France?",
@@ -115,18 +108,8 @@ async def test_generate_content_with_image(
 ):
     """Test that generate content gateway calls work with image."""
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
+    client = get_gemini_client(gateway_url, push_to_explorer, dataset_name)
 
-    client = genai.Client(
-        api_key=os.getenv("GEMINI_API_KEY"),
-        http_options={
-            "base_url": f"{gateway_url}/api/v1/gateway/{dataset_name}/gemini"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/gemini",
-            "headers": {
-                "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
-            },  # This key is not used for local tests
-        },
-    )
 
     image_path = Path(__file__).parent.parent / "resources" / "images" / "two-cats.png"
     image = PIL.Image.open(image_path)
