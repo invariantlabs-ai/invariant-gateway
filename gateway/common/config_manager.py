@@ -33,7 +33,7 @@ class GatewayConfig:
     """Common configurations for the Gateway Server."""
 
     def __init__(self):
-        self.guardrails = self._load_guardrails_from_file()
+        self.guardrails_from_file = self._load_guardrails_from_file()
 
     def _load_guardrails_from_file(self) -> str:
         """

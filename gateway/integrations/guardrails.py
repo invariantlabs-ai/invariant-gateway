@@ -368,8 +368,16 @@ async def check_guardrails(
             guardrails_result = result.json()
 
             aggregated_errors = {"errors": []}
-            for res in guardrails_result.get("result", []):
-                aggregated_errors["errors"].extend(res.get("errors", []))
+            for res, guardrail in zip(guardrails_result.get("result", []), guardrails):
+                for error in res.get("errors", []):
+                    # aggregated_errors["errors"].extend(res.get("errors", []))
+                    aggregated_errors["errors"].append(
+                        {
+                            **error,
+                            "guardrail_content": guardrail.content,
+                            "guardrail_action": guardrail.action,
+                        }
+                    )
 
                 # check for any error_message
                 if error_message := res.get("error_message"):
