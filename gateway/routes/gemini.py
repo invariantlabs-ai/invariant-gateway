@@ -5,16 +5,27 @@ import json
 from typing import Any, Literal, Optional
 
 import httpx
-from common.config_manager import GatewayConfig, GatewayConfigManager
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
+
+from common.authorization import extract_authorization_from_headers
+from common.config_manager import (
+    GatewayConfig,
+    GatewayConfigManager,
+    GuardrailsInHeader,
+)
 from common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
 )
-from common.authorization import extract_authorization_from_headers
-from common.request_context_data import RequestContextData
+from common.guardrails import GuardrailAction, GuardrailRuleSet
+from common.request_context import RequestContext
 from converters.gemini_to_invariant import convert_request, convert_response
+from integrations.explorer import (
+    create_annotations_from_guardrails_errors,
+    fetch_guardrails_from_explorer,
+    push_trace,
+)
 from integrations.guardrails import (
     ExtraItem,
     InstrumentedResponse,
@@ -23,8 +34,6 @@ from integrations.guardrails import (
     preload_guardrails,
     check_guardrails,
 )
-from integrations.explorer import create_annotations_from_guardrails_errors, push_trace
-from integrations.guardrails import check_guardrails, preload_guardrails
 
 gateway = APIRouter()
 
@@ -43,6 +52,7 @@ async def gemini_generate_content_gateway(
         None, title="Response Format", description="Set to 'sse' for streaming"
     ),
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
+    header_guardrails: GuardrailRuleSet = Depends(GuardrailsInHeader),
 ) -> Response:
     """Proxy calls to the Gemini GenerateContent API"""
     if endpoint not in ["generateContent", "streamGenerateContent"]:
@@ -76,14 +86,19 @@ async def gemini_generate_content_gateway(
         headers=headers,
     )
 
-    context = RequestContextData(
+    dataset_guardrails = None
+    if dataset_name:
+        # Get the guardrails for the dataset
+        dataset_guardrails = await fetch_guardrails_from_explorer(
+            dataset_name, invariant_authorization
+        )
+    context = RequestContext.create(
         request_json=request_json,
         dataset_name=dataset_name,
         invariant_authorization=invariant_authorization,
+        guardrails=header_guardrails or dataset_guardrails,
         config=config,
     )
-    asyncio.create_task(preload_guardrails(context))
-
     if alt == "sse" or endpoint == "streamGenerateContent":
         return await stream_response(
             context,
@@ -98,16 +113,18 @@ async def gemini_generate_content_gateway(
 
 
 class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
+    """Instrumented streaming response for Gemini API"""
+
     def __init__(
         self,
-        context: RequestContextData,
+        context: RequestContext,
         client: httpx.AsyncClient,
         gemini_request: httpx.Request,
     ):
         super().__init__()
 
         # request data
-        self.context: RequestContextData = context
+        self.context: RequestContext = context
         self.client: httpx.AsyncClient = client
         self.gemini_request: httpx.Request = gemini_request
 
@@ -124,6 +141,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
         location: Literal["request", "response"],
         guardrails_execution_result: dict[str, Any],
     ) -> dict:
+        """Create a refusal response for the given request or response"""
         return {
             "candidates": [
                 {
@@ -157,10 +175,13 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
         }
 
     async def on_start(self):
-        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
-        if self.context.config and self.context.config.guardrails:
+        """
+        Check guardrails in a pipelined fashion, before processing the first chunk
+        (for input guardrailing).
+        """
+        if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context, {}
+                self.context, action=GuardrailAction.BLOCK, response_json={}
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
@@ -184,6 +205,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
                 )
 
     async def event_generator(self):
+        """Event generator for streaming responses"""
         response = await self.client.send(self.gemini_request, stream=True)
 
         if response.status_code != 200:
@@ -199,6 +221,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
             yield chunk
 
     async def on_chunk(self, chunk):
+        """Processes each chunk of the streaming response"""
         chunk_text = chunk.decode().strip()
         if not chunk_text:
             return
@@ -210,12 +233,13 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
         if (
             self.merged_response.get("candidates", [])
             and self.merged_response.get("candidates")[0].get("finishReason", "")
-            and self.context.config
-            and self.context.config.guardrails
+            and self.context.guardrails
         ):
             # Block on the guardrails check
             self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context, self.merged_response
+                self.context,
+                action=GuardrailAction.BLOCK,
+                response_json=self.merged_response,
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
@@ -254,7 +278,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
 
 
 async def stream_response(
-    context: RequestContextData,
+    context: RequestContext,
     client: httpx.AsyncClient,
     gemini_request: httpx.Request,
 ) -> Response:
@@ -269,7 +293,6 @@ async def stream_response(
     async def event_generator():
         async for chunk in response.instrumented_event_generator():
             yield chunk
-            print("chunk", chunk)
 
     return StreamingResponse(
         event_generator(),
@@ -332,7 +355,7 @@ def update_merged_response(merged_response: dict[str, Any], chunk_json: dict) ->
 
 
 def create_metadata(
-    context: RequestContextData, response_json: dict[str, Any]
+    context: RequestContext, response_json: dict[str, Any]
 ) -> dict[str, Any]:
     """Creates metadata for the trace"""
     metadata = {
@@ -352,31 +375,52 @@ def create_metadata(
 
 
 async def get_guardrails_check_result(
-    context: RequestContextData, response_json: dict[str, Any]
+    context: RequestContext, action: GuardrailAction, response_json: dict[str, Any]
 ) -> dict[str, Any]:
     """Get the guardrails check result"""
+    # Determine which guardrails to apply based on the action
+    guardrails = (
+        context.guardrails.logging_guardrails
+        if action == GuardrailAction.LOG
+        else context.guardrails.blocking_guardrails
+    )
+    if not guardrails:
+        return {}
+
     converted_requests = convert_request(context.request_json)
     converted_responses = convert_response(response_json)
 
     # Block on the guardrails check
     guardrails_execution_result = await check_guardrails(
         messages=converted_requests + converted_responses,
-        guardrails=context.config.guardrails,
+        guardrails=guardrails,
         invariant_authorization=context.invariant_authorization,
     )
     return guardrails_execution_result
 
 
 async def push_to_explorer(
-    context: RequestContextData,
+    context: RequestContext,
     response_json: dict[str, Any],
     guardrails_execution_result: Optional[dict] = None,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     guardrails_execution_result = guardrails_execution_result or {}
     annotations = create_annotations_from_guardrails_errors(
-        guardrails_execution_result.get("errors", [])
+        guardrails_execution_result.get("errors", []), action="block"
     )
+
+    # Execute the logging guardrails before pushing to Explorer
+    logging_guardrails_execution_result = await get_guardrails_check_result(
+        context,
+        action=GuardrailAction.LOG,
+        response_json=response_json,
+    )
+    logging_annotations = create_annotations_from_guardrails_errors(
+        logging_guardrails_execution_result.get("errors", []), action="log"
+    )
+    # Update the annotations with the logging guardrails
+    annotations.extend(logging_annotations)
 
     converted_requests = convert_request(context.request_json)
     converted_responses = convert_response(response_json)
@@ -391,16 +435,18 @@ async def push_to_explorer(
 
 
 class InstrumentedGeminiResponse(InstrumentedResponse):
+    """Instrumented response for Gemini API"""
+
     def __init__(
         self,
-        context: RequestContextData,
+        context: RequestContext,
         client: httpx.AsyncClient,
         gemini_request: httpx.Request,
     ):
         super().__init__()
 
         # request data
-        self.context: RequestContextData = context
+        self.context: RequestContext = context
         self.client: httpx.AsyncClient = client
         self.gemini_request: httpx.Request = gemini_request
 
@@ -412,10 +458,13 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         self.guardrails_execution_result: Optional[dict[str, Any]] = None
 
     async def on_start(self):
-        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
-        if self.context.config and self.context.config.guardrails:
+        """
+        Check guardrails in a pipelined fashion, before processing the first chunk
+        (for input guardrailing).
+        """
+        if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context, {}
+                self.context, action=GuardrailAction.BLOCK, response_json={}
             )
             if self.guardrails_execution_result.get("errors", []):
                 error_chunk = json.dumps(
@@ -463,6 +512,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
                 )
 
     async def request(self):
+        """Makes the request to the Gemini API and return the response"""
         self.response = await self.client.send(self.gemini_request)
 
         response_string = self.response.text
@@ -489,13 +539,16 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         )
 
     async def on_end(self):
+        """Runs when the request ends."""
         response_string = json.dumps(self.response_json)
         response_code = self.response.status_code
 
-        if self.context.config and self.context.config.guardrails:
+        if self.context.guardrails:
             # Block on the guardrails check
             guardrails_execution_result = await get_guardrails_check_result(
-                self.context, self.response_json
+                self.context,
+                action=GuardrailAction.BLOCK,
+                response_json=self.response_json,
             )
             if guardrails_execution_result.get("errors", []):
                 response_string = json.dumps(
@@ -539,7 +592,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
 
 
 async def handle_non_streaming_response(
-    context: RequestContextData,
+    context: RequestContext,
     client: httpx.AsyncClient,
     gemini_request: httpx.Request,
 ) -> Response:

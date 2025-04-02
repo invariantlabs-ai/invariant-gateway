@@ -60,6 +60,7 @@ services:
   app-api:
     container_name: invariant-gateway-test-explorer-app-api
     image: ghcr.io/invariantlabs-ai/explorer/app-api:latest
+    pull_policy: always
     platform: linux/amd64
     depends_on:
       database:

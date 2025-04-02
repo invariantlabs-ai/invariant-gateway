@@ -9,10 +9,10 @@ import uuid
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import get_open_ai_client
+
 import pytest
 import requests
-from httpx import Client
-from openai import OpenAI
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -28,17 +28,7 @@ async def test_chat_completion_with_tool_call_without_streaming(
     without streaming.
     """
     dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
-
-    client = OpenAI(
-        http_client=Client(
-            headers={
-                "Invariant-Authorization": "Bearer <some-key>"
-            },  # This key is not used for local tests
-        ),
-        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
-        if push_to_explorer
-        else f"{gateway_url}/api/v1/gateway/openai",
-    )
+    client = get_open_ai_client(gateway_url, push_to_explorer, dataset_name)
 
     chat_response = client.chat.completions.create(
         model="gpt-4o",
@@ -146,17 +136,7 @@ async def test_chat_completion_with_tool_call_with_streaming(
     while streaming.
     """
     dataset_name = f"test-dataset-open-ai-{uuid.uuid4()}"
-
-    client = OpenAI(
-        http_client=Client(
-            headers={
-                "Invariant-Authorization": "Bearer <some-key>"
-            },  # This key is not used for local tests
-        ),
-        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/openai"
-        if push_to_explorer
-        else f"{gateway_url}/api/v1/gateway/openai",
-    )
+    client = get_open_ai_client(gateway_url, push_to_explorer, dataset_name)
 
     chat_response = client.chat.completions.create(
         model="gpt-4o",

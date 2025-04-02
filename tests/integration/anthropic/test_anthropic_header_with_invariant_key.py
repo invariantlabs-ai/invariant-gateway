@@ -27,12 +27,10 @@ async def test_gateway_with_invariant_key_in_anthropic_key_header(
     """Test the Anthropic gateway with Invariant key in the Anthropic key"""
     anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
     dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
+    invariant_key_suffix = f";invariant-auth={os.getenv('INVARIANT_API_KEY')}"
     with patch.dict(
         os.environ,
-        {
-            "ANTHROPIC_API_KEY": anthropic_api_key
-            + ";invariant-auth=<not needed for test>"
-        },
+        {"ANTHROPIC_API_KEY": anthropic_api_key + invariant_key_suffix},
     ):
         client = anthropic.Anthropic(
             http_client=Client(),

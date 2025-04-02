@@ -93,7 +93,12 @@ integration_tests() {
   fi
   echo "File successfully downloaded: $FILE"
 
-  TEST_GUARDRAILS_FILE_PATH="tests/integration/resources/guardrails/find_capital_guardrails.py"
+  if [[ -z "$INVARIANT_API_KEY" ]]; then
+    echo "Error: INVARIANT_API_KEY env var is not set. This is required to run integration tests."
+    exit 1
+  fi
+
+  TEST_GUARDRAILS_FILE_PATH="tests/integration/resources/guardrails/integration_test_guardrails_via_file.py"
   if [[ -n "$TEST_GUARDRAILS_FILE_PATH" ]]; then
     if [[ -f "$TEST_GUARDRAILS_FILE_PATH" ]]; then
       TEST_GUARDRAILS_FILE_PATH=$(realpath "$TEST_GUARDRAILS_FILE_PATH")

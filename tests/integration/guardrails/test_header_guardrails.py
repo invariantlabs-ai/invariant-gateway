@@ -1,4 +1,4 @@
-"""Test the guardrails from file with the OpenAI route."""
+"""Test the guardrails from header with the OpenAI route."""
 
 import os
 import sys
@@ -136,9 +136,7 @@ raise "Users must not mention the magic phrase 'Abracadabra'" if:
     "do_stream, push_to_explorer",
     [(True, True), (True, False), (False, True), (False, False)],
 )
-async def test_invalid_guardrail_in_header(
-    explorer_api_url, gateway_url, do_stream, push_to_explorer
-):
+async def test_invalid_guardrail_in_header(gateway_url, do_stream, push_to_explorer):
     """Test the message content guardrail."""
     if not os.getenv("INVARIANT_API_KEY"):
         pytest.fail("No INVARIANT_API_KEY set, failing")
@@ -178,7 +176,8 @@ raise "Users must not mention the magic phrase 'Abracadabra'" if:
                 stream=False,
             )
 
-        assert "Gateway: Guardrails check failed" in str(
+        print(exc_info.value.message, flush=True)
+        assert "Failed to create policy from policy source." in str(
             exc_info.value
         ), "guardrails check fails because of an invalid guardrailing rule"
         assert "illegal statement" in str(

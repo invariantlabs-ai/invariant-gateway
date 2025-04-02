@@ -10,6 +10,8 @@ from unittest.mock import patch
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import get_gemini_client
+
 import pytest
 import PIL.Image
 import requests
@@ -29,17 +31,8 @@ async def test_generate_content(
 ):
     """Test the generate content gateway calls without tool calling."""
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
-    client = genai.Client(
-        api_key=os.getenv("GEMINI_API_KEY"),
-        http_options={
-            "base_url": f"{gateway_url}/api/v1/gateway/{dataset_name}/gemini"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/gemini",
-            "headers": {
-                "invariant-authorization": "Bearer <some-key>"
-            },  # This key is not used for local tests
-        },
-    )
+    client = get_gemini_client(gateway_url, push_to_explorer, dataset_name)
+
     request = {
         "model": "gemini-2.0-flash",
         "contents": "What is the capital of France?",
@@ -115,18 +108,8 @@ async def test_generate_content_with_image(
 ):
     """Test that generate content gateway calls work with image."""
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
+    client = get_gemini_client(gateway_url, push_to_explorer, dataset_name)
 
-    client = genai.Client(
-        api_key=os.getenv("GEMINI_API_KEY"),
-        http_options={
-            "base_url": f"{gateway_url}/api/v1/gateway/{dataset_name}/gemini"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/gemini",
-            "headers": {
-                "invariant-authorization": "Bearer <some-key>"
-            },  # This key is not used for local tests
-        },
-    )
 
     image_path = Path(__file__).parent.parent / "resources" / "images" / "two-cats.png"
     image = PIL.Image.open(image_path)
@@ -181,9 +164,10 @@ async def test_generate_content_with_invariant_key_in_gemini_key_header(
     """Test the generate content gateway calls with the Invariant API Key in the Gemini Key header."""
     dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
     gemini_api_key = os.getenv("GEMINI_API_KEY")
+    invariant_key_suffix = f";invariant-auth={os.getenv('INVARIANT_API_KEY')}"
     with patch.dict(
         os.environ,
-        {"GEMINI_API_KEY": gemini_api_key + ";invariant-auth=<not needed for test>"},
+        {"GEMINI_API_KEY": gemini_api_key + invariant_key_suffix},
     ):
         client = genai.Client(
             api_key=os.getenv("GEMINI_API_KEY"),
@@ -194,14 +178,14 @@ async def test_generate_content_with_invariant_key_in_gemini_key_header(
 
         chat_response = client.models.generate_content(
             model="gemini-2.0-flash",
-            contents="What is the capital of Spain?",
+            contents="What is the capital of Denmark?",
             config={
                 "maxOutputTokens": 100,
             },
         )
 
         # Verify the chat response
-        assert "MADRID" in chat_response.candidates[0].content.parts[0].text.upper()
+        assert "COPENHAGEN" in chat_response.candidates[0].content.parts[0].text.upper()
         expected_assistant_message = chat_response.candidates[0].content.parts[0].text
 
         # Wait for the trace to be saved
@@ -228,7 +212,7 @@ async def test_generate_content_with_invariant_key_in_gemini_key_header(
         assert trace["messages"] == [
             {
                 "role": "user",
-                "content": [{"text": "What is the capital of Spain?", "type": "text"}],
+                "content": [{"text": "What is the capital of Denmark?", "type": "text"}],
             },
             {
                 "role": "assistant",

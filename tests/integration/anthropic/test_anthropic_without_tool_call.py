@@ -8,10 +8,10 @@ import uuid
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import anthropic
+from utils import get_anthropic_client
+
 import pytest
 import requests
-from httpx import Client
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -26,15 +26,10 @@ async def test_response_without_tool_call(
 ):
     """Test the Anthropic gateway without tool calling."""
     dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
-    invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
-
-    client = anthropic.Anthropic(
-        http_client=Client(
-            headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
-        ),
-        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"
-        if push_to_explorer
-        else f"{gateway_url}/api/v1/gateway/anthropic",
+    client = get_anthropic_client(
+        gateway_url,
+        push_to_explorer,
+        dataset_name,
     )
 
     cities = ["zurich", "new york", "london"]
@@ -91,16 +86,7 @@ async def test_streaming_response_without_tool_call(
 ):
     """Test the Anthropic gateway without tool calling."""
     dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
-    invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
-
-    client = anthropic.Anthropic(
-        http_client=Client(
-            headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
-        ),
-        base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic"
-        if push_to_explorer
-        else f"{gateway_url}/api/v1/gateway/anthropic",
-    )
+    client = get_anthropic_client(gateway_url, push_to_explorer, dataset_name)
 
     cities = ["zurich", "new york", "london"]
     queries = [

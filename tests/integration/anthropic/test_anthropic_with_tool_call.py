@@ -12,10 +12,11 @@ from typing import Dict, List
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import get_anthropic_client
+
 import anthropic
 import pytest
 import requests
-from httpx import Client
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -26,14 +27,8 @@ class WeatherAgent:
 
     def __init__(self, gateway_url, push_to_explorer):
         self.dataset_name = f"test-dataset-anthropic-{uuid.uuid4()}"
-        invariant_api_key = os.environ.get("INVARIANT_API_KEY", "None")
-        self.client = anthropic.Anthropic(
-            http_client=Client(
-                headers={"Invariant-Authorization": f"Bearer {invariant_api_key}"},
-            ),
-            base_url=f"{gateway_url}/api/v1/gateway/{self.dataset_name}/anthropic"
-            if push_to_explorer
-            else f"{gateway_url}/api/v1/gateway/anthropic",
+        self.client = get_anthropic_client(
+            gateway_url, push_to_explorer, self.dataset_name
         )
         self.get_weather_function = {
             "name": "get_weather",

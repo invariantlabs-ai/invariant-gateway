@@ -8,6 +8,9 @@ from typing import Optional
 import fastapi
 from httpx import HTTPStatusError
 
+from common.guardrails import Guardrail, GuardrailAction, GuardrailRuleSet
+from common.authorization import extract_authorization_from_headers
+
 
 def extract_policy_from_headers(request: Optional[fastapi.Request]) -> Optional[str]:
     """
@@ -29,8 +32,8 @@ def extract_policy_from_headers(request: Optional[fastapi.Request]) -> Optional[
 class GatewayConfig:
     """Common configurations for the Gateway Server."""
 
-    def __init__(self, guardrails: Optional[str] = None):
-        self.guardrails = guardrails or self._load_guardrails_from_file()
+    def __init__(self):
+        self.guardrails = self._load_guardrails_from_file()
 
     def _load_guardrails_from_file(self) -> str:
         """
@@ -67,13 +70,7 @@ class GatewayConfig:
             raise ValueError(f"Cannot load guardrails, {e}, {e.response.text}") from e
 
     def __repr__(self) -> str:
-        return f"GatewayConfig(guardrails={repr(self.guardrails)})"
-
-    def with_guardrails(self, guardrails: str) -> "GatewayConfig":
-        """
-        Returns a new GatewayConfig instance with the specified guardrails.
-        """
-        return GatewayConfig(guardrails)
+        return f"GatewayConfig(guardrails_from_file={repr(self.guardrails_from_file)})"
 
 
 class GatewayConfigManager:
@@ -94,8 +91,20 @@ class GatewayConfigManager:
                     local_config = GatewayConfig()
                     cls._config_instance = local_config
 
-        # if provided in header, use custom guardrailing policy
-        if guardrail_file_contents := extract_policy_from_headers(request):
-            local_config = local_config.with_guardrails(guardrail_file_contents)
-
         return local_config
+
+
+async def GuardrailsInHeader(request: fastapi.Request) -> Optional[GuardrailRuleSet]:
+    # if provided in header, use custom guardrailing policy
+    if guardrails := extract_policy_from_headers(request):
+        return GuardrailRuleSet(
+            blocking_guardrails=[
+                Guardrail(
+                    id="guardrail-from-header",
+                    name="guardrails from request header",
+                    content=guardrails,
+                    action=GuardrailAction.BLOCK,
+                )
+            ],
+            logging_guardrails=[],
+        )
