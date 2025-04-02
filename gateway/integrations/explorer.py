@@ -14,7 +14,7 @@ DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
 def create_annotations_from_guardrails_errors(
-    guardrails_errors: List[dict],
+    guardrails_errors: List[dict], action: str = "block"
 ) -> List[AnnotationCreate]:
     """Create Explorer annotations from the guardrails errors."""
     annotations = []
@@ -48,7 +48,10 @@ def create_annotations_from_guardrails_errors(
                 AnnotationCreate(
                     content=content,
                     address=r,
-                    extra_metadata={"source": "guardrails-error"},
+                    extra_metadata={
+                        "source": "guardrails-error",
+                        "guardrail-action": action,
+                    },
                 )
             )
     return annotations

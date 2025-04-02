@@ -1,7 +1,10 @@
 """Common utilities for integration tests."""
 
 import os
-from httpx import Client
+import uuid
+from typing import Any, Dict, Literal, Optional
+
+from httpx import AsyncClient, Client
 from openai import OpenAI
 from google import genai
 from anthropic import Anthropic
@@ -54,3 +57,49 @@ def get_gemini_client(
             },
         },
     )
+
+
+async def create_dataset(
+    explorer_api_url: str,
+    invariant_authorization: str,
+    dataset_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create a dataset in the Explorer API."""
+    client = Client(base_url=explorer_api_url)
+    response = client.post(
+        "/api/v1/dataset/create",
+        json={"name": dataset_name if dataset_name else f"test-dataset-{uuid.uuid4()}"},
+        headers={"Authorization": invariant_authorization},
+        timeout=5,
+    )
+    if response.status_code != 200:
+        raise ValueError(
+            f"Failed to create dataset: {response.status_code}, {response.text}"
+        )
+    return response.json()
+
+
+async def add_guardrail_to_dataset(
+    explorer_api_url: str,
+    dataset_id: str,
+    policy: str,
+    action: Literal["block", "log"],
+    invariant_authorization: str,
+) -> Dict[str, Any]:
+    """Add a guardrail to a dataset."""
+    client = Client(base_url=explorer_api_url)
+    response = client.post(
+        f"/api/v1/dataset/{dataset_id}/policy",
+        json={
+            "action": action,
+            "policy": policy,
+            "name": f"test-guardrail-{uuid.uuid4()}",
+        },
+        headers={"Authorization": invariant_authorization},
+        timeout=5,
+    )
+    if response.status_code != 200:
+        raise ValueError(
+            f"Failed to add guardrail: {response.status_code}, {response.text}"
+        )
+    return response.json()
