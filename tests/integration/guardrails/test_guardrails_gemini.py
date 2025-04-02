@@ -444,6 +444,118 @@ async def test_with_guardrails_from_explorer(explorer_api_url, gateway_url, do_s
     )
 
 
+@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="No GEMINI_API_KEY set")
+@pytest.mark.parametrize(
+    "do_stream, is_block_action",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+async def test_preguardrailing_with_guardrails_from_explorer(
+    explorer_api_url, gateway_url, do_stream, is_block_action
+):
+    """Test that the guardrails from the explorer work."""
+    dataset_name = f"test-dataset-gemini-{uuid.uuid4()}"
+    client = get_gemini_client(
+        gateway_url, push_to_explorer=True, dataset_name=dataset_name
+    )
+
+    dataset_creation_response = await create_dataset(
+        explorer_api_url,
+        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+        dataset_name=dataset_name,
+    )
+    dataset_id = dataset_creation_response["id"]
+    _ = await add_guardrail_to_dataset(
+        explorer_api_url,
+        dataset_id=dataset_id,
+        policy='raise "pun detected in user message" if:\n   (msg: Message)\n   "pun" in msg.content and msg.role == "user"',
+        action="block" if is_block_action else "log",
+        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+    )
+
+    user_prompt = "Tell me a one sentence pun."
+    request = {
+        "model": "gemini-2.0-flash",
+        "contents": user_prompt,
+        "config": {
+            "maxOutputTokens": 100,
+        },
+    }
+    if is_block_action:
+        if do_stream:
+            chat_response = client.models.generate_content_stream(**request)
+
+            assert_is_streamed_refusal(
+                chat_response,
+                [
+                    "[Invariant] The request did not pass the guardrails",
+                    "pun detected in user message",
+                ],
+            )
+        else:
+            with pytest.raises(genai.errors.ClientError) as exc_info:
+                chat_response = client.models.generate_content(**request)
+            assert "[Invariant] The request did not pass the guardrails" in str(
+                exc_info.value
+            )
+            assert "pun detected in user message" in str(exc_info.value)
+    else:
+        if do_stream:
+            response = client.models.generate_content_stream(**request)
+            for _ in response:
+                pass
+        else:
+            _ = client.models.generate_content(**request)
+
+    # Wait for the trace to be saved
+    # This is needed because the trace is saved asynchronously
+    time.sleep(2)
+
+    # Fetch the trace ids for the dataset
+    traces_response = requests.get(
+        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{dataset_name}/traces",
+        timeout=5,
+    )
+    traces = traces_response.json()
+    assert len(traces) == 1
+    trace_id = traces[0]["id"]
+
+    # Fetch the trace
+    trace_response = requests.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id}",
+        timeout=5,
+    )
+    trace = trace_response.json()
+
+    assert len(trace["messages"]) == 2 if not is_block_action else 1
+    assert trace["messages"][0] == {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": user_prompt,
+            }
+        ],
+    }
+    if not is_block_action:
+        assert trace["messages"][1].get("role") == "assistant"
+
+    # Fetch annotations
+    annotations_response = requests.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id}/annotations",
+        timeout=5,
+    )
+    annotations = annotations_response.json()
+
+    assert len(annotations) == 1
+    assert (
+        annotations[0]["content"] == "pun detected in user message"
+        and annotations[0]["extra_metadata"]["source"] == "guardrails-error"
+        and annotations[0]["extra_metadata"]["guardrail-action"] == "block"
+        if is_block_action
+        else "log"
+    )
+
+
 def is_refusal(chunk):
     return (
         len(chunk.candidates) == 1
