@@ -432,27 +432,26 @@ async def push_to_explorer(
     # or if the guardrails check returned errors.
     guardrails_execution_result = guardrails_execution_result or {}
     guardrails_errors = guardrails_execution_result.get("errors", [])
-    if guardrails_errors or not (
+    annotations = create_annotations_from_guardrails_errors(
+        guardrails_errors, action="block"
+    )
+    # Execute the logging guardrails before pushing to Explorer
+    logging_guardrails_execution_result = await get_guardrails_check_result(
+        context,
+        action=GuardrailAction.LOG,
+        response_json=merged_response,
+    )
+    logging_annotations = create_annotations_from_guardrails_errors(
+        logging_guardrails_execution_result.get("errors", []), action="log"
+    )
+    # Update the annotations with the logging guardrails
+    annotations.extend(logging_annotations)
+
+    if annotations or not (
         merged_response.get("choices")
         and merged_response["choices"][0].get("finish_reason")
         not in FINISH_REASON_TO_PUSH_TRACE
     ):
-        annotations = create_annotations_from_guardrails_errors(
-            guardrails_errors, action="block"
-        )
-
-        # Execute the logging guardrails before pushing to Explorer
-        logging_guardrails_execution_result = await get_guardrails_check_result(
-            context,
-            action=GuardrailAction.LOG,
-            response_json=merged_response,
-        )
-        logging_annotations = create_annotations_from_guardrails_errors(
-            logging_guardrails_execution_result.get("errors", []), action="log"
-        )
-        # Update the annotations with the logging guardrails
-        annotations.extend(logging_annotations)
-
         # Combine the messages from the request body and the choices from the OpenAI response
         messages = list(context.request_json.get("messages", []))
         messages += [choice["message"] for choice in merged_response.get("choices", [])]

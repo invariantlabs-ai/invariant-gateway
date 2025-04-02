@@ -536,6 +536,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         )
 
     async def on_end(self):
+        """Runs when the request ends."""
         response_string = json.dumps(self.response_json)
         response_code = self.response.status_code
 
