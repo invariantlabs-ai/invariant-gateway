@@ -119,7 +119,7 @@ async def fetch_guardrails_from_explorer(
     )
 
     # Get the user details.
-    user_info_response = await client.get("/api/v1/user/info")
+    user_info_response = await client.get("/api/v1/user/identity")
     if user_info_response.status_code != 200:
         raise ValueError(
             f"Failed to get user details from Explorer: {user_info_response.status_code}, {user_info_response.text}"
