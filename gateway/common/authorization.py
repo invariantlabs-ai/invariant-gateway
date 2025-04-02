@@ -40,10 +40,9 @@ def extract_authorization_from_headers(
         for header in llm_provider_fallback_api_key_headers:
             llm_provider_api_key = request.headers.get(header)
             if llm_provider_api_key:
+                llm_provider_api_key_header = header
                 break
 
-    if "Bearer " in llm_provider_api_key:
-        llm_provider_api_key = llm_provider_api_key.split("Bearer ")[1].strip()
 
     if dataset_name:
         if invariant_authorization is None:
@@ -66,4 +65,8 @@ def extract_authorization_from_headers(
 
             invariant_authorization = f"Bearer {api_keys[1].strip()}"
             llm_provider_api_key = f"{api_keys[0].strip()}"
+
+    if llm_provider_api_key and "Bearer " in llm_provider_api_key:
+        llm_provider_api_key = llm_provider_api_key.split("Bearer ")[1].strip()
+
     return invariant_authorization, llm_provider_api_key
