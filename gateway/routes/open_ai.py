@@ -221,7 +221,7 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
                 # push will happen in on_end
 
     async def on_end(self):
-        """Sends full merged response to the exploree."""
+        """Sends full merged response to the explorer."""
         # don't block on the response from explorer (.create_task)
         if self.context.dataset_name:
             asyncio.create_task(
@@ -437,7 +437,9 @@ async def push_to_explorer(
         and merged_response["choices"][0].get("finish_reason")
         not in FINISH_REASON_TO_PUSH_TRACE
     ):
-        annotations = create_annotations_from_guardrails_errors(guardrails_errors)
+        annotations = create_annotations_from_guardrails_errors(
+            guardrails_errors, action="block"
+        )
 
         # Execute the logging guardrails before pushing to Explorer
         logging_guardrails_execution_result = await get_guardrails_check_result(
@@ -446,7 +448,7 @@ async def push_to_explorer(
             response_json=merged_response,
         )
         logging_annotations = create_annotations_from_guardrails_errors(
-            logging_guardrails_execution_result.get("errors", [])
+            logging_guardrails_execution_result.get("errors", []), action="log"
         )
         # Update the annotations with the logging guardrails
         annotations.extend(logging_annotations)

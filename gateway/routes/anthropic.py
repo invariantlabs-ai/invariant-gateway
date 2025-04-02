@@ -167,7 +167,7 @@ async def push_to_explorer(
     """Pushes the full trace to the Invariant Explorer"""
     guardrails_execution_result = guardrails_execution_result or {}
     annotations = create_annotations_from_guardrails_errors(
-        guardrails_execution_result.get("errors", [])
+        guardrails_execution_result.get("errors", []), action="block"
     )
 
     # Execute the logging guardrails before pushing to Explorer
@@ -177,7 +177,7 @@ async def push_to_explorer(
         response_json=merged_response,
     )
     logging_annotations = create_annotations_from_guardrails_errors(
-        logging_guardrails_execution_result.get("errors", [])
+        logging_guardrails_execution_result.get("errors", []), action="log"
     )
     # Update the annotations with the logging guardrails
     annotations.extend(logging_annotations)
