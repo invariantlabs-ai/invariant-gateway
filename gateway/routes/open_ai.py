@@ -42,6 +42,61 @@ def validate_headers(authorization: str = Header(None)):
         raise HTTPException(status_code=400, detail=MISSING_AUTH_HEADER)
 
 
+def make_cors_response(request: Request, allow_methods: str) -> Response:
+    """Returns a CORS response with the specified allowed methods"""
+    return Response(
+        status_code=204,
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": f"{allow_methods}, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Max-Age": "86400",
+        },
+    )
+
+
+@gateway.options("/{dataset_name}/openai/chat/completions")
+@gateway.options("/openai/chat/completions")
+async def openai_chat_completions_options(request: Request, dataset_name: str = None):
+    """Enables CORS for the OpenAI chat completions endpoint"""
+    return make_cors_response(request, allow_methods="POST")
+
+
+@gateway.options("/{dataset_name}/openai/models")
+@gateway.options("/openai/models")
+async def openai_models_options(request: Request, dataset_name: str = None):
+    """Enables CORS for the OpenAI models endpoint"""
+    return make_cors_response(request, allow_methods="GET")
+
+
+@gateway.get("/{dataset_name}/openai/models")
+@gateway.get("/openai/models")
+async def openai_models_gateway(
+    request: Request,
+    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
+):
+    """Proxy request to OpenAI /models endpoint"""
+    headers = {
+        k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
+    }
+    _, openai_api_key = extract_authorization_from_headers(
+        request, dataset_name, OPENAI_AUTHORIZATION_HEADER
+    )
+    headers[OPENAI_AUTHORIZATION_HEADER] = "Bearer " + openai_api_key
+    async with httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT)) as client:
+        open_ai_request = client.build_request(
+            "GET",
+            "https://api.openai.com/v1/models",
+            headers=headers,
+        )
+        result = await client.send(open_ai_request)
+        return Response(
+            content=result.content,
+            status_code=result.status_code,
+            headers=dict(result.headers),
+        )
+
+
 @gateway.post(
     "/{dataset_name}/openai/chat/completions",
     dependencies=[Depends(validate_headers)],
@@ -652,8 +707,6 @@ async def handle_non_stream_response(
 ) -> Response:
     """Handles non-streaming OpenAI responses"""
 
-    # # execute instrumented request
-    # return await instrumentor.execute(send_request())
     response = InstrumentedOpenAIResponse(
         context,
         client,
