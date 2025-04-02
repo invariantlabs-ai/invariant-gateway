@@ -149,6 +149,37 @@ print(response.messages[-1]["content"])
 # Output: "It seems to be sunny."
 ```
 
+### **🔹 LiteLLM Integration**
+
+LiteLLM is a python library that acts as a unified interface for calling multiple LLM providers. If you are using it, it is very convinient to connect to Gateway proxy. You just need to pass the correct `base_url`.
+
+```python
+from litellm import completion
+import random
+import os
+
+base_url = "/api/v1/gateway/litellm/{add-your-dataset-name-here}"
+EXAMPLE_MODELS = ["openai/gpt-4o", "gemini/gemini-2.0-flash", "anthropic/claude-3-5-haiku-20241022"]
+model = random.choice(SAMPLE_MODELS)
+
+base_url += "/" + model.split("/")[0] # append /gemini /openai or /anthropic. 
+
+if model.split("/")[0] == "gemini":
+    base_url += f"/v1beta/models/{model.split('/')[1]}" # gemini expects the model name in the url.
+
+
+chat_response = completion(
+    model=model,
+    messages=[{"role": "user", "content": "What is the capital of France?"}],
+    extra_headers= {"Invariant-Authorization": "Bearer <some-key>"},
+    stream=True,
+    base_url=base_url,
+)
+
+print(chat_response.choices[0].message.content)
+# Output: "Paris."
+```
+
 ### **🔹 Microsoft Autogen Integration**
 
 You can also easily integrate the Gateway with [Microsoft Autogen](https://github.com/microsoft/autogen) as follows:

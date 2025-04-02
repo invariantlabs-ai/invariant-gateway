@@ -5,3 +5,4 @@ pillow
 pytest
 pytest-asyncio
 tavily-python
+litellm
