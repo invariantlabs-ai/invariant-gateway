@@ -64,7 +64,7 @@ async def openai_chat_completions_gateway(
     invariant_authorization, openai_api_key = extract_authorization_from_headers(
         request, dataset_name, OPENAI_AUTHORIZATION_HEADER
     )
-    headers[OPENAI_AUTHORIZATION_HEADER] = openai_api_key
+    headers[OPENAI_AUTHORIZATION_HEADER] = "Bearer " + openai_api_key
 
     request_body_bytes = await request.body()
     request_json = json.loads(request_body_bytes)

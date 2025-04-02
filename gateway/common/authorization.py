@@ -8,7 +8,10 @@ API_KEYS_SEPARATOR = ";invariant-auth="
 
 
 def extract_authorization_from_headers(
-    request: Request, dataset_name: Optional[str], llm_provider_api_key_header: str
+    request: Request,
+    dataset_name: Optional[str],
+    llm_provider_api_key_header: str,
+    llm_provider_fallback_api_key_headers: list[str] | None = None
 ) -> Tuple[str, str]:
     """
     Extracts the Invariant authorization and LLM Provider API key from the request headers.
@@ -19,8 +22,11 @@ def extract_authorization_from_headers(
     "invariant-authorization": "Bearer <Invariant API Key>"
     {llm_provider_api_key_header} contains the LLM Provider API Key as
     {llm_provider_api_key_header}: "<API Key>"
+    
+    If {llm_provider_api_key_header} is not among headers, we look for
+    any header among {llm_provider_fallback_api_key_headers}.
 
-    For some clients, it is not possible to pass a custom header
+    For some clients, it is not possible to pass a custom header at all,
     In such cases, the Invariant API Key is passed as part of the
     {llm_provider_api_key_header} with the LLM Provider API Key
     The header in that case becomes:
@@ -28,6 +34,17 @@ def extract_authorization_from_headers(
     """
     invariant_authorization = request.headers.get(INVARIANT_AUTHORIZATION_HEADER)
     llm_provider_api_key = request.headers.get(llm_provider_api_key_header)
+
+
+    if llm_provider_api_key is None and llm_provider_fallback_api_key_headers:
+        for header in llm_provider_fallback_api_key_headers:
+            llm_provider_api_key = request.headers.get(header)
+            if llm_provider_api_key:
+                break
+
+    if "Bearer " in llm_provider_api_key:
+        llm_provider_api_key = llm_provider_api_key.split("Bearer ")[1].strip()
+
     if dataset_name:
         if invariant_authorization is None:
             if llm_provider_api_key is None:
