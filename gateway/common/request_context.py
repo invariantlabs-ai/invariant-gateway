@@ -46,9 +46,8 @@ class RequestContext:
             if key != "guardrails_from_file"
         }
 
-        # If no guardrails are configured for the dataset on Explorer,
-        # and the config specifies guardrails_from_file, use that.
-        guardrails = guardrails
+        # If no guardrails are configured and the config specifies
+        # guardrails_from_file, use those instead.
         if (
             (
                 not guardrails
@@ -60,12 +59,11 @@ class RequestContext:
             and config
             and config.guardrails_from_file
         ):
-            # TODO: Support logging guardrails via file.
             guardrails = GuardrailRuleSet(
                 blocking_guardrails=[
                     Guardrail(
-                        id="default",
-                        name="default",
+                        id="guardrails-from-gateway-config-file",
+                        name="guardrails from gateway configuration file",
                         content=config.guardrails_from_file,
                         action=GuardrailAction.BLOCK,
                     )
@@ -87,7 +85,7 @@ class RequestContext:
             f"RequestContext("
             f"request_json={self.request_json}, "
             f"dataset_name={self.dataset_name}, "
-            f"invariant_authorization={self.invariant_authorization}, "
+            f"invariant_authorization=inv-*****{self.invariant_authorization[-4:]}, "
             f"guardrails={self.guardrails}, "
             f"config={self.config})"
         )

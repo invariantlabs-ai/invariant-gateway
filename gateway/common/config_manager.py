@@ -95,16 +95,22 @@ class GatewayConfigManager:
 
 
 async def GuardrailsInHeader(request: fastapi.Request) -> Optional[GuardrailRuleSet]:
+    """
+    Extracts Invariant-Guardrails from the request header if provided, and returns a corresponding
+    GuardrailRuleSet. If no guardrails are provided, returns None.
+    """
     # if provided in header, use custom guardrailing policy
     if guardrails := extract_policy_from_headers(request):
+        guardrails = [
+            Guardrail(
+                id="guardrails-from-header",
+                name="guardrails from request header",
+                content=guardrails,
+                action=GuardrailAction.BLOCK,
+            )
+        ]
+
         return GuardrailRuleSet(
-            blocking_guardrails=[
-                Guardrail(
-                    id="guardrail-from-header",
-                    name="guardrails from request header",
-                    content=guardrails,
-                    action=GuardrailAction.BLOCK,
-                )
-            ],
+            blocking_guardrails=guardrails,
             logging_guardrails=[],
         )

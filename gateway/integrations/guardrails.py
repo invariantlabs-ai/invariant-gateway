@@ -370,12 +370,17 @@ async def check_guardrails(
             aggregated_errors = {"errors": []}
             for res, guardrail in zip(guardrails_result.get("result", []), guardrails):
                 for error in res.get("errors", []):
-                    # aggregated_errors["errors"].extend(res.get("errors", []))
+                    # add each error to the aggregated errors but keep track
+                    # of which guardrail it belongs to
                     aggregated_errors["errors"].append(
                         {
                             **error,
-                            "guardrail_content": guardrail.content,
-                            "guardrail_action": guardrail.action,
+                            "guardrail": {
+                                "id": guardrail.id,
+                                "name": guardrail.name,
+                                "content": guardrail.content,
+                                "action": guardrail.action,
+                            },
                         }
                     )
 
