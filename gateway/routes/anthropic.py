@@ -105,6 +105,7 @@ async def anthropic_v1_messages_gateway(
         invariant_authorization=invariant_authorization,
         guardrails=header_guardrails or dataset_guardrails,
         config=config,
+        request=request,
     )
     if request_json.get("stream"):
         return await handle_streaming_response(context, client, anthropic_request)
@@ -157,7 +158,7 @@ async def get_guardrails_check_result(
     guardrails_execution_result = await check_guardrails(
         messages=converted_messages,
         guardrails=guardrails,
-        invariant_authorization=context.invariant_authorization,
+        context=context,
     )
     return guardrails_execution_result
 

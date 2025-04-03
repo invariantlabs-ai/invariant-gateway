@@ -149,6 +149,7 @@ async def openai_chat_completions_gateway(
         invariant_authorization=invariant_authorization,
         guardrails=header_guardrails or dataset_guardrails,
         config=config,
+        request=request,
     )
     if request_json.get("stream", False):
         return await handle_stream_response(
@@ -546,7 +547,7 @@ async def get_guardrails_check_result(
     guardrails_execution_result = await check_guardrails(
         messages=messages,
         guardrails=guardrails,
-        invariant_authorization=context.invariant_authorization,
+        context=context,
     )
     return guardrails_execution_result
 

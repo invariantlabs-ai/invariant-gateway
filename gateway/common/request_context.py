@@ -3,8 +3,13 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+import fastapi
+
 from common.config_manager import GatewayConfig
 from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
+from common.authorization import (
+    extract_guardrail_service_authorization_from_headers,
+)
 
 
 @dataclass(frozen=True)
@@ -13,7 +18,10 @@ class RequestContext:
 
     request_json: Dict[str, Any]
     dataset_name: Optional[str] = None
+    # authorization to use for invariant service like explorer
     invariant_authorization: Optional[str] = None
+    # authorization to use for invariant guardrailing specifically
+    guardrail_authorization: Optional[str] = None
     # the set of guardrails to enforce for this request
     guardrails: Optional[GuardrailRuleSet] = None
     config: Dict[str, Any] = None
@@ -36,6 +44,7 @@ class RequestContext:
         invariant_authorization: Optional[str] = None,
         guardrails: Optional[GuardrailRuleSet] = None,
         config: Optional[GatewayConfig] = None,
+        request: fastapi.Request = None,
     ) -> "RequestContext":
         """Creates a new RequestContext instance, applying default guardrails if needed."""
 
@@ -71,14 +80,35 @@ class RequestContext:
                 logging_guardrails=[],
             )
 
+        # if additionally provided, extract separate API key to use with guardrailing service
+        guardrail_service_authorization = None
+        if (
+            guardrail_authorization
+            := extract_guardrail_service_authorization_from_headers(request)
+        ):
+            guardrail_service_authorization = guardrail_authorization
+
         return cls(
             request_json=request_json,
             dataset_name=dataset_name,
             invariant_authorization=invariant_authorization,
+            guardrail_authorization=guardrail_service_authorization,
             guardrails=guardrails,
             config=context_config,
             _created_via_factory=True,
         )
+
+    def get_guardrailing_authorization(self) -> Optional[str]:
+        """
+        Returns the authorization to use for the guardrailing service.
+
+        This can be different from the invariant authorization, but falls back
+        "to be the same if not explicitly set via header.
+
+        See also extract_guardrail_service_authorization_from_headers(...)
+        """
+
+        return self.guardrail_authorization or self.invariant_authorization
 
     def __repr__(self) -> str:
         return (

@@ -18,7 +18,7 @@ openai_client = OpenAI(
         "Invariant-Authorization": "Bearer " + os.getenv("INVARIANT_API_KEY"),
         "Invariant-Guardrails": guardrails,
     },
-    base_url="http://localhost:9999/api/v1/gateway/non-streaming/openai",
+    base_url="http://localhost:8005/api/v1/gateway/non-streaming/openai",
 )
 
 response = openai_client.chat.completions.create(

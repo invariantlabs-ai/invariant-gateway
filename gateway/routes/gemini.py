@@ -64,11 +64,16 @@ async def gemini_generate_content_gateway(
             status_code=400,
         )
     headers = {
-        k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS + [GEMINI_AUTHORIZATION_FALLBACK_HEADER]
+        k: v
+        for k, v in request.headers.items()
+        if k.lower() not in IGNORED_HEADERS + [GEMINI_AUTHORIZATION_FALLBACK_HEADER]
     }
     headers["accept-encoding"] = "identity"
     invariant_authorization, gemini_api_key = extract_authorization_from_headers(
-        request, dataset_name, GEMINI_AUTHORIZATION_HEADER, [GEMINI_AUTHORIZATION_FALLBACK_HEADER]
+        request,
+        dataset_name,
+        GEMINI_AUTHORIZATION_HEADER,
+        [GEMINI_AUTHORIZATION_FALLBACK_HEADER],
     )
     headers[GEMINI_AUTHORIZATION_HEADER] = gemini_api_key
 
@@ -98,6 +103,7 @@ async def gemini_generate_content_gateway(
         invariant_authorization=invariant_authorization,
         guardrails=header_guardrails or dataset_guardrails,
         config=config,
+        request=request,
     )
     if alt == "sse" or endpoint == "streamGenerateContent":
         return await stream_response(
@@ -394,7 +400,7 @@ async def get_guardrails_check_result(
     guardrails_execution_result = await check_guardrails(
         messages=converted_requests + converted_responses,
         guardrails=guardrails,
-        invariant_authorization=context.invariant_authorization,
+        context=context,
     )
     return guardrails_execution_result
 
