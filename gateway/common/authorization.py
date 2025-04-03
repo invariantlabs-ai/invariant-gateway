@@ -12,7 +12,7 @@ def extract_guardrail_service_authorization_from_headers(
     request: Request,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
-    Extracts the optional Invariant-Guardrail-Service authorization header from the request.
+    Extracts the optional Invariant-Guardrails-Authorization authorization header from the request.
 
     This header can be specifified to use a different API key for guardrailing compared to
     Explorer interactions.

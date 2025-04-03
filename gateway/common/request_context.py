@@ -7,7 +7,7 @@ import fastapi
 
 from common.config_manager import GatewayConfig
 from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
-from gateway.common.authorization import (
+from common.authorization import (
     extract_guardrail_service_authorization_from_headers,
 )
 
