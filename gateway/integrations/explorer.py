@@ -3,7 +3,7 @@
 import os
 from typing import Any, Dict, List
 
-from common.guardrails import DatasetGuardrails, Guardrail, GuardrailAction
+from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesResponse
 from invariant_sdk.types.annotations import AnnotationCreate
@@ -50,7 +50,12 @@ def create_annotations_from_guardrails_errors(
                     address=r,
                     extra_metadata={
                         "source": "guardrails-error",
-                        "guardrail-action": action,
+                        # if included in error, also include information about guardrail source
+                        **(
+                            {"guardrail": error.get("guardrail")}
+                            if error.get("guardrail")
+                            else {}
+                        ),
                     },
                 )
             )
@@ -101,11 +106,11 @@ async def push_trace(
 
 async def fetch_guardrails_from_explorer(
     dataset_name: str, invariant_authorization: str
-) -> DatasetGuardrails:
+) -> GuardrailRuleSet:
     """Get the guardrails for the dataset.
 
     Returns:
-        DatasetGuardrails: The guardrails for the dataset grouped by their action.
+        GuardrailRuleSet: The guardrails for the dataset grouped by their action.
     """
 
     # TODO: Implement a single API in explorer backend which can return
@@ -134,7 +139,7 @@ async def fetch_guardrails_from_explorer(
     if policies_response.status_code != 200:
         if policies_response.status_code == 404:
             # If the dataset does not exist, return empty guardrails.
-            return DatasetGuardrails(
+            return GuardrailRuleSet(
                 blocking_guardrails=[],
                 logging_guardrails=[],
             )
@@ -169,7 +174,7 @@ async def fetch_guardrails_from_explorer(
         else:
             logging_guardrails.append(guardrail)
 
-    return DatasetGuardrails(
+    return GuardrailRuleSet(
         blocking_guardrails=blocking_guardrails,
         logging_guardrails=logging_guardrails,
     )

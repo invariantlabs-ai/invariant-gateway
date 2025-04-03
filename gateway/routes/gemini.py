@@ -9,12 +9,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from common.authorization import extract_authorization_from_headers
-from common.config_manager import GatewayConfig, GatewayConfigManager
+from common.config_manager import (
+    GatewayConfig,
+    GatewayConfigManager,
+    GuardrailsInHeader,
+)
 from common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
 )
-from common.guardrails import GuardrailAction
+from common.guardrails import GuardrailAction, GuardrailRuleSet
 from common.request_context import RequestContext
 from converters.gemini_to_invariant import convert_request, convert_response
 from integrations.explorer import (
@@ -49,6 +53,7 @@ async def gemini_generate_content_gateway(
         None, title="Response Format", description="Set to 'sse' for streaming"
     ),
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
+    header_guardrails: GuardrailRuleSet = Depends(GuardrailsInHeader),
 ) -> Response:
     """Proxy calls to the Gemini GenerateContent API"""
     if endpoint not in ["generateContent", "streamGenerateContent"]:
@@ -91,11 +96,9 @@ async def gemini_generate_content_gateway(
         request_json=request_json,
         dataset_name=dataset_name,
         invariant_authorization=invariant_authorization,
-        dataset_guardrails=dataset_guardrails,
+        guardrails=header_guardrails or dataset_guardrails,
         config=config,
     )
-    asyncio.create_task(preload_guardrails(context))
-
     if alt == "sse" or endpoint == "streamGenerateContent":
         return await stream_response(
             context,
@@ -176,7 +179,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
         Check guardrails in a pipelined fashion, before processing the first chunk
         (for input guardrailing).
         """
-        if self.context.dataset_guardrails:
+        if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context, action=GuardrailAction.BLOCK, response_json={}
             )
@@ -230,7 +233,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
         if (
             self.merged_response.get("candidates", [])
             and self.merged_response.get("candidates")[0].get("finishReason", "")
-            and self.context.dataset_guardrails
+            and self.context.guardrails
         ):
             # Block on the guardrails check
             self.guardrails_execution_result = await get_guardrails_check_result(
@@ -377,9 +380,9 @@ async def get_guardrails_check_result(
     """Get the guardrails check result"""
     # Determine which guardrails to apply based on the action
     guardrails = (
-        context.dataset_guardrails.logging_guardrails
+        context.guardrails.logging_guardrails
         if action == GuardrailAction.LOG
-        else context.dataset_guardrails.blocking_guardrails
+        else context.guardrails.blocking_guardrails
     )
     if not guardrails:
         return {}
@@ -459,7 +462,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         Check guardrails in a pipelined fashion, before processing the first chunk
         (for input guardrailing).
         """
-        if self.context.dataset_guardrails:
+        if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context, action=GuardrailAction.BLOCK, response_json={}
             )
@@ -540,7 +543,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         response_string = json.dumps(self.response_json)
         response_code = self.response.status_code
 
-        if self.context.dataset_guardrails:
+        if self.context.guardrails:
             # Block on the guardrails check
             guardrails_execution_result = await get_guardrails_check_result(
                 self.context,

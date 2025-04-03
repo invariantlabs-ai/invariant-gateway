@@ -9,10 +9,10 @@ API_KEYS_SEPARATOR = ";invariant-auth="
 
 def extract_authorization_from_headers(
     request: Request,
-    dataset_name: Optional[str],
-    llm_provider_api_key_header: str,
-    llm_provider_fallback_api_key_headers: list[str] | None = None
-) -> Tuple[str, str]:
+    dataset_name: Optional[str] = None,
+    llm_provider_api_key_header: Optional[str] = None,
+    llm_provider_fallback_api_key_headers: Optional[list[str]] = None,
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Extracts the Invariant authorization and LLM Provider API key from the request headers.
 
@@ -22,7 +22,7 @@ def extract_authorization_from_headers(
     "invariant-authorization": "Bearer <Invariant API Key>"
     {llm_provider_api_key_header} contains the LLM Provider API Key as
     {llm_provider_api_key_header}: "<API Key>"
-    
+
     If {llm_provider_api_key_header} is not among headers, we look for
     any header among {llm_provider_fallback_api_key_headers}.
 
@@ -32,18 +32,23 @@ def extract_authorization_from_headers(
     The header in that case becomes:
     {llm_provider_api_key_header}: "<API Key>;invariant-auth=<Invariant API Key>"
     """
+    # invariant api key
     invariant_authorization = request.headers.get(INVARIANT_AUTHORIZATION_HEADER)
-    llm_provider_api_key = request.headers.get(llm_provider_api_key_header)
 
+    # llm provider api key (also check fallbacks for clients like litellm)
+    if llm_provider_api_key_header is not None:
+        llm_provider_api_key = request.headers.get(llm_provider_api_key_header)
 
-    if llm_provider_api_key is None and llm_provider_fallback_api_key_headers:
-        for header in llm_provider_fallback_api_key_headers:
-            llm_provider_api_key = request.headers.get(header)
-            if llm_provider_api_key:
-                llm_provider_api_key_header = header
-                break
+        if llm_provider_api_key is None and llm_provider_fallback_api_key_headers:
+            for header in llm_provider_fallback_api_key_headers:
+                llm_provider_api_key = request.headers.get(header)
+                if llm_provider_api_key:
+                    llm_provider_api_key_header = header
+                    break
+    else:
+        llm_provider_api_key = None
 
-
+    # if the dataset name is not None, we need to check if the invariant api key is present
     if dataset_name:
         if invariant_authorization is None:
             if llm_provider_api_key is None:
@@ -59,9 +64,7 @@ def extract_authorization_from_headers(
                 API_KEYS_SEPARATOR
             )
             if len(api_keys) != 2 or not api_keys[1].strip():
-                raise HTTPException(
-                    status_code=400, detail="Invalid API Key format"
-                )
+                raise HTTPException(status_code=400, detail="Invalid API Key format")
 
             invariant_authorization = f"Bearer {api_keys[1].strip()}"
             llm_provider_api_key = f"{api_keys[0].strip()}"

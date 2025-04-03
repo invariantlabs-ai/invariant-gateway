@@ -24,7 +24,7 @@ class Guardrail:
 
 
 @dataclass(frozen=True)
-class DatasetGuardrails:
+class GuardrailRuleSet:
     """Grouped guardrail rules separated by their action."""
 
     blocking_guardrails: List[Guardrail]

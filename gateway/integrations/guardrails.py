@@ -89,17 +89,17 @@ async def preload_guardrails(context: "RequestContext") -> None:
     Args:
         context: RequestContext object.
     """
-    if not context.dataset_guardrails:
+    if not context.guardrails:
         return
 
     try:
         # Move these calls to a batch preload/validate API.
-        for blocking_guardrail in context.dataset_guardrails.blocking_guardrails:
+        for blocking_guardrail in context.guardrails.blocking_guardrails:
             task = asyncio.create_task(
                 _preload(blocking_guardrail.content, context.invariant_authorization)
             )
             asyncio.shield(task)
-        for logging_guadrail in context.dataset_guardrails.logging_guardrails:
+        for logging_guadrail in context.guardrails.logging_guardrails:
             task = asyncio.create_task(
                 _preload(logging_guadrail.content, context.invariant_authorization)
             )
@@ -365,13 +365,42 @@ async def check_guardrails(
                 raise Exception(
                     f"Guardrails check failed: {result.status_code} - {result.text}"
                 )
-            print(f"Guardrail check response: {result.json()}")
-
             guardrails_result = result.json()
+
             aggregated_errors = {"errors": []}
-            for res in guardrails_result.get("result", []):
-                aggregated_errors["errors"].extend(res.get("errors", []))
+            for res, guardrail in zip(guardrails_result.get("result", []), guardrails):
+                for error in res.get("errors", []):
+                    # add each error to the aggregated errors but keep track
+                    # of which guardrail it belongs to
+                    aggregated_errors["errors"].append(
+                        {
+                            **error,
+                            "guardrail": {
+                                "id": guardrail.id,
+                                "name": guardrail.name,
+                                "content": guardrail.content,
+                                "action": guardrail.action,
+                            },
+                        }
+                    )
+
+                # check for any error_message
+                if error_message := res.get("error_message"):
+                    return {
+                        "errors": [
+                            {"args": [error_message], "kwargs": {}, "ranges": []}
+                        ]
+                    }
             return aggregated_errors
         except Exception as e:
             print(f"Failed to verify guardrails: {e}")
-            return {"error": str(e)}
+            # make sure runtime errors are also visible in e.g. Explorer
+            return {
+                "errors": [
+                    {
+                        "args": ["Gateway: " + str(e)],
+                        "kwargs": {},
+                        "ranges": ["messages[0].content:L0"],
+                    }
+                ]
+            }

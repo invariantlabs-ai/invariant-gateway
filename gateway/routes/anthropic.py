@@ -9,12 +9,16 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
 
 from common.authorization import extract_authorization_from_headers
-from common.config_manager import GatewayConfig, GatewayConfigManager
+from common.config_manager import (
+    GatewayConfig,
+    GatewayConfigManager,
+    GuardrailsInHeader,
+)
 from common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
 )
-from common.guardrails import GuardrailAction
+from common.guardrails import GuardrailAction, GuardrailRuleSet
 from common.request_context import RequestContext
 from converters.anthropic_to_invariant import (
     convert_anthropic_to_invariant_message_format,
@@ -66,6 +70,7 @@ async def anthropic_v1_messages_gateway(
     request: Request,
     dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
+    header_guardrails: GuardrailRuleSet = Depends(GuardrailsInHeader),
 ):
     """Proxy calls to the Anthropic APIs"""
     headers = {
@@ -98,11 +103,9 @@ async def anthropic_v1_messages_gateway(
         request_json=request_json,
         dataset_name=dataset_name,
         invariant_authorization=invariant_authorization,
-        dataset_guardrails=dataset_guardrails,
+        guardrails=header_guardrails or dataset_guardrails,
         config=config,
     )
-    asyncio.create_task(preload_guardrails(context))
-
     if request_json.get("stream"):
         return await handle_streaming_response(context, client, anthropic_request)
     return await handle_non_streaming_response(context, client, anthropic_request)
@@ -140,9 +143,9 @@ async def get_guardrails_check_result(
     """Get the guardrails check result"""
     # Determine which guardrails to apply based on the action
     guardrails = (
-        context.dataset_guardrails.logging_guardrails
+        context.guardrails.logging_guardrails
         if action == GuardrailAction.LOG
-        else context.dataset_guardrails.blocking_guardrails
+        else context.guardrails.blocking_guardrails
     )
     if not guardrails:
         return {}
@@ -219,7 +222,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
 
     async def on_start(self):
         """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
-        if self.context.dataset_guardrails:
+        if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context, action=GuardrailAction.BLOCK, response_json={}
             )
@@ -300,7 +303,7 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         assert self.response_json is not None, "response_json is None"
         assert self.response_string is not None, "response_string is None"
 
-        if self.context.dataset_guardrails:
+        if self.context.guardrails:
             # Block on the guardrails check
             guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
@@ -382,7 +385,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
 
     async def on_start(self):
         """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
-        if self.context.dataset_guardrails:
+        if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
                 action=GuardrailAction.BLOCK,
@@ -443,7 +446,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
         process_chunk(decoded_chunk, self.merged_response)
 
         # on last stream chunk, run output guardrails
-        if "event: message_stop" in decoded_chunk and self.context.dataset_guardrails:
+        if "event: message_stop" in decoded_chunk and self.context.guardrails:
             # Block on the guardrails check
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,

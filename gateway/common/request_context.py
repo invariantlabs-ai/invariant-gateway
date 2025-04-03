@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from common.config_manager import GatewayConfig
-from common.guardrails import DatasetGuardrails, Guardrail, GuardrailAction
+from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 
 
 @dataclass(frozen=True)
@@ -14,7 +14,8 @@ class RequestContext:
     request_json: Dict[str, Any]
     dataset_name: Optional[str] = None
     invariant_authorization: Optional[str] = None
-    dataset_guardrails: Optional[DatasetGuardrails] = None
+    # the set of guardrails to enforce for this request
+    guardrails: Optional[GuardrailRuleSet] = None
     config: Dict[str, Any] = None
 
     _created_via_factory: bool = field(
@@ -33,7 +34,7 @@ class RequestContext:
         request_json: Dict[str, Any],
         dataset_name: Optional[str] = None,
         invariant_authorization: Optional[str] = None,
-        dataset_guardrails: Optional[DatasetGuardrails] = None,
+        guardrails: Optional[GuardrailRuleSet] = None,
         config: Optional[GatewayConfig] = None,
     ) -> "RequestContext":
         """Creates a new RequestContext instance, applying default guardrails if needed."""
@@ -45,26 +46,24 @@ class RequestContext:
             if key != "guardrails_from_file"
         }
 
-        # If no guardrails are configured for the dataset on Explorer,
-        # and the config specifies guardrails_from_file, use that.
-        guardrails = dataset_guardrails
+        # If no guardrails are configured and the config specifies
+        # guardrails_from_file, use those instead.
         if (
             (
-                not dataset_guardrails
+                not guardrails
                 or (
-                    not dataset_guardrails.blocking_guardrails
-                    and not dataset_guardrails.logging_guardrails
+                    not guardrails.blocking_guardrails
+                    and not guardrails.logging_guardrails
                 )
             )
             and config
             and config.guardrails_from_file
         ):
-            # TODO: Support logging guardrails via file.
-            guardrails = DatasetGuardrails(
+            guardrails = GuardrailRuleSet(
                 blocking_guardrails=[
                     Guardrail(
-                        id="default",
-                        name="default",
+                        id="guardrails-from-gateway-config-file",
+                        name="guardrails from gateway configuration file",
                         content=config.guardrails_from_file,
                         action=GuardrailAction.BLOCK,
                     )
@@ -76,7 +75,7 @@ class RequestContext:
             request_json=request_json,
             dataset_name=dataset_name,
             invariant_authorization=invariant_authorization,
-            dataset_guardrails=guardrails,
+            guardrails=guardrails,
             config=context_config,
             _created_via_factory=True,
         )
@@ -86,7 +85,7 @@ class RequestContext:
             f"RequestContext("
             f"request_json={self.request_json}, "
             f"dataset_name={self.dataset_name}, "
-            f"invariant_authorization={self.invariant_authorization}, "
-            f"dataset_guardrails={self.dataset_guardrails}, "
+            f"invariant_authorization=inv-*****{self.invariant_authorization[-4:]}, "
+            f"guardrails={self.guardrails}, "
             f"config={self.config})"
         )

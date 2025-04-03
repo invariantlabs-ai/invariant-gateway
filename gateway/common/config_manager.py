@@ -3,8 +3,30 @@
 import asyncio
 import os
 import threading
+from typing import Optional
 
+import fastapi
 from httpx import HTTPStatusError
+
+from common.guardrails import Guardrail, GuardrailAction, GuardrailRuleSet
+from common.authorization import extract_authorization_from_headers
+
+
+def extract_policy_from_headers(request: Optional[fastapi.Request]) -> Optional[str]:
+    """
+    Extracts the guardrailing policy from the request headers if present.
+
+    Returns 'None' if no such header is present.
+    """
+    if request is None:
+        return None
+
+    policy = request.headers.get("Invariant-Guardrails")
+    # undo unicode_escape
+    if policy:
+        # interpret as bytes then decode
+        policy = policy.encode("utf-8").decode("unicode_escape")
+    return policy
 
 
 class GatewayConfig:
@@ -58,7 +80,7 @@ class GatewayConfigManager:
     _lock = threading.Lock()
 
     @classmethod
-    def get_config(cls):
+    def get_config(cls, request: fastapi.Request = None) -> GatewayConfig:
         """Initializes and returns the gateway configuration using double-checked locking."""
         local_config = cls._config_instance
 
@@ -68,4 +90,27 @@ class GatewayConfigManager:
                 if local_config is None:
                     local_config = GatewayConfig()
                     cls._config_instance = local_config
+
         return local_config
+
+
+async def GuardrailsInHeader(request: fastapi.Request) -> Optional[GuardrailRuleSet]:
+    """
+    Extracts Invariant-Guardrails from the request header if provided, and returns a corresponding
+    GuardrailRuleSet. If no guardrails are provided, returns None.
+    """
+    # if provided in header, use custom guardrailing policy
+    if guardrails := extract_policy_from_headers(request):
+        guardrails = [
+            Guardrail(
+                id="guardrails-from-header",
+                name="guardrails from request header",
+                content=guardrails,
+                action=GuardrailAction.BLOCK,
+            )
+        ]
+
+        return GuardrailRuleSet(
+            blocking_guardrails=guardrails,
+            logging_guardrails=[],
+        )
