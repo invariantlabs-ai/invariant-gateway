@@ -3,6 +3,8 @@
 import os
 from typing import Any, Dict, List
 
+from fastapi import HTTPException
+
 from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesResponse
@@ -62,6 +64,11 @@ def create_annotations_from_guardrails_errors(
     return annotations
 
 
+def get_explorer_api_url() -> str:
+    return "https://preview-explorer.invariantlabs.ai"
+    return os.getenv("INVARIANT_API_URL", DEFAULT_API_URL)
+
+
 async def push_trace(
     messages: List[List[Dict[str, Any]]],
     dataset_name: str,
@@ -94,7 +101,7 @@ async def push_trace(
         metadata=metadata,
     )
     client = AsyncClient(
-        api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/"),
+        api_url=get_explorer_api_url().rstrip("/"),
         api_key=invariant_authorization.split("Bearer ")[1],
     )
     try:
@@ -117,7 +124,7 @@ async def fetch_guardrails_from_explorer(
     # dataset details without requiring a username.
 
     client = httpx.AsyncClient(
-        base_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL).rstrip("/"),
+        base_url=get_explorer_api_url().rstrip("/"),
         headers={
             "Authorization": invariant_authorization,
         },
@@ -125,7 +132,12 @@ async def fetch_guardrails_from_explorer(
 
     # Get the user details.
     user_info_response = await client.get("/api/v1/user/identity")
-    if user_info_response.status_code != 200:
+    if user_info_response.status_code == 401:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Invariant API key. Please check your API key.",
+        )
+    elif user_info_response.status_code != 200:
         raise ValueError(
             f"Failed to get user details from Explorer: {user_info_response.status_code}, {user_info_response.text}"
         )

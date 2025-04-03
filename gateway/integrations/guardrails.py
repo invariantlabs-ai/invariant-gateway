@@ -6,9 +6,13 @@ import time
 from typing import Any, Dict, List
 from functools import wraps
 
+from fastapi import HTTPException
 import httpx
 from common.guardrails import Guardrail
 from common.request_context import RequestContext
+from common.authorization import (
+    INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER,
+)
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
@@ -367,6 +371,13 @@ async def check_guardrails(
                 },
             )
             if not result.is_success:
+                if result.status_code == 401:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="The provided Invariant API key is not valid for guardrail checking. Please ensure you are using the correct API key or pass an alternative API key for guardrail checking specifically via the '{}' header.".format(
+                            INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER
+                        ),
+                    )
                 raise Exception(
                     f"Guardrails check failed: {result.status_code} - {result.text}"
                 )
@@ -397,6 +408,8 @@ async def check_guardrails(
                         ]
                     }
             return aggregated_errors
+        except HTTPException as e:
+            raise e
         except Exception as e:
             print(f"Failed to verify guardrails: {e}")
             # make sure runtime errors are also visible in e.g. Explorer
