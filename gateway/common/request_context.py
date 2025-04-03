@@ -92,11 +92,10 @@ class RequestContext:
             request_json=request_json,
             dataset_name=dataset_name,
             invariant_authorization=invariant_authorization,
-            guardrail_service_authorization=guardrail_service_authorization,
+            guardrail_authorization=guardrail_service_authorization,
             guardrails=guardrails,
             config=context_config,
             _created_via_factory=True,
-            guardrail_authorization=guardrail_service_authorization,
         )
 
     def get_guardrailing_authorization(self) -> Optional[str]:
