@@ -1,3 +1,7 @@
+"""
+Simple (non-streaming) test client for the Gateway (uses OpenAI integration).
+"""
+
 from openai import OpenAI
 from httpx import Client
 import os

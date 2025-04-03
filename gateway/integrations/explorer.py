@@ -50,7 +50,6 @@ def create_annotations_from_guardrails_errors(
                     address=r,
                     extra_metadata={
                         "source": "guardrails-error",
-                        "guardrail-action": action,
                         # if included in error, also include the source of the guardrail
                         **(
                             {"guardrail_content": error.get("guardrail_content")}
