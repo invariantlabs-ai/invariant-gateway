@@ -82,6 +82,10 @@ async def _preload(guardrails: str, invariant_authorization: str) -> None:
         result.raise_for_status()
 
 
+def get_guardrails_invariant_authorization(context: "RequestContext") -> str:
+    return context.invariant_authorization
+
+
 async def preload_guardrails(context: "RequestContext") -> None:
     """
     Preloads the guardrails for faster checking later.
@@ -96,12 +100,18 @@ async def preload_guardrails(context: "RequestContext") -> None:
         # Move these calls to a batch preload/validate API.
         for blocking_guardrail in context.guardrails.blocking_guardrails:
             task = asyncio.create_task(
-                _preload(blocking_guardrail.content, context.invariant_authorization)
+                _preload(
+                    blocking_guardrail.content,
+                    get_guardrails_invariant_authorization(context),
+                )
             )
             asyncio.shield(task)
         for logging_guadrail in context.guardrails.logging_guardrails:
             task = asyncio.create_task(
-                _preload(logging_guadrail.content, context.invariant_authorization)
+                _preload(
+                    logging_guadrail.content,
+                    get_guardrails_invariant_authorization(context),
+                )
             )
             asyncio.shield(task)
     except Exception as e:
@@ -332,7 +342,7 @@ class InstrumentedResponse(InstrumentedStreamingResponse):
 async def check_guardrails(
     messages: List[Dict[str, Any]],
     guardrails: List[Guardrail],
-    invariant_authorization: str,
+    context: RequestContext,
 ) -> Dict[str, Any]:
     """
     Checks guardrails on the list of messages.
@@ -357,7 +367,7 @@ async def check_guardrails(
                     "policies": [g.content for g in guardrails],
                 },
                 headers={
-                    "Authorization": invariant_authorization,
+                    "Authorization": get_guardrails_invariant_authorization(context),
                     "Accept": "application/json",
                 },
             )

@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+import fastapi
+
 from common.config_manager import GatewayConfig
 from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 
@@ -36,6 +38,7 @@ class RequestContext:
         invariant_authorization: Optional[str] = None,
         guardrails: Optional[GuardrailRuleSet] = None,
         config: Optional[GatewayConfig] = None,
+        request: fastapi.Request = None,
     ) -> "RequestContext":
         """Creates a new RequestContext instance, applying default guardrails if needed."""
 

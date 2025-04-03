@@ -157,7 +157,7 @@ async def get_guardrails_check_result(
     guardrails_execution_result = await check_guardrails(
         messages=converted_messages,
         guardrails=guardrails,
-        invariant_authorization=context.invariant_authorization,
+        context=context,
     )
     return guardrails_execution_result
 
