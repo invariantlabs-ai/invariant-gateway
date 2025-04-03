@@ -82,10 +82,6 @@ async def _preload(guardrails: str, invariant_authorization: str) -> None:
         result.raise_for_status()
 
 
-def get_guardrails_invariant_authorization(context: "RequestContext") -> str:
-    return context.invariant_authorization
-
-
 async def preload_guardrails(context: "RequestContext") -> None:
     """
     Preloads the guardrails for faster checking later.
@@ -101,8 +97,7 @@ async def preload_guardrails(context: "RequestContext") -> None:
         for blocking_guardrail in context.guardrails.blocking_guardrails:
             task = asyncio.create_task(
                 _preload(
-                    blocking_guardrail.content,
-                    get_guardrails_invariant_authorization(context),
+                    blocking_guardrail.content, context.get_guardrailing_authorization()
                 )
             )
             asyncio.shield(task)
@@ -110,7 +105,7 @@ async def preload_guardrails(context: "RequestContext") -> None:
             task = asyncio.create_task(
                 _preload(
                     logging_guadrail.content,
-                    get_guardrails_invariant_authorization(context),
+                    context.get_guardrailing_authorization(),
                 )
             )
             asyncio.shield(task)
@@ -367,7 +362,7 @@ async def check_guardrails(
                     "policies": [g.content for g in guardrails],
                 },
                 headers={
-                    "Authorization": get_guardrails_invariant_authorization(context),
+                    "Authorization": context.get_guardrailing_authorization(),
                     "Accept": "application/json",
                 },
             )

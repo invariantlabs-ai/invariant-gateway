@@ -4,7 +4,20 @@ from typing import Tuple, Optional
 from fastapi import HTTPException, Request
 
 INVARIANT_AUTHORIZATION_HEADER = "invariant-authorization"
+INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER = "invariant-guardrails-authorization"
 API_KEYS_SEPARATOR = ";invariant-auth="
+
+
+def extract_guardrail_service_authorization_from_headers(
+    request: Request,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extracts the optional Invariant-Guardrail-Service authorization header from the request.
+
+    This header can be specifified to use a different API key for guardrailing compared to
+    Explorer interactions.
+    """
+    return request.headers.get(INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER)
 
 
 def extract_authorization_from_headers(

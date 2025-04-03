@@ -103,6 +103,7 @@ async def gemini_generate_content_gateway(
         invariant_authorization=invariant_authorization,
         guardrails=header_guardrails or dataset_guardrails,
         config=config,
+        request=request,
     )
     if alt == "sse" or endpoint == "streamGenerateContent":
         return await stream_response(

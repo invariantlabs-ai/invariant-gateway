@@ -105,6 +105,7 @@ async def anthropic_v1_messages_gateway(
         invariant_authorization=invariant_authorization,
         guardrails=header_guardrails or dataset_guardrails,
         config=config,
+        request=request,
     )
     if request_json.get("stream"):
         return await handle_streaming_response(context, client, anthropic_request)
