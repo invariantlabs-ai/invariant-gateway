@@ -65,7 +65,6 @@ def create_annotations_from_guardrails_errors(
 
 
 def get_explorer_api_url() -> str:
-    return "https://preview-explorer.invariantlabs.ai"
     return os.getenv("INVARIANT_API_URL", DEFAULT_API_URL)
 
 
