@@ -53,7 +53,7 @@ def make_cors_response(request: Request, allow_methods: str) -> Response:
         headers={
             "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
             "Access-Control-Allow-Methods": f"{allow_methods}, OPTIONS",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, Invariant-Authorization, Invariant-Guardrails, Invariant-Guardrails-Authorization, Origin",
             "Access-Control-Max-Age": "86400",
         },
     )
