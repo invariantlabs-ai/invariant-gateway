@@ -24,7 +24,10 @@ class RequestContext:
     guardrail_authorization: Optional[str] = None
     # the set of guardrails to enforce for this request
     guardrails: Optional[GuardrailRuleSet] = None
+    # configuration parameters for this request
     config: Dict[str, Any] = None
+    # push behavior
+    push_behavior: str = 'push'
 
     _created_via_factory: bool = field(
         default=False, init=True, repr=False, compare=False
@@ -54,6 +57,13 @@ class RequestContext:
             for key, value in (config.__dict__.items() if config else {})
             if key != "guardrails_from_file"
         }
+
+        # Read potential Invariant-NoPush header
+        push_behavior = 'push'
+        if push_behavior := request.headers.get("Invariant-Push"):
+            if not push_behavior.lower() in ["push", "skip"]:
+                raise fastapi.HTTPException(status_code=400, detail="Invalid value for Invariant-Push header. Valid values are 'push' and 'skip'.")
+            push_behavior = push_behavior.lower()
 
         # If no guardrails are configured and the config specifies
         # guardrails_from_file, use those instead.
@@ -95,6 +105,7 @@ class RequestContext:
             guardrail_authorization=guardrail_service_authorization,
             guardrails=guardrails,
             config=context_config,
+            push_behavior=push_behavior,
             _created_via_factory=True,
         )
 

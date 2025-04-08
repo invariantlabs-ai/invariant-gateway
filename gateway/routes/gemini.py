@@ -437,6 +437,7 @@ async def push_to_explorer(
         invariant_authorization=context.invariant_authorization,
         metadata=[create_metadata(context, response_json)],
         annotations=[annotations] if annotations else None,
+        push_behavior=context.push_behavior,
     )
 
 
