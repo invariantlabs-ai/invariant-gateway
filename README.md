@@ -335,10 +335,11 @@ You can also pass both API keys as part of the main LLM `Authorization` header, 
 
 Then, this combined key can be passed as `Authorization` header only.
 
-### Additional Guardrails Headers
+### Additional Headers
 
 - `Invariant-Guardrail-Service-Authorization`: Additional header value to specify a different API key to use for Guardrails evaluation specifically. `Invariant-Authorization` will then only be used to interact with the configured Explorer instance, not for guardrailing.
 - `Invariant-Guardrails`: Guardrailing rules to be checked for a specific request. This list of rules will replace all rules being evaluated, i.e. no additional rules will be pulled from [Explorer](https://explorer.invariantlabs.ai).
+- `Invariant-NoPush`: Disables pushing to Explorer alltogether. Gateway will still pull and evaluate the guardrailing rules stored in Explorer, but it will no longer push the resulting trace.
 
 ---
 
