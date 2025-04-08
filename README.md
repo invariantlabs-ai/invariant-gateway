@@ -324,11 +324,11 @@ The Invariant Gateway supports several headers for authentication and configurat
 ### Authentication Headers
 
 - `Invariant-Authorization`: The primary header for Invariant authentication. Format: `Bearer your-invariant-api-key`
-- `Authorization`: Standard authorization header for LLM provider API keys
+- `Authorization`: Standard authorization header for LLM provider API keys. Passed on as provided.
 
-### Alternative Authentication Methods
+### Alternative Invariant Authentication Methods
 
-You can also pass authentication by appending the Invariant API key to your LLM provider's API key using the format:
+You can also pass both API keys as part of the main LLM `Authorization` header, e.g. if you cannot specify custom headers in your application.
 ```
 {your-llm-api-key};invariant-auth={your-invariant-api-key}
 ```
@@ -337,7 +337,7 @@ Then, this combined key can be passed as `Authorization` header only.
 
 ### Additional Guardrails Headers
 
-- `Invariant-Guardrail-Service-Authorization`: Additional header value to specify a different API key to use for Guardrails evaluation specifically.
+- `Invariant-Guardrail-Service-Authorization`: Additional header value to specify a different API key to use for Guardrails evaluation specifically. `Invariant-Authorization` will then only be used to interact with the configured Explorer instance, not for guardrailing.
 - `Invariant-Guardrails`: Guardrailing rules to be checked for a specific request. This list of rules will replace all rules being evaluated, i.e. no additional rules will be pulled from [Explorer](https://explorer.invariantlabs.ai).
 
 ---
