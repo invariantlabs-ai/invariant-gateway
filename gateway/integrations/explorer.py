@@ -74,6 +74,7 @@ async def push_trace(
     invariant_authorization: str,
     annotations: List[List[AnnotationCreate]] = None,
     metadata: List[Dict[str, Any]] = None,
+    push_behavior: str = "push",
 ) -> PushTracesResponse:
     """Pushes traces to the dataset on the Invariant Explorer.
 
@@ -88,6 +89,12 @@ async def push_trace(
     Returns:
         PushTracesResponse: Response containing the trace ID details.
     """
+    # if push_behavior is skip, do not push anything
+    if push_behavior == "skip":
+        return None
+
+    # otherwise, we assume we need to push
+
     # Remove any None values from the messages
     update_messages = [
         [{k: v for k, v in msg.items() if v is not None} for msg in msg_list]
