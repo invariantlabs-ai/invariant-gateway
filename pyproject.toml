@@ -1,6 +1,6 @@
 [project]
 name = "invariant-gateway"
-version = "0.1.0"
+version = "0.0.1"
 description = "LLM proxy to observe and debug what your AI agents are doing"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,6 +15,9 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[project.scripts]
+invariant-gateway = "gateway.__main__:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
