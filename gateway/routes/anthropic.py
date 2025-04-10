@@ -8,27 +8,27 @@ import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from starlette.responses import StreamingResponse
 
-from common.authorization import extract_authorization_from_headers
-from common.config_manager import (
+from gateway.common.authorization import extract_authorization_from_headers
+from gateway.common.config_manager import (
     GatewayConfig,
     GatewayConfigManager,
     GuardrailsInHeader,
 )
-from common.constants import (
+from gateway.common.constants import (
     CLIENT_TIMEOUT,
     IGNORED_HEADERS,
 )
-from common.guardrails import GuardrailAction, GuardrailRuleSet
-from common.request_context import RequestContext
-from converters.anthropic_to_invariant import (
+from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
+from gateway.common.request_context import RequestContext
+from gateway.converters.anthropic_to_invariant import (
     convert_anthropic_to_invariant_message_format,
 )
-from integrations.explorer import (
+from gateway.integrations.explorer import (
     create_annotations_from_guardrails_errors,
     fetch_guardrails_from_explorer,
     push_trace,
 )
-from integrations.guardrails import (
+from gateway.integrations.guardrails import (
     ExtraItem,
     InstrumentedResponse,
     InstrumentedStreamingResponse,

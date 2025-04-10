@@ -8,8 +8,7 @@ from typing import Optional
 import fastapi
 from httpx import HTTPStatusError
 
-from common.guardrails import Guardrail, GuardrailAction, GuardrailRuleSet
-from common.authorization import extract_authorization_from_headers
+from gateway.common.guardrails import Guardrail, GuardrailAction, GuardrailRuleSet
 
 
 def extract_policy_from_headers(request: Optional[fastapi.Request]) -> Optional[str]:
@@ -40,7 +39,7 @@ class GatewayConfig:
         Loads the guardrails from the file specified in GUARDRAILS_FILE_PATH.
         Returns the guardrails file content as a string.
         """
-        from integrations.guardrails import _preload
+        from gateway.integrations.guardrails import _preload
 
         guardrails_file = os.getenv("GUARDRAILS_FILE_PATH", "")
         if not guardrails_file:

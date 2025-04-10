@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export PYTHONPATH=/srv
+
 # Validate configuration
 python validate_config.py
 

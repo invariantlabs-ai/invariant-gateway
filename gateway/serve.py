@@ -2,10 +2,11 @@
 
 import fastapi
 import uvicorn
-from routes.anthropic import gateway as anthropic_gateway
-from routes.gemini import gateway as gemini_gateway
-from routes.open_ai import gateway as open_ai_gateway
 from starlette_compress import CompressMiddleware
+
+from gateway.routes.anthropic import gateway as anthropic_gateway
+from gateway.routes.gemini import gateway as gemini_gateway
+from gateway.routes.open_ai import gateway as open_ai_gateway
 
 app = fastapi.app = fastapi.FastAPI(
     docs_url="/api/v1/gateway/docs",

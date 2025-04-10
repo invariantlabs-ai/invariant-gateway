@@ -2,7 +2,7 @@
 
 import sys
 
-from common.config_manager import GatewayConfigManager
+from gateway.common.config_manager import GatewayConfigManager
 
 try:
     _ = GatewayConfigManager.get_config()

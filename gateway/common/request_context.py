@@ -5,9 +5,9 @@ from typing import Any, Dict, Optional
 
 import fastapi
 
-from common.config_manager import GatewayConfig
-from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
-from common.authorization import (
+from gateway.common.config_manager import GatewayConfig
+from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
+from gateway.common.authorization import (
     extract_guardrail_service_authorization_from_headers,
 )
 

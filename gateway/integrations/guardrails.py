@@ -8,9 +8,10 @@ from functools import wraps
 
 from fastapi import HTTPException
 import httpx
-from common.guardrails import Guardrail
-from common.request_context import RequestContext
-from common.authorization import (
+
+from gateway.common.guardrails import Guardrail
+from gateway.common.request_context import RequestContext
+from gateway.common.authorization import (
     INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER,
 )
 

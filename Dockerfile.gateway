@@ -1,0 +1,16 @@
+FROM python:3.12
+
+WORKDIR /srv/gateway
+
+COPY pyproject.toml ./
+
+COPY gateway/ ./
+
+COPY README.md /srv/gateway/README.md
+
+RUN pip install --no-cache-dir .
+
+RUN chmod +x /srv/gateway/run.sh
+
+# Run the application
+CMD ["./run.sh"]
