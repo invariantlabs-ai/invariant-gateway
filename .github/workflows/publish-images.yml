@@ -48,7 +48,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./gateway
-          file: ./gateway/Dockerfile.gateway
+          file: Dockerfile.gateway
           platforms: linux/amd64
           push: true
           tags: ${{ env.tags }}

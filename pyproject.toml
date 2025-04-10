@@ -1,0 +1,21 @@
+[project]
+name = "invariant-gateway"
+version = "0.1.0"
+description = "LLM proxy to observe and debug what your AI agents are doing"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.115.7",
+    "httpx==0.28.1",
+    "invariant-ai>=0.2.1",
+    "invariant-sdk>=0.0.10",
+    "starlette-compress==1.4.0",
+    "uvicorn==0.34.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"

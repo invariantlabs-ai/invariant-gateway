@@ -64,13 +64,12 @@ build() {
 down() {
   # Bring down local services
   docker compose -f docker-compose.local.yml down
-  GATEWAY_PATH=$(pwd)/gateway docker compose -f tests/integration/docker-compose.test.yml down
+  GATEWAY_ROOT_PATH=$(pwd) docker compose -f tests/integration/docker-compose.test.yml down
 }
 
 unit_tests() {
   echo "Running unit tests..."
-  
-  pytest tests/unit_tests $@
+  PYTHONPATH=. pytest tests/unit_tests $@
 }
 
 integration_tests() {
@@ -108,7 +107,7 @@ integration_tests() {
     fi
   fi
 
-  export GATEWAY_PATH=$(pwd)/gateway
+  export GATEWAY_ROOT_PATH=$(pwd)
   export GUARDRAILS_FILE_PATH="$TEST_GUARDRAILS_FILE_PATH"
 
   # Start containers
@@ -151,7 +150,7 @@ integration_tests() {
     --env-file ./tests/integration/.env.test \
     invariant-gateway-tests $@
 
-  unset GATEWAY_PATH
+  unset GATEWAY_ROOT_PATH
   unset GUARDRAILS_FILE_PATH
 }
 

@@ -7,10 +7,6 @@ import random
 import string
 import pytest
 
-from gateway.common.config_manager import GatewayConfig
-from gateway.common.request_context import RequestContext
-
-
 # Add root folder (parent) to sys.path
 sys.path.append(
     os.path.dirname(
@@ -18,6 +14,8 @@ sys.path.append(
     )
 )
 
+from gateway.common.config_manager import GatewayConfig
+from gateway.common.request_context import RequestContext
 from gateway.common.authorization import (
     INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER,
     extract_authorization_from_headers,

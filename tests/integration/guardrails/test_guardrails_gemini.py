@@ -435,12 +435,12 @@ async def test_with_guardrails_from_explorer(explorer_api_url, gateway_url, do_s
     assert (
         annotations[0]["content"] == "ogre detected in response"
         and annotations[0]["extra_metadata"]["source"] == "guardrails-error"
-        and annotations[0]["extra_metadata"]["guardrail-action"] == "block"
+        and annotations[0]["extra_metadata"]["guardrail"]["action"] == "block"
     )
     assert (
         annotations[1]["content"] == "Fiona detected in response"
         and annotations[1]["extra_metadata"]["source"] == "guardrails-error"
-        and annotations[1]["extra_metadata"]["guardrail-action"] == "log"
+        and annotations[1]["extra_metadata"]["guardrail"]["action"] == "log"
     )
 
 
@@ -550,7 +550,7 @@ async def test_preguardrailing_with_guardrails_from_explorer(
     assert (
         annotations[0]["content"] == "pun detected in user message"
         and annotations[0]["extra_metadata"]["source"] == "guardrails-error"
-        and annotations[0]["extra_metadata"]["guardrail-action"] == "block"
+        and annotations[0]["extra_metadata"]["guardrail"]["action"] == "block"
         if is_block_action
         else "log"
     )

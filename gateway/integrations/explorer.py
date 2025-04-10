@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 from fastapi import HTTPException
 
-from common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
+from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesResponse
 from invariant_sdk.types.annotations import AnnotationCreate

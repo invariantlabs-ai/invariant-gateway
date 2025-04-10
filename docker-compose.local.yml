@@ -2,8 +2,8 @@ services:
   invariant-gateway:
     container_name: invariant-gateway
     build:
-      context: ./gateway
-      dockerfile: ../gateway/Dockerfile.gateway
+      context: .
+      dockerfile: Dockerfile.gateway
     working_dir: /srv/gateway
     env_file:
       - .env
