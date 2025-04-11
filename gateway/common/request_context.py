@@ -82,7 +82,7 @@ class RequestContext:
 
         # if additionally provided, extract separate API key to use with guardrailing service
         guardrail_service_authorization = None
-        if (
+        if request and (
             guardrail_authorization
             := extract_guardrail_service_authorization_from_headers(request)
         ):
