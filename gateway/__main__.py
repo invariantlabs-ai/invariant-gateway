@@ -2,6 +2,8 @@
 
 import sys
 
+from gateway.mcp import mcp
+
 
 def main():
     """Entry point for the Invariant Gateway."""
@@ -12,8 +14,7 @@ def main():
     }
 
     def _help():
-        """Prints the help message."""
-        print("\nSupported Commands by invariant-gateway:\n")
+        """_prints the help message."""
         for verb, description in actions.items():
             print(f"{verb}: {description}")
 
@@ -23,14 +24,11 @@ def main():
 
     verb = sys.argv[1]
     if verb == "mcp":
-        # Use sys.argv[2:] to pass arguments to the MCP gateway
-        return 0
+        return mcp.execute(sys.argv[2:])
     if verb == "llm":
-        # Use sys.argv[2:] to pass arguments to the LLM gateway
-        print("LLM gateway via the invariant-gateway command is not implemented yet.")
         return 1
     if verb == "help":
         _help()
         return 0
-    print(f"Unknown action: {verb}")
+    print(f"[gateway/__main__.py] Unknown action: {verb}")
     return 1
