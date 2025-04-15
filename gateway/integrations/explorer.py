@@ -1,8 +1,9 @@
 """Utility functions for the Invariant explorer."""
 
 import os
-from typing import Any, Dict, List
+import json
 
+from typing import Any, Dict, List
 from fastapi import HTTPException
 
 from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
@@ -16,17 +17,20 @@ DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
 def create_annotations_from_guardrails_errors(
-    guardrails_errors: List[dict], action: str = "block"
+    guardrails_errors: List[dict],
 ) -> List[AnnotationCreate]:
     """Create Explorer annotations from the guardrails errors."""
     annotations = []
 
-    def _remove_prefixes(ranges: list[str]) -> list[str]:
+    def _pick_most_specific_ranges(ranges: list[str]) -> list[str]:
         """
-        Remove prefixes from the list of ranges.
+        Remove redundant prefixes from the list of ranges.
 
         If the ranges are ['messages.2', 'messages.2.content:25-30', 'messages.2.content']
         then this returns ['messages.2.content:25-30'].
+
+        This picks the most specific subset of the ranges and removes the rest. If some
+        range is a proper prefix of another range, it is removed.
         """
         ranges = sorted(ranges, key=len)
         result = []
@@ -44,7 +48,7 @@ def create_annotations_from_guardrails_errors(
 
     for error in guardrails_errors:
         content = error.get("args")[0]
-        filtered_ranges = _remove_prefixes(list(error.get("ranges", [])))
+        filtered_ranges = _pick_most_specific_ranges(list(error.get("ranges", [])))
         for r in filtered_ranges:
             annotations.append(
                 AnnotationCreate(
@@ -61,10 +65,40 @@ def create_annotations_from_guardrails_errors(
                     },
                 )
             )
-    return annotations
+    # Remove duplicates
+    # TODO: Rely on the __eq__ and __hash__ methods of the AnnotationCreate class
+    # to remove duplicates instead of using a custom function.
+    # This is a temporary solution until the Invariant SDK is updated.
+    return remove_duplicates(annotations)
+
+
+def remove_duplicates(annotations: List[AnnotationCreate]) -> List[AnnotationCreate]:
+    """
+    Remove duplicate annotations based on content, address, and extra_metadata.
+
+    Two annotations are considered duplicates if they have the same content,
+    address, and extra_metadata.
+    """
+    unique_annotations = []
+    seen = set()
+
+    for annotation in annotations:
+        # Convert the entire extra_metadata dict to a JSON string
+        # This creates a hashable representation regardless of nested content
+        metadata_str = json.dumps(annotation.extra_metadata, sort_keys=True)
+
+        # Create a unique identifier using all three fields
+        unique_key = (annotation.content, annotation.address, metadata_str)
+
+        if unique_key not in seen:
+            seen.add(unique_key)
+            unique_annotations.append(annotation)
+
+    return unique_annotations
 
 
 def get_explorer_api_url() -> str:
+    """Get the Invariant Explorer API URL from the environment variable."""
     return os.getenv("INVARIANT_API_URL", DEFAULT_API_URL)
 
 

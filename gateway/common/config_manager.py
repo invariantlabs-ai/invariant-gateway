@@ -93,7 +93,9 @@ class GatewayConfigManager:
         return local_config
 
 
-async def GuardrailsInHeader(request: fastapi.Request) -> Optional[GuardrailRuleSet]:
+async def extract_guardrails_from_header(
+    request: fastapi.Request,
+) -> Optional[GuardrailRuleSet]:
     """
     Extracts Invariant-Guardrails from the request header if provided, and returns a corresponding
     GuardrailRuleSet. If no guardrails are provided, returns None.

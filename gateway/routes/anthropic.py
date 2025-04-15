@@ -12,7 +12,7 @@ from gateway.common.authorization import extract_authorization_from_headers
 from gateway.common.config_manager import (
     GatewayConfig,
     GatewayConfigManager,
-    GuardrailsInHeader,
+    extract_guardrails_from_header,
 )
 from gateway.common.constants import (
     CLIENT_TIMEOUT,
@@ -34,7 +34,6 @@ from gateway.integrations.guardrails import (
     InstrumentedStreamingResponse,
     Replacement,
     check_guardrails,
-    preload_guardrails,
 )
 
 gateway = APIRouter()
@@ -70,7 +69,7 @@ async def anthropic_v1_messages_gateway(
     request: Request,
     dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
-    header_guardrails: GuardrailRuleSet = Depends(GuardrailsInHeader),
+    header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ):
     """Proxy calls to the Anthropic APIs"""
     headers = {
@@ -171,7 +170,7 @@ async def push_to_explorer(
     """Pushes the full trace to the Invariant Explorer"""
     guardrails_execution_result = guardrails_execution_result or {}
     annotations = create_annotations_from_guardrails_errors(
-        guardrails_execution_result.get("errors", []), action="block"
+        guardrails_execution_result.get("errors", [])
     )
 
     # Execute the logging guardrails before pushing to Explorer
@@ -181,7 +180,7 @@ async def push_to_explorer(
         response_json=merged_response,
     )
     logging_annotations = create_annotations_from_guardrails_errors(
-        logging_guardrails_execution_result.get("errors", []), action="log"
+        logging_guardrails_execution_result.get("errors", [])
     )
     # Update the annotations with the logging guardrails
     annotations.extend(logging_annotations)
