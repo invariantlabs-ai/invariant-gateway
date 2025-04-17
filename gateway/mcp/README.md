@@ -1,95 +1,113 @@
-This is a work in progress implementation for MCP (Model Context Protocol) with the Gateway.
+## MCP Integration with Invariant Gateway
 
-For now if the original MCP config file looks like:
+This is a work-in-progress implementation of the Model Context Protocol (MCP) integrated with the Invariant Gateway.
+
+
+### Original MCP Config (Baseline)
+
+Given a standard MCP configuration like:
 
 ```
 {
-    "mcpServers": {
-        "weather": {
-            "command": "uv",
-            "args": [
-                "--directory",
-                "/ABSOLUTE/PATH/TO/PARENT/FOLDER/weather",
-                "run",
-                "weather.py"
-            ]
-        }
+  "mcpServers": {
+    "weather": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ABSOLUTE/PATH/TO/PARENT/FOLDER/weather",
+        "run",
+        "weather.py"
+      ]
     }
+  }
 }
 ```
 
-## Using the PyPi package
+### Using the PyPI Package
 
-1. Modify the MCP config so that it looks like this:
+To enable runtime guardrails and trace logging via the Invariant Gateway, modify your MCP config as follows:
 
 ```
-  {
-    "mcpServers": {
-      "weather": {
-        "command": "uvx",
-        "args": [
-          "invariant-gateway@latest",
-          "mcp",
-          "--project-name",
-          "<your-project-name>",
-          "--push-explorer",
-          "--exec",
-          "uv",
-          "--directory",
-          "/ABSOLUTE/PATH/TO/PARENT/FOLDER/weather",
-          "run",
-          "weather.py"
-        ],
-        "env": {
-          "INVARIANT_API_KEY": "<Add Invariant API key here>"
-        }
+{
+  "mcpServers": {
+    "weather": {
+      "command": "uvx",
+      "args": [
+        "invariant-gateway@latest",
+        "mcp",
+        "--project-name",
+        "<your-project-name>",
+        "--push-explorer",
+        "--exec",
+        "uv",
+        "--directory",
+        "/ABSOLUTE/PATH/TO/PARENT/FOLDER/weather",
+        "run",
+        "weather.py"
+      ],
+      "env": {
+        "INVARIANT_API_KEY": "<Add Invariant API key here>"
       }
     }
   }
+}
 ```
 
-Now Invariant MCP gateway will sit in between the MCP server and the MCP client and enforce the guardrails runtime. With this, you can also push the annotated traces for the MCP messages to explorer.
+Explanation
 
-This moves the original `command` and `args` to the `args` list after the `--exec` flag.
+This configuration wraps the original MCP server invocation with the invariant-gateway CLI.
 
-All args before the `--exec` flag are relevant to the Invariant MCP gateway. These include:
+*	Arguments before --exec are handled by the Invariant Gateway.
 
-- `--project-name`: With this you can specify the name of the Invariant Explorer project (dataset). The guardrails are pulled from this.
-- `--push-explorer`: With this you can specify if you want to push the annotated traces to the Invariant Explorer. The annotated traces are pushed to the project name provided above.
+*	Arguments after --exec are passed directly to your MCP server.
 
-## Local Development
+Key Parameters
 
-You need to:
+*	--project-name: The name of the Invariant Explorer project (dataset). Guardrails will be fetched from this project.
 
-1. Checkout the invariant-gatway repo.
-2. Run `python -m build`. This will generate a .whl file in dist.
-3. Modify the MCP config so that it looks like this:
+*	--push-explorer: Enables pushing annotated traces of MCP message flows to the specified project in Invariant Explorer.
+
+### Local Development Workflow
+
+To test or develop the gateway locally:
+
+1.	Clone the invariant-gateway repository.
+
+2.	Build the package:
+
+```bash
+python -m build
+```
+
+This will generate a .whl file under the dist/ directory.
+
+3.	Update your MCP config to reference the local build (replace <VERSION> with the version specified in pyproject.toml):
 
 ```
-  {
-    "mcpServers": {
-      "weather": {
-        "command": "uvx",
-        "args": [
-          "--refresh",
-          "--from",
-          "/ABSOLUTE/PATH/TO/INVARIANT_GATEWAY_REPO/dist/invariant_gateway-<VERSION>-py3-none-any.whl",
-          "invariant-gateway",
-          "mcp",
-          "--project-name",
-          "<your-project-name>",
-          "--push-explorer",
-          "--exec",
-          "uv",
-          "--directory",
-          "/ABSOLUTE/PATH/TO/PARENT/FOLDER/weather",
-          "run",
-          "weather.py"
-        ],
-        "env": {
-          "INVARIANT_API_KEY": "<Add Invariant API key here>"
-        }
+{
+  "mcpServers": {
+    "weather": {
+      "command": "uvx",
+      "args": [
+        "--refresh",
+        "--from",
+        "/ABSOLUTE/PATH/TO/INVARIANT_GATEWAY_REPO/dist/invariant_gateway-<VERSION>-py3-none-any.whl",
+        "invariant-gateway",
+        "mcp",
+        "--project-name",
+        "<your-project-name>",
+        "--push-explorer",
+        "--exec",
+        "uv",
+        "--directory",
+        "/ABSOLUTE/PATH/TO/PARENT/FOLDER/weather",
+        "run",
+        "weather.py"
+      ],
+      "env": {
+        "INVARIANT_API_KEY": "<Add Invariant API key here>"
       }
     }
   }
+}
 ```
