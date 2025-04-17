@@ -17,7 +17,7 @@ where = ["."]
 exclude = ["tests", "tests.*"]
 
 [project.scripts]
-invariant-gateway = "gateway.__main__:main"
+run = "gateway.__main__:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

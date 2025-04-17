@@ -28,7 +28,8 @@ class McpContext:
             return
 
         config = self._parse_cli_args(cli_args)
-        self.explorer_dataset = config.dataset_name
+        # The project name is used to identify the dataset in Invariant Explorer.
+        self.explorer_dataset = config.project_name
         self.push_explorer = config.push_explorer
         self.trace = []
         self.tools = []
@@ -47,8 +48,8 @@ class McpContext:
         """Parse command line arguments."""
         parser = argparse.ArgumentParser(description="MCP Gateway")
         parser.add_argument(
-            "--dataset-name",
-            help="Name of the dataset where we want to push the MCP traces",
+            "--project-name",
+            help="Name of the Project from Invariant Explorer where we want to push the MCP traces. The guardrails are pulled from this project.",
             type=str,
             default=f"mcp-capture-{random.randint(1, 100)}",
         )
