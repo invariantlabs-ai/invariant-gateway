@@ -35,9 +35,9 @@ You need to:
           "--refresh",
           "--from",
           "/ABSOLUTE/PATH/TO/INVARIANT_GATEWAY_REPO/dist/invariant_gateway-0.0.1-py3-none-any.whl",
-          "invariant-gateway",
+          "run",
           "mcp",
-          "--dataset-name",
+          "--project-name",
           "weather-testing",
           "--push-explorer",
           "--exec",
@@ -59,5 +59,5 @@ This moves the original `command` and `args` to the `args` list after the `--exe
 
 All args before the `--exec` flag are relevant to the Invariant MCP gateway. These include:
 
-- `--dataset-name`: With this you can specify the name of the dataset. The guardrails are pulled from this dataset.
-- `--push-explorer`: With this you can specify if you want to push the annotated traces to the Invariant Explorer.
+- `--project-name`: With this you can specify the name of the Invariant Explorer project (dataset). The guardrails are pulled from this.
+- `--push-explorer`: With this you can specify if you want to push the annotated traces to the Invariant Explorer. The annotated traces are pushed to the project name provided above.
