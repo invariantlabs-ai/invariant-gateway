@@ -36,7 +36,6 @@ def main():
 
     verb = sys.argv[1]
     if verb == "mcp":
-        print("[MCP] Running Invariant Gateway against MCP servers...")
         return asyncio.run(mcp.execute(sys.argv[2:]))
     if verb == "llm":
         print("[gateway/__main__.py] 'llm' action is not implemented yet.")
