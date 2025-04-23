@@ -75,7 +75,7 @@ async def _preload(guardrails: str, invariant_authorization: str) -> None:
                                        invariant-authorization header.
     """
     async with httpx.AsyncClient() as client:
-        url = os.getenv("GUADRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
+        url = os.getenv("GUARDRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
         result = await client.post(
             f"{url}/api/v1/policy/load",
             json={"policy": guardrails},
@@ -358,7 +358,7 @@ async def check_guardrails(
         Dict: Response containing guardrail check results.
     """
     async with httpx.AsyncClient() as client:
-        url = os.getenv("GUADRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
+        url = os.getenv("GUARDRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
         try:
             result = await client.post(
                 f"{url}/api/v1/policy/check/batch",
