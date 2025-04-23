@@ -27,6 +27,7 @@ INVARIANT_GUARDRAILS_BLOCKED_MESSAGE = """
                     Do not attempt to circumvent this block, rather explain to the user based 
                     on the following output what went wrong: %s
                     """
+DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
 def write_as_utf8_bytes(data: dict) -> bytes:
@@ -102,7 +103,9 @@ async def append_and_push_trace(
     try:
         # If the trace_id is None, create a new trace with the messages.
         # Otherwise, append the message to the existing trace.
-        client = AsyncClient()
+        client = AsyncClient(
+            api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL),
+        )
         if ctx.trace_id is None:
             ctx.trace.append(message)
             response = await client.push_trace(
