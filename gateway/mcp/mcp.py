@@ -307,24 +307,14 @@ def stream_and_forward_stderr(
 def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None:
     """Handle standard input, intercept call and forward requests to mcp_process stdin."""
     try:
-        current_chunk = b""
-
-        while True:
-            buffer_input = sys.stdin.buffer.read(1)
-            current_chunk += buffer_input
-
-            if not buffer_input:
+        for line in iter(sys.stdin.buffer.readline, b""):
+            if not line:
                 break
 
             # Try to decode and parse as JSON to check for tool calls
             try:
-                text = current_chunk.decode(UTF_8_ENCODING)
+                text = line.decode(UTF_8_ENCODING)
                 parsed_json = json.loads(text)
-                # clear the current chunk after successful parse
-                current_chunk = b""
-                # Refresh guardrails
-                run_task_sync(ctx.load_guardrails)
-
                 if parsed_json.get(MCP_METHOD) is not None:
                     ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(
                         MCP_METHOD
@@ -332,6 +322,9 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
 
                 # Check if this is a tool call request
                 if parsed_json.get(MCP_METHOD) == MCP_TOOL_CALL:
+                    # Refresh guardrails
+                    run_task_sync(ctx.load_guardrails)
+
                     # Intercept and potentially block modify the request
                     hook_tool_call_result, is_blocked = hook_tool_call(ctx, parsed_json)
                     if not is_blocked:
