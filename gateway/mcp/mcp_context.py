@@ -36,6 +36,8 @@ class McpContext:
         self.guardrails = GuardrailRuleSet(
             blocking_guardrails=[], logging_guardrails=[]
         )
+        self.mcp_client_name = ""
+        self.mcp_server_name = ""
         # We send the same trace messages for guardrails analysis multiple times.
         # We need to deduplicate them before sending to the explorer.
         self.annotations = []

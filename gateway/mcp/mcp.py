@@ -22,6 +22,7 @@ MCP_METHOD = "method"
 UTF_8_ENCODING = "utf-8"
 MCP_TOOL_CALL = "tools/call"
 MCP_LIST_TOOLS = "tools/list"
+MCP_INITIALIZE = "initialize"
 INVARIANT_GUARDRAILS_BLOCKED_MESSAGE = """
                     [Invariant Guardrails] The MCP tool call was blocked for security reasons. 
                     Do not attempt to circumvent this block, rather explain to the user based 
@@ -108,11 +109,16 @@ async def append_and_push_trace(
         )
         if ctx.trace_id is None:
             ctx.trace.append(message)
+            metadata = {"source": "mcp", "tools": ctx.tools}
+            if ctx.mcp_client_name:
+                metadata["mcp_client"] = ctx.mcp_client_name
+            if ctx.mcp_server_name:
+                metadata["mcp_server"] = ctx.mcp_server_name
             response = await client.push_trace(
                 PushTracesRequest(
                     messages=[ctx.trace],
                     dataset=ctx.explorer_dataset,
-                    metadata=[{"source": "mcp", "tools": ctx.tools}],
+                    metadata=[metadata],
                     annotations=[deduplicated_annotations],
                 )
             )
@@ -231,6 +237,8 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
     """
     method = ctx.id_to_method_mapping.get(result.get("id"))
     call_id = f"call_{result.get('id')}"
+    if "serverInfo" in result.get("result"):
+        ctx.mcp_server_name = result.get("result").get("serverInfo").get("name", "")
 
     if method is None:
         return result
@@ -318,6 +326,12 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
                 if parsed_json.get(MCP_METHOD) is not None:
                     ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(
                         MCP_METHOD
+                    )
+                if "params" in parsed_json and "clientInfo" in parsed_json.get(
+                    "params"
+                ):
+                    ctx.mcp_client_name = (
+                        parsed_json.get("params").get("clientInfo").get("name", "")
                     )
 
                 # Check if this is a tool call request
