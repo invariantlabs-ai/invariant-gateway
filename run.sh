@@ -136,12 +136,20 @@ integration_tests() {
     sleep 2
   done
 
+  # Generate latest whl file for the invariant-gateway package. 
+  # This is required to run the integration tests.
+  pip install build
+  python -m build
+  WHEEL_FILE=$(ls dist/*.whl | head -n 1)
+  echo "WHEEL_FILE: $WHEEL_FILE"
+
   echo "Running integration tests..."
 
   docker build -t 'invariant-gateway-tests' -f ./tests/integration/Dockerfile.test ./tests
 
   docker run \
     --mount type=bind,source=./tests/integration,target=/tests \
+    --mount type=bind,source=$(realpath $WHEEL_FILE),target=/package/$(basename $WHEEL_FILE) \
     --network invariant-gateway-web-test \
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
     -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\

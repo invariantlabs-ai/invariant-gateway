@@ -1,0 +1,9 @@
+[project]
+name = "messenger-server"
+version = "0.1.0"
+description = "Test MCP server"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp[cli]==1.6.0",
+]
