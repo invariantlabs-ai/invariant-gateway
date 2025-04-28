@@ -1,8 +1,10 @@
 anthropic
 google-genai
+litellm
+mcp
 openai
 pillow
 pytest
 pytest-asyncio
 tavily-python
-litellm
+uv
