@@ -9,7 +9,7 @@ import requests
 from mcp.shared.exceptions import McpError
 from utils import create_dataset, add_guardrail_to_dataset
 
-from resources.mcp.client.main import run as mcp_client_run
+from resources.mcp.stdio.client.main import run as mcp_client_run
 
 
 @pytest.mark.asyncio
@@ -24,7 +24,7 @@ async def test_mcp_stdio_with_gateway(
     result = await mcp_client_run(
         invariant_gateway_package_whl_file,
         project_name,
-        server_script_path="resources/mcp/messenger_server/main.py",
+        server_script_path="resources/mcp/stdio/messenger_server/main.py",
         push_to_explorer=push_to_explorer,
         tool_name="get_last_message_from_user",
         tool_args={"username": "Alice"},
@@ -101,7 +101,7 @@ async def test_mcp_stdio_with_gateway_and_logging_guardrails(
     result = await mcp_client_run(
         invariant_gateway_package_whl_file,
         project_name,
-        server_script_path="resources/mcp/messenger_server/main.py",
+        server_script_path="resources/mcp/stdio/messenger_server/main.py",
         push_to_explorer=True,
         tool_name="get_last_message_from_user",
         tool_args={"username": "Alice"},
@@ -199,7 +199,7 @@ async def test_mcp_stdio_with_gateway_and_blocking_guardrails(
         _ = await mcp_client_run(
             invariant_gateway_package_whl_file,
             project_name,
-            server_script_path="resources/mcp/messenger_server/main.py",
+            server_script_path="resources/mcp/stdio/messenger_server/main.py",
             push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
