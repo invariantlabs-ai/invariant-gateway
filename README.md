@@ -317,6 +317,32 @@ This will launch Gateway at [http://localhost:8005/api/v1/gateway/](http://local
 
 ---
 
+## Supported Headers
+
+The Invariant Gateway supports several headers for authentication and configuration:
+
+### Authentication Headers
+
+- `Invariant-Authorization`: The primary header for Invariant authentication. Format: `Bearer your-invariant-api-key`
+- `Authorization`: Standard authorization header for LLM provider API keys. Passed on as provided.
+
+### Alternative Invariant Authentication Methods
+
+You can also pass both API keys as part of the main LLM `Authorization` header, e.g. if you cannot specify custom headers in your application.
+```
+{your-llm-api-key};invariant-auth={your-invariant-api-key}
+```
+
+Then, this combined key can be passed as `Authorization` header only.
+
+### Additional Headers
+
+- `Invariant-Guardrail-Service-Authorization`: Additional header value to specify a different API key to use for Guardrails evaluation specifically. `Invariant-Authorization` will then only be used to interact with the configured Explorer instance, not for guardrailing.
+- `Invariant-Guardrails`: Guardrailing rules to be checked for a specific request. This list of rules will replace all rules being evaluated, i.e. no additional rules will be pulled from [Explorer](https://explorer.invariantlabs.ai).
+- `Invariant-Push`: Configures push behavior of Gateway. Valid values are `push` (default, pushes to Explorer), `skip` (does not push anything)
+
+---
+
 ## **Development**
 
 ### **Pushing to Local Explorer**
