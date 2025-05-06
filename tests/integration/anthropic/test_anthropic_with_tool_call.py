@@ -243,7 +243,7 @@ async def test_streaming_response_with_tool_call(
     """Test the chat completion with streaming for the weather agent."""
     weather_agent = WeatherAgent(gateway_url, push_to_explorer)
 
-    query = "Tell me the weather for New York"
+    query = "Tell me the weather for New York in Celsius"
     city = "new york"
 
     messages = [{"role": "user", "content": query}]
@@ -307,7 +307,7 @@ async def test_response_with_tool_call_with_image(
 
     with image_path.open("rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
-        query = "get the weather in the city of this image"
+        query = "get the weather in the city of this image in Celsius"
         city = "new york"
         messages = [
             {
