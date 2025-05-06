@@ -1,11 +1,12 @@
 """Tests for the authorization header extractor."""
 
 import os
-import sys
-from fastapi import HTTPException
 import random
 import string
+import sys
+
 import pytest
+from fastapi import HTTPException
 
 # Add root folder (parent) to sys.path
 sys.path.append(
@@ -14,14 +15,14 @@ sys.path.append(
     )
 )
 
-from gateway.common.config_manager import GatewayConfig
-from gateway.common.request_context import RequestContext
 from gateway.common.authorization import (
+    API_KEYS_SEPARATOR,
+    INVARIANT_AUTHORIZATION_HEADER,
     INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER,
     extract_authorization_from_headers,
-    INVARIANT_AUTHORIZATION_HEADER,
-    API_KEYS_SEPARATOR,
 )
+from gateway.common.config_manager import GatewayConfig
+from gateway.common.request_context import RequestContext
 
 
 @pytest.mark.parametrize("push_to_explorer", [True, False])
