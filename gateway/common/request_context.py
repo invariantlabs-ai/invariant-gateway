@@ -25,6 +25,9 @@ class RequestContext:
     # the set of guardrails to enforce for this request
     guardrails: Optional[GuardrailRuleSet] = None
     config: Dict[str, Any] = None
+    
+    # extra headers to send to invariant services (Explorer, Guardrails, etc.)
+    guardrails_parameters: Optional[Dict[str, Any]] = None
 
     _created_via_factory: bool = field(
         default=False, init=True, repr=False, compare=False
@@ -45,6 +48,7 @@ class RequestContext:
         guardrails: Optional[GuardrailRuleSet] = None,
         config: Optional[GatewayConfig] = None,
         request: fastapi.Request = None,
+        guardrails_parameters: Optional[Dict[str, Any]] = None,
     ) -> "RequestContext":
         """Creates a new RequestContext instance, applying default guardrails if needed."""
 
@@ -96,6 +100,7 @@ class RequestContext:
             guardrails=guardrails,
             config=context_config,
             _created_via_factory=True,
+            guardrails_parameters=guardrails_parameters
         )
 
     def get_guardrailing_authorization(self) -> Optional[str]:

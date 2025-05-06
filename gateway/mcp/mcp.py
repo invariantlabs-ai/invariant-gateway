@@ -19,6 +19,9 @@ from gateway.mcp.log import mcp_log, MCP_LOG_FILE
 from gateway.mcp.mcp_context import McpContext
 from gateway.mcp.task_utils import run_task_in_background, run_task_sync
 
+import getpass
+import socket
+
 MCP_METHOD = "method"
 UTF_8_ENCODING = "utf-8"
 MCP_TOOL_CALL = "tools/call"
@@ -31,6 +34,11 @@ INVARIANT_GUARDRAILS_BLOCKED_MESSAGE = """
                     """
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
+def user_and_host() -> str:
+    username = getpass.getuser()
+    hostname = socket.gethostname()
+
+    return f"{username}@{hostname}"
 
 def write_as_utf8_bytes(data: dict) -> bytes:
     """Serializes dict to bytes using UTF-8 encoding."""
@@ -108,13 +116,19 @@ async def append_and_push_trace(
         client = AsyncClient(
             api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL),
         )
+
         if ctx.trace_id is None:
             ctx.trace.append(message)
             metadata = {"source": "mcp", "tools": ctx.tools}
+            # include system user name in metadata
+            metadata["system_user"] = user_and_host()
+                
             if ctx.mcp_client_name:
                 metadata["mcp_client"] = ctx.mcp_client_name
             if ctx.mcp_server_name:
                 metadata["mcp_server"] = ctx.mcp_server_name
+            if ctx.extra_metadata:
+                metadata.update(ctx.extra_metadata)
             response = await client.push_trace(
                 PushTracesRequest(
                     messages=[ctx.trace],
@@ -163,6 +177,13 @@ def get_guardrails_check_result(
         dataset_name=ctx.explorer_dataset,
         invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
         guardrails=ctx.guardrails,
+        guardrails_parameters={
+            "session_id": ctx.local_session_id,
+            "system_user": user_and_host(),
+            "mcp_client": ctx.mcp_client_name,
+            "mcp_server": ctx.mcp_server_name,
+            **(ctx.extra_metadata or {})
+        }
     )
 
     guardrails_to_check = (

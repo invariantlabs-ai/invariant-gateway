@@ -365,10 +365,11 @@ async def check_guardrails(
                 json={
                     "messages": messages,
                     "policies": [g.content for g in guardrails],
+                    "parameters": context.guardrails_parameters,
                 },
                 headers={
                     "Authorization": context.get_guardrailing_authorization(),
-                    "Accept": "application/json",
+                    "Accept": "application/json"
                 },
             )
             if not result.is_success:

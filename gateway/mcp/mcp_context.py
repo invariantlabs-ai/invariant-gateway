@@ -3,6 +3,8 @@
 import argparse
 import os
 import random
+import uuid
+from typing import Dict
 
 from gateway.integrations.explorer import (
     fetch_guardrails_from_explorer,
@@ -27,7 +29,7 @@ class McpContext:
         if self._initialized:
             return
 
-        config = self._parse_cli_args(cli_args)
+        config, extra_args = self._parse_cli_args(cli_args)
         # The project name is used to identify the dataset in Invariant Explorer.
         self.explorer_dataset = config.project_name
         self.push_explorer = config.push_explorer
@@ -36,12 +38,25 @@ class McpContext:
         self.guardrails = GuardrailRuleSet(
             blocking_guardrails=[], logging_guardrails=[]
         )
+
+        # parsed from CLI
+        self.extra_metadata: Dict[str, str] = {}
+        for arg in extra_args:
+            assert "=" in arg, f"Invalid extra metadata argument: {arg}"
+            key, value = arg.split("=")
+            assert key.startswith("--metadata-"), f"Invalid extra metadata argument: {arg}, must start with --metadata-"
+            key = key[len("--metadata-") :]
+            self.extra_metadata[key] = value
+
+        # captured from MCP calls/responses
         self.mcp_client_name = ""
         self.mcp_server_name = ""
+        
         # We send the same trace messages for guardrails analysis multiple times.
         # We need to deduplicate them before sending to the explorer.
         self.annotations = []
         self.trace_id = None
+        self.local_session_id = str(uuid.uuid4())
         self.last_trace_length = 0
         self.id_to_method_mapping = {}
         self._initialized = True
@@ -61,7 +76,7 @@ class McpContext:
             action="store_true",
         )
 
-        return parser.parse_args(cli_args)
+        return parser.parse_known_args(cli_args)
 
     async def load_guardrails(self):
         """Run async setup logic (e.g. fetching guardrails)."""
