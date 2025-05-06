@@ -178,11 +178,13 @@ def get_guardrails_check_result(
         invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
         guardrails=ctx.guardrails,
         guardrails_parameters={
-            "session_id": ctx.local_session_id,
-            "system_user": user_and_host(),
-            "mcp_client": ctx.mcp_client_name,
-            "mcp_server": ctx.mcp_server_name,
-            **(ctx.extra_metadata or {})
+            "metadata": {
+                "session_id": ctx.local_session_id,
+                "system_user": user_and_host(),
+                "mcp_client": ctx.mcp_client_name,
+                "mcp_server": ctx.mcp_server_name,
+                **(ctx.extra_metadata or {})
+            }
         }
     )
 

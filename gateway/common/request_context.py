@@ -26,7 +26,7 @@ class RequestContext:
     guardrails: Optional[GuardrailRuleSet] = None
     config: Dict[str, Any] = None
     
-    # extra headers to send to invariant services (Explorer, Guardrails, etc.)
+    # extra parameters available as input.<key> during guardrail evaluation
     guardrails_parameters: Optional[Dict[str, Any]] = None
 
     _created_via_factory: bool = field(

@@ -39,7 +39,7 @@ class McpContext:
             blocking_guardrails=[], logging_guardrails=[]
         )
 
-        # parsed from CLI
+        # parsed from CLI (all --metadata-* args)
         self.extra_metadata: Dict[str, str] = {}
         for arg in extra_args:
             assert "=" in arg, f"Invalid extra metadata argument: {arg}"
