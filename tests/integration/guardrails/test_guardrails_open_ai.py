@@ -2,17 +2,16 @@
 
 import os
 import sys
-import uuid
 import time
+import uuid
 
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import get_open_ai_client, create_dataset, add_guardrail_to_dataset
-
 import pytest
 import requests
-from openai import BadRequestError, APIError
+from openai import APIError, BadRequestError
+from utils import add_guardrail_to_dataset, create_dataset, get_open_ai_client
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -532,10 +531,12 @@ async def test_preguardrailing_with_guardrails_from_explorer(
             assert "pun detected in user message" in str(exc_info.value)
     else:
         if do_stream:
-            _ = client.chat.completions.create(
+            response = client.chat.completions.create(
                 **request,
                 stream=True,
             )
+            for _ in response:
+                pass
         else:
             _ = client.chat.completions.create(
                 **request,

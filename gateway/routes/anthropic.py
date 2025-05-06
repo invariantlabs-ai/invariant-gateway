@@ -14,10 +14,7 @@ from gateway.common.config_manager import (
     GatewayConfigManager,
     extract_guardrails_from_header,
 )
-from gateway.common.constants import (
-    CLIENT_TIMEOUT,
-    IGNORED_HEADERS,
-)
+from gateway.common.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
 from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
 from gateway.common.request_context import RequestContext
 from gateway.converters.anthropic_to_invariant import (
