@@ -28,6 +28,7 @@ async def test_mcp_stdio_with_gateway(
         push_to_explorer=push_to_explorer,
         tool_name="get_last_message_from_user",
         tool_args={"username": "Alice"},
+        metadata_keys={"my-custom-key": "value1", "my-custom-key-2": "value2"},
     )
 
     assert result.isError is False
@@ -58,6 +59,10 @@ async def test_mcp_stdio_with_gateway(
             and metadata["mcp_client"] == "mcp"
             and metadata["mcp_server"] == "messenger_server"
         )
+        # ensure custom keys are present
+        assert metadata["my-custom-key"] == "value1"
+        assert metadata["my-custom-key-2"] == "value2"
+        
         assert trace["messages"][0]["role"] == "assistant"
         assert trace["messages"][0]["tool_calls"][0]["function"] == {
             "name": "get_last_message_from_user",
