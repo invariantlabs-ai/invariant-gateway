@@ -179,7 +179,7 @@ async def test_response_with_tool_call(explorer_api_url, gateway_url, push_to_ex
 
     weather_agent = WeatherAgent(gateway_url, push_to_explorer)
 
-    query = "Tell me the weather for New York"
+    query = "Tell me the weather for New York in Celsius"
 
     city = "new york"
     # Process each query
