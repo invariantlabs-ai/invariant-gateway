@@ -270,7 +270,7 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
             "role": "tool",
             "content": result.get("result").get("content"),
             "error": result.get("result").get("error"),
-            "tool_call_id": call_id,
+            "tool_call_id": "call_" + str(result.get("id"))
         }
         # Check for blocking guardrails - this blocks until completion
         guardrailing_result = get_guardrails_check_result(
@@ -296,6 +296,18 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
         return result
     elif method == MCP_LIST_TOOLS:
         ctx.tools = result.get("result").get("tools")
+        message = {
+            "role": "tool",
+            "content": json.dumps(result.get("result").get("tools")),
+            "tool_call_id": "call_" + str(result.get("id"))
+        }
+        # next validate it with guardrails
+        guardrailing_result = get_guardrails_check_result(
+            ctx, message, action=GuardrailAction.BLOCK
+        )
+        # add it to the session trace 
+        ctx.trace.append(message)
+        mcp_log(message)
         return result
     else:
         return result
@@ -361,7 +373,7 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
                     ctx.mcp_client_name = (
                         parsed_json.get("params").get("clientInfo").get("name", "")
                     )
-
+                
                 # Check if this is a tool call request
                 if parsed_json.get(MCP_METHOD) == MCP_TOOL_CALL:
                     # Refresh guardrails
@@ -387,6 +399,27 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
                         sys.stdout.buffer.flush()
                     continue
                 else:
+                    # pass through the request to the MCP process
+
+                    # for list_tools, extend the trace by a tool call
+                    if parsed_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
+                        # mcp_message_{}
+                        ctx.trace.append({
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": f"call_{parsed_json.get('id')}",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "tools/list",
+                                        "arguments": {}
+                                    },
+                                }
+                            ]
+                        })
+                        mcp_log(ctx.trace[-1])
+                    
                     mcp_process.stdin.write(write_as_utf8_bytes(parsed_json))
                     mcp_process.stdin.flush()
                     continue
