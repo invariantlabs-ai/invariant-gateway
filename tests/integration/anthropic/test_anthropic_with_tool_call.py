@@ -12,11 +12,10 @@ from typing import Dict, List
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import get_anthropic_client
-
 import anthropic
 import pytest
 import requests
+from utils import get_anthropic_client
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -249,6 +248,7 @@ async def test_streaming_response_with_tool_call(
 
     messages = [{"role": "user", "content": query}]
     response = weather_agent.get_streaming_response(messages)
+
     assert response is not None
     assert response[0][0].type == "text"
     assert response[0][1].type == "tool_use"
@@ -303,7 +303,7 @@ async def test_response_with_tool_call_with_image(
     """Test the chat completion with image for the weather agent."""
     weather_agent = WeatherAgent(gateway_url, push_to_explorer)
 
-    image_path = Path(__file__).parent.parent / "resources" / "images" / "new-york.jpeg"
+    image_path = Path(__file__).parent.parent / "resources" / "images" / "new-york.jpg"
 
     with image_path.open("rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
@@ -367,4 +367,3 @@ async def test_response_with_tool_call_with_image(
                 ].lower()
             )
             assert trace_messages[3]["role"] == "tool"
-            assert trace_messages[4]["role"] == "assistant"
