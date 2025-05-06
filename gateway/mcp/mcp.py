@@ -4,6 +4,7 @@ import sys
 import subprocess
 import json
 import os
+import select
 import threading
 
 from invariant_sdk.async_client import AsyncClient
@@ -311,11 +312,16 @@ def stream_and_forward_stderr(
         MCP_LOG_FILE.buffer.write(line)
         MCP_LOG_FILE.buffer.flush()
 
-
 def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None:
     """Handle standard input, intercept call and forward requests to mcp_process stdin."""
+
     try:
-        for line in iter(sys.stdin.buffer.readline, b""):
+        while True:
+            ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+            if not ready:
+                continue
+
+            line = sys.stdin.buffer.readline()
             if not line:
                 break
 
@@ -370,7 +376,6 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
         pass
     except KeyboardInterrupt:
         mcp_process.terminate()
-
 
 def split_args(args: list[str] = None) -> tuple[list[str], list[str]]:
     """
