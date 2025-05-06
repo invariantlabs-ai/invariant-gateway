@@ -8,10 +8,9 @@ import uuid
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import get_anthropic_client
-
 import pytest
 import requests
+from utils import get_anthropic_client
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -90,9 +89,9 @@ async def test_streaming_response_without_tool_call(
 
     cities = ["zurich", "new york", "london"]
     queries = [
-        "Can you introduce Zurich, Switzerland within 200 words?",
-        "Tell me the history of New York within 100 words?",
-        "How's the weather in London next week?",
+        "Can you introduce Zurich, Switzerland in 2 short sentences?",
+        "Tell me the history of New York within 2 short sentences.",
+        "Explain the geography of London in 2 short sentences.",
     ]
     # Process each query
     responses = []
@@ -102,7 +101,7 @@ async def test_streaming_response_without_tool_call(
 
         with client.messages.stream(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=1024,
+            max_tokens=200,
             messages=messages,
         ) as response:
             for reply in response.text_stream:
