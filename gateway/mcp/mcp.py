@@ -40,6 +40,15 @@ def user_and_host() -> str:
 
     return f"{username}@{hostname}"
 
+def session_metadata(ctx: McpContext) -> dict:
+    return {
+        "session_id": ctx.local_session_id,
+        "system_user": user_and_host(),
+        "mcp_client": ctx.mcp_client_name,
+        "mcp_server": ctx.mcp_server_name,
+        "tools": ctx.tools,
+        **(ctx.extra_metadata or {})
+    }
 def write_as_utf8_bytes(data: dict) -> bytes:
     """Serializes dict to bytes using UTF-8 encoding."""
     return json.dumps(data).encode(UTF_8_ENCODING) + b"\n"
@@ -119,16 +128,12 @@ async def append_and_push_trace(
 
         if ctx.trace_id is None:
             ctx.trace.append(message)
-            metadata = {"source": "mcp", "tools": ctx.tools}
-            # include system user name in metadata
-            metadata["system_user"] = user_and_host()
-                
-            if ctx.mcp_client_name:
-                metadata["mcp_client"] = ctx.mcp_client_name
-            if ctx.mcp_server_name:
-                metadata["mcp_server"] = ctx.mcp_server_name
-            if ctx.extra_metadata:
-                metadata.update(ctx.extra_metadata)
+            
+            # default metadata
+            metadata = {"source": "mcp"}
+            # include MCP session metadata
+            metadata.update(session_metadata(ctx))
+
             response = await client.push_trace(
                 PushTracesRequest(
                     messages=[ctx.trace],
@@ -178,13 +183,7 @@ def get_guardrails_check_result(
         invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
         guardrails=ctx.guardrails,
         guardrails_parameters={
-            "metadata": {
-                "session_id": ctx.local_session_id,
-                "system_user": user_and_host(),
-                "mcp_client": ctx.mcp_client_name,
-                "mcp_server": ctx.mcp_server_name,
-                **(ctx.extra_metadata or {})
-            }
+            "metadata": session_metadata(ctx)
         }
     )
 
