@@ -1,10 +1,12 @@
-import pytest
-import uuid
-from litellm import completion
-import litellm
-import time
-import requests
+"""Test the chat completions gateway calls with tool calling through litellm."""
+
 import os
+import time
+import uuid
+
+import pytest
+import requests
+from litellm import completion
 
 MODEL_API_KEYS = {
     "openai/gpt-4o": "OPENAI_API_KEY",
@@ -12,13 +14,21 @@ MODEL_API_KEYS = {
     "anthropic/claude-3-5-haiku-20241022": "ANTHROPIC_API_KEY",
 }
 
-@pytest.mark.parametrize("litellm_model", MODEL_API_KEYS.keys(),)
+
+@pytest.mark.parametrize(
+    "litellm_model",
+    MODEL_API_KEYS.keys(),
+)
 @pytest.mark.parametrize(
     "do_stream, push_to_explorer",
     [(False, False)],
 )
 async def test_chat_completion(
-    explorer_api_url: str, litellm_model: str, gateway_url: str, do_stream: bool, push_to_explorer: bool
+    explorer_api_url: str,
+    litellm_model: str,
+    gateway_url: str,
+    do_stream: bool,
+    push_to_explorer: bool,
 ):
     """Test the chat completions gateway calls with tool calling through litellm."""
     # Check if the API key is set in the environment variables
@@ -28,21 +38,23 @@ async def test_chat_completion(
     if not api_key:
         pytest.skip(f"Skipping {litellm_model} because {api_key_env_var} is not set")
 
-
     dataset_name = f"test-dataset-litellm-{litellm_model}-{uuid.uuid4()}"
-    base_url = (f"{gateway_url}/api/v1/gateway/{dataset_name}"
-    if push_to_explorer
-    else f"{gateway_url}/api/v1/gateway")
+    base_url = (
+        f"{gateway_url}/api/v1/gateway/{dataset_name}"
+        if push_to_explorer
+        else f"{gateway_url}/api/v1/gateway"
+    )
 
-    base_url += "/" + litellm_model.split("/")[0] #add provider name
+    base_url += "/" + litellm_model.split("/")[0]  # add provider name
     if litellm_model.split("/")[0] == "gemini":
-        base_url += f"/v1beta/models/{litellm_model.split('/')[1]}" #gemini expects the model name in the url
+        base_url += f"/v1beta/models/{litellm_model.split('/')[1]}"  # gemini expects the model name in the url
 
-    print(f"base_url: {base_url}")
     chat_response = completion(
         model=litellm_model,
         messages=[{"role": "user", "content": "What is the capital of France?"}],
-        extra_headers= {"Invariant-Authorization": "Bearer <some-key>"},
+        extra_headers={
+            "Invariant-Authorization": f"Bearer {os.environ['INVARIANT_API_KEY']}"
+        },
         stream=do_stream,
         base_url=base_url,
     )

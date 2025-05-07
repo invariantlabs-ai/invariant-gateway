@@ -70,6 +70,10 @@ down() {
 unit_tests() {
   echo "Running unit tests..."
   PYTHONPATH=. pytest tests/unit_tests $@
+
+  TEST_EXIT_CODE=$?
+  echo "Unit tests finished with exit code: $TEST_EXIT_CODE"
+  return $TEST_EXIT_CODE
 }
 
 integration_tests() {
@@ -160,9 +164,13 @@ integration_tests() {
     -e INVARIANT_API_KEY="$INVARIANT_API_KEY" \
     --env-file ./tests/integration/.env.test \
     invariant-gateway-tests $@
+  TEST_EXIT_CODE=$?
+  echo "Integration tests finished with exit code: $TEST_EXIT_CODE"
 
   unset GATEWAY_ROOT_PATH
   unset GUARDRAILS_FILE_PATH
+
+  return $TEST_EXIT_CODE
 }
 
 # -----------------------------
@@ -185,10 +193,12 @@ case "$1" in
   "unit-tests")
     shift
     unit_tests $@
+    exit $?
     ;;
   "integration-tests")
     shift
     integration_tests $@
+    exit $?
     ;;
   *)
     echo "Usage: $0 [up|build|down|logs|unit-tests|integration-tests]"

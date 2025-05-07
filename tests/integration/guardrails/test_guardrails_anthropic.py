@@ -2,17 +2,16 @@
 
 import os
 import sys
-import uuid
 import time
+import uuid
 
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import get_anthropic_client, create_dataset, add_guardrail_to_dataset
-
 import pytest
 import requests
 from anthropic import APIStatusError, BadRequestError
+from utils import add_guardrail_to_dataset, create_dataset, get_anthropic_client
 
 # Pytest plugins
 pytest_plugins = ("pytest_asyncio",)
@@ -164,7 +163,7 @@ async def test_tool_call_guardrail_from_file(
 
     if not do_stream:
         with pytest.raises(BadRequestError) as exc_info:
-            chat_response = client.messages.create(**request, stream=False)
+            _ = client.messages.create(**request, stream=False)
 
         assert exc_info.value.status_code == 400
         assert "[Invariant] The response did not pass the guardrails" in str(
@@ -174,10 +173,10 @@ async def test_tool_call_guardrail_from_file(
 
     else:
         with pytest.raises(APIStatusError) as exc_info:
-            chat_response = client.messages.create(**request, stream=True)
-
-            for _ in chat_response:
+            response = client.messages.create(**request, stream=True)
+            for _ in response:
                 pass
+
         assert (
             "[Invariant] The response did not pass the guardrails"
             in exc_info.value.message
@@ -535,10 +534,12 @@ async def test_preguardrailing_with_guardrails_from_explorer(
 
     else:
         if do_stream:
-            _ = client.messages.create(
+            response = client.messages.create(
                 **request,
                 stream=True,
             )
+            for _ in response:
+                pass
         else:
             _ = client.messages.create(
                 **request,
