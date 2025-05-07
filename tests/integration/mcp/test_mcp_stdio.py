@@ -62,14 +62,14 @@ async def test_mcp_stdio_with_gateway(
         # ensure custom keys are present
         assert metadata["my-custom-key"] == "value1"
         assert metadata["my-custom-key-2"] == "value2"
-        
-        assert trace["messages"][0]["role"] == "assistant"
-        assert trace["messages"][0]["tool_calls"][0]["function"] == {
+
+        assert trace["messages"][2]["role"] == "assistant"
+        assert trace["messages"][2]["tool_calls"][0]["function"] == {
             "name": "get_last_message_from_user",
             "arguments": {"username": "Alice"},
         }
-        assert trace["messages"][1]["role"] == "tool"
-        assert trace["messages"][1]["content"] == [
+        assert trace["messages"][3]["role"] == "tool"
+        assert trace["messages"][3]["content"] == [
             {"type": "text", "text": "What is your favorite food?\n"}
         ]
 
@@ -139,13 +139,13 @@ async def test_mcp_stdio_with_gateway_and_logging_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
-    assert trace["messages"][0]["role"] == "assistant"
-    assert trace["messages"][0]["tool_calls"][0]["function"] == {
+    assert trace["messages"][2]["role"] == "assistant"
+    assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
         "arguments": {"username": "Alice"},
     }
-    assert trace["messages"][1]["role"] == "tool"
-    assert trace["messages"][1]["content"] == [
+    assert trace["messages"][3]["role"] == "tool"
+    assert trace["messages"][3]["content"] == [
         {"type": "text", "text": "What is your favorite food?\n"}
     ]
 
@@ -240,8 +240,8 @@ async def test_mcp_stdio_with_gateway_and_blocking_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
-    assert trace["messages"][0]["role"] == "assistant"
-    assert trace["messages"][0]["tool_calls"][0]["function"] == {
+    assert trace["messages"][2]["role"] == "assistant"
+    assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
         "arguments": {"username": "Alice"},
     }
