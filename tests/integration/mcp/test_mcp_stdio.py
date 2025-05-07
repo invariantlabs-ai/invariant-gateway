@@ -162,12 +162,12 @@ async def test_mcp_stdio_with_gateway_and_logging_guardrails(
     for annotation in annotations:
         if (
             annotation["content"] == "food in ToolOutput"
-            and annotation["address"] == "messages.1.content.0.text:22-26"
+            and annotation["address"] == "messages.3.content.0.text:22-26"
         ):
             food_annotation = annotation
         elif (
             annotation["content"] == "get_last_message_from_user is called"
-            and annotation["address"] == "messages.0.tool_calls.0"
+            and annotation["address"] == "messages.2.tool_calls.0"
         ):
             tool_call_annotation = annotation
     assert food_annotation is not None, "Missing 'food in ToolOutput' annotation"
@@ -255,6 +255,6 @@ async def test_mcp_stdio_with_gateway_and_blocking_guardrails(
     assert len(annotations) == 1
     assert (
         annotations[0]["content"] == "get_last_message_from_user is called"
-        and annotations[0]["address"] == "messages.0.tool_calls.0"
+        and annotations[0]["address"] == "messages.2.tool_calls.0"
     )
     assert annotations[0]["extra_metadata"]["source"] == "guardrails-error"
