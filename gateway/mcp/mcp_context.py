@@ -37,6 +37,8 @@ class McpContext:
         self.push_explorer = config.push_explorer
         # the format to use to communicate guardrail failures to the client
         self.failure_response_format = config.failure_response_format
+        # verbose logging of in/out
+        self.verbose = config.verbose
 
         # trace of this MCP session
         self.trace = []
@@ -84,6 +86,11 @@ class McpContext:
         parser.add_argument(
             "--push-explorer",
             help="Enable pushing traces to Invariant Explorer",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--verbose",
+            help="Enable verbose logging",
             action="store_true",
         )
         parser.add_argument(

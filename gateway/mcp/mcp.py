@@ -396,7 +396,9 @@ def stream_and_forward_stdout(mcp_process: subprocess.Popen, ctx: McpContext) ->
             line_str = line.decode(UTF_8_ENCODING).strip()
             if not line_str:
                 continue
-            mcp_log(f"[INFO] Received line: {line_str}")
+
+            if ctx.verbose:
+                mcp_log(f"[INFO] server -> client: {line_str}")
 
             parsed_json = json.loads(line_str)
             processed_json = hook_tool_result(ctx, parsed_json)
@@ -436,79 +438,75 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
             if not line:
                 break
 
-            mcp_log(f"[INFO] Received line: {line}")
+            if ctx.verbose:
+                mcp_log(f"[INFO] client -> server: {line}")
 
             # Try to decode and parse as JSON to check for tool calls
             try:
                 text = line.decode(UTF_8_ENCODING)
                 parsed_json = json.loads(text)
-                if parsed_json.get(MCP_METHOD) is not None:
-                    ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(
-                        MCP_METHOD
-                    )
-                if "params" in parsed_json and "clientInfo" in parsed_json.get(
-                    "params"
-                ):
-                    ctx.mcp_client_name = (
-                        parsed_json.get("params").get("clientInfo").get("name", "")
-                    )
+            except json.JSONDecodeError as je:
+                mcp_log(f"[ERROR] JSON decode error in run_stdio_input_loop: {str(je)}")
+                mcp_log(f"[ERROR] Problematic line: {line[:200]}...")
+                continue
 
-                # Check if this is a tool call request
-                if parsed_json.get(MCP_METHOD) == MCP_TOOL_CALL:
+            if parsed_json.get(MCP_METHOD) is not None:
+                ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(
+                    MCP_METHOD
+                )
+            if "params" in parsed_json and "clientInfo" in parsed_json.get("params"):
+                ctx.mcp_client_name = (
+                    parsed_json.get("params").get("clientInfo").get("name", "")
+                )
+
+            # Check if this is a tool call request
+            if parsed_json.get(MCP_METHOD) == MCP_TOOL_CALL:
+                # Refresh guardrails
+                run_task_sync(ctx.load_guardrails)
+
+                # Intercept and potentially block modify the request
+                hook_tool_call_result, is_blocked = hook_tool_call(ctx, parsed_json)
+                if not is_blocked:
+                    # If blocked, hook_tool_call_result contains the original request.
+                    # Forward the request to the MCP process.
+                    # It will handle the request and return a response.
+                    mcp_process.stdin.write(write_as_utf8_bytes(hook_tool_call_result))
+                    mcp_process.stdin.flush()
+                else:
+                    # If blocked, hook_tool_call_result contains the block message.
+                    # Forward the block message result back to the caller.
+                    # The original request is not passed to the MCP process.
+                    sys.stdout.buffer.write(write_as_utf8_bytes(hook_tool_call_result))
+                    sys.stdout.buffer.flush()
+                continue
+            else:
+                # pass through the request to the MCP process
+
+                # for list_tools, extend the trace by a tool call
+                if parsed_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
                     # Refresh guardrails
                     run_task_sync(ctx.load_guardrails)
 
-                    # Intercept and potentially block modify the request
-                    hook_tool_call_result, is_blocked = hook_tool_call(ctx, parsed_json)
-                    if not is_blocked:
-                        # If blocked, hook_tool_call_result contains the original request.
-                        # Forward the request to the MCP process.
-                        # It will handle the request and return a response.
-                        mcp_process.stdin.write(
-                            write_as_utf8_bytes(hook_tool_call_result)
-                        )
-                        mcp_process.stdin.flush()
-                    else:
-                        # If blocked, hook_tool_call_result contains the block message.
-                        # Forward the block message result back to the caller.
-                        # The original request is not passed to the MCP process.
-                        sys.stdout.buffer.write(
-                            write_as_utf8_bytes(hook_tool_call_result)
-                        )
-                        sys.stdout.buffer.flush()
-                    continue
-                else:
-                    # pass through the request to the MCP process
-
-                    # for list_tools, extend the trace by a tool call
-                    if parsed_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
-                        # Refresh guardrails
-                        run_task_sync(ctx.load_guardrails)
-
-                        # mcp_message_{}
-                        ctx.trace.append(
-                            {
-                                "role": "assistant",
-                                "content": "",
-                                "tool_calls": [
-                                    {
-                                        "id": f"call_{parsed_json.get('id')}",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "tools/list",
-                                            "arguments": {},
-                                        },
-                                    }
-                                ],
-                            }
-                        )
-
-                    mcp_process.stdin.write(write_as_utf8_bytes(parsed_json))
-                    mcp_process.stdin.flush()
-                    continue
-            except Exception:
-                # Not a complete or valid JSON, just pass through
-                pass
+                    # mcp_message_{}
+                    ctx.trace.append(
+                        {
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": f"call_{parsed_json.get('id')}",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "tools/list",
+                                        "arguments": {},
+                                    },
+                                }
+                            ],
+                        }
+                    )
+                mcp_process.stdin.write(write_as_utf8_bytes(parsed_json))
+                mcp_process.stdin.flush()
+                continue
 
     except BrokenPipeError:
         pass
