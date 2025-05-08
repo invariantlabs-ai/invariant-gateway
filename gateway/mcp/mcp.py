@@ -396,6 +396,7 @@ def stream_and_forward_stdout(mcp_process: subprocess.Popen, ctx: McpContext) ->
             line_str = line.decode(UTF_8_ENCODING).strip()
             if not line_str:
                 continue
+            mcp_log(f"[INFO] Received line: {line_str}")
 
             parsed_json = json.loads(line_str)
             processed_json = hook_tool_result(ctx, parsed_json)
@@ -434,6 +435,8 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
             line = sys.stdin.buffer.readline()
             if not line:
                 break
+
+            mcp_log(f"[INFO] Received line: {line}")
 
             # Try to decode and parse as JSON to check for tool calls
             try:
