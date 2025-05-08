@@ -554,6 +554,8 @@ async def execute(args: list[str] = None):
         mcp_log("[ERROR] INVARIANT_API_KEY environment variable is not set.")
         sys.exit(1)
 
+    mcp_log("[INFO] Running with Python version: %s", sys.version)
+
     mcp_gateway_args, mcp_server_command_args = split_args(args)
     ctx = McpContext(mcp_gateway_args)
 
