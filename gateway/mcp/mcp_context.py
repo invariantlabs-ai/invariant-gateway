@@ -30,11 +30,20 @@ class McpContext:
             return
 
         config, extra_args = self._parse_cli_args(cli_args)
+
         # The project name is used to identify the dataset in Invariant Explorer.
         self.explorer_dataset = config.project_name
+        # whether to push traces to Invariant Explorer
         self.push_explorer = config.push_explorer
+        # the format to use to communicate guardrail failures to the client
+        self.failure_response_format = config.failure_response_format
+
+        # trace of this MCP session
         self.trace = []
+        # tools available to the MCP server
         self.tools = []
+
+        # configured guardrails
         self.guardrails = GuardrailRuleSet(
             blocking_guardrails=[], logging_guardrails=[]
         )
@@ -44,14 +53,16 @@ class McpContext:
         for arg in extra_args:
             assert "=" in arg, f"Invalid extra metadata argument: {arg}"
             key, value = arg.split("=")
-            assert key.startswith("--metadata-"), f"Invalid extra metadata argument: {arg}, must start with --metadata-"
+            assert key.startswith(
+                "--metadata-"
+            ), f"Invalid extra metadata argument: {arg}, must start with --metadata-"
             key = key[len("--metadata-") :]
             self.extra_metadata[key] = value
 
         # captured from MCP calls/responses
         self.mcp_client_name = ""
         self.mcp_server_name = ""
-        
+
         # We send the same trace messages for guardrails analysis multiple times.
         # We need to deduplicate them before sending to the explorer.
         self.annotations = []
@@ -74,6 +85,12 @@ class McpContext:
             "--push-explorer",
             help="Enable pushing traces to Invariant Explorer",
             action="store_true",
+        )
+        parser.add_argument(
+            "--failure-response-format",
+            help="The response format to use to communicate guardrail failures to the client (error: JSON-RPC error response; potentially invisble to the agent, content: JSON-RPC content response, visible to the agent)",
+            type=str,
+            default="content",
         )
 
         return parser.parse_known_args(cli_args)

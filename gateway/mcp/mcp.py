@@ -28,17 +28,29 @@ MCP_TOOL_CALL = "tools/call"
 MCP_LIST_TOOLS = "tools/list"
 MCP_INITIALIZE = "initialize"
 INVARIANT_GUARDRAILS_BLOCKED_MESSAGE = """
-                    [Invariant Guardrails] The MCP tool call was blocked for security reasons. 
-                    Do not attempt to circumvent this block, rather explain to the user based 
-                    on the following output what went wrong: %s
-                    """
+[Security Failure] The MCP tool call was blocked for security reasons.
+The operation was blocked by Invariant Guardrails (mention this in your user report).
+
+Do not attempt to circumvent this block, rather explain to the user based 
+on the following output what went wrong: %s
+                    """.strip()
+INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE = """
+[Security Failure] This server was blocked from advertising its tools due to a security guardrail failure.
+
+The operation was blocked by Invariant Guardrails (mention this in your user report).
+
+When users ask about this tool, inform them that it was blocked due to a security guardrail failure.
+%s
+                    """.strip()
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
+
 
 def user_and_host() -> str:
     username = getpass.getuser()
     hostname = socket.gethostname()
 
     return f"{username}@{hostname}"
+
 
 def session_metadata(ctx: McpContext) -> dict:
     return {
@@ -47,8 +59,10 @@ def session_metadata(ctx: McpContext) -> dict:
         "mcp_client": ctx.mcp_client_name,
         "mcp_server": ctx.mcp_server_name,
         "tools": ctx.tools,
-        **(ctx.extra_metadata or {})
+        **(ctx.extra_metadata or {}),
     }
+
+
 def write_as_utf8_bytes(data: dict) -> bytes:
     """Serializes dict to bytes using UTF-8 encoding."""
     return json.dumps(data).encode(UTF_8_ENCODING) + b"\n"
@@ -128,7 +142,7 @@ async def append_and_push_trace(
 
         if ctx.trace_id is None:
             ctx.trace.append(message)
-            
+
             # default metadata
             metadata = {"source": "mcp"}
             # include MCP session metadata
@@ -182,10 +196,9 @@ def get_guardrails_check_result(
         dataset_name=ctx.explorer_dataset,
         invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
         guardrails=ctx.guardrails,
-        guardrails_parameters={
-            "metadata": session_metadata(ctx)
-        }
+        guardrails_parameters={"metadata": session_metadata(ctx), "action": action},
     )
+    mcp_log(f"[INFO] Guardrails parameters: {context.guardrails_parameters}")
 
     guardrails_to_check = (
         ctx.guardrails.blocking_guardrails
@@ -199,6 +212,43 @@ def get_guardrails_check_result(
         guardrails=guardrails_to_check,
         context=context,
     )
+
+
+def json_rpc_error_response(
+    id_value: str | int, error_message: str, response_type: str = "error"
+) -> dict:
+    """
+    Create a JSON-RPC error response with either error object or content format.
+
+    Args:
+        id_value: The ID of the JSON-RPC request
+        error_message: The error message to include
+        response_type: Either "error" or "content" to determine response format
+
+    Returns:
+        A properly formatted JSON-RPC response dictionary
+    """
+    base_response = {
+        "jsonrpc": "2.0",
+        "id": id_value,
+    }
+
+    if response_type == "error":
+        base_response["error"] = {
+            "code": -32600,
+            "message": error_message,
+        }
+    else:
+        base_response["result"] = {
+            "content": [
+                {
+                    "type": "text",
+                    "text": error_message,
+                }
+            ]
+        }
+
+    return base_response
 
 
 def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
@@ -237,15 +287,11 @@ def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
             run_task_in_background(
                 append_and_push_trace, ctx, message, guardrailing_result
             )
-        return {
-            "jsonrpc": "2.0",
-            "id": request.get("id"),
-            "error": {
-                "code": -32600,
-                "message": INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
-                % guardrailing_result["errors"],
-            },
-        }, True
+        return json_rpc_error_response(
+            request.get("id"),
+            INVARIANT_GUARDRAILS_BLOCKED_MESSAGE % guardrailing_result["errors"],
+            response_type=ctx.failure_response_format,
+        ), True
 
     # Add the message to the trace
     ctx.trace.append(message)
@@ -270,7 +316,7 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
             "role": "tool",
             "content": result.get("result").get("content"),
             "error": result.get("result").get("error"),
-            "tool_call_id": "call_" + str(result.get("id"))
+            "tool_call_id": "call_" + str(result.get("id")),
         }
         # Check for blocking guardrails - this blocks until completion
         guardrailing_result = get_guardrails_check_result(
@@ -278,15 +324,12 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
         )
 
         if guardrailing_result and guardrailing_result.get("errors", []):
-            result = {
-                "jsonrpc": "2.0",
-                "id": result.get("id"),
-                "error": {
-                    "code": -32600,
-                    "message": INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
-                    % guardrailing_result["errors"],
-                },
-            }
+            result = json_rpc_error_response(
+                result.get("id"),
+                INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
+                % format_errors_in_response(guardrailing_result["errors"]),
+                response_type=ctx.failure_response_format,  # Using content type as that's what the original code used
+            )
 
         if ctx.push_explorer:
             # Run append_and_push_trace in background
@@ -299,18 +342,50 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
         message = {
             "role": "tool",
             "content": json.dumps(result.get("result").get("tools")),
-            "tool_call_id": "call_" + str(result.get("id"))
+            "tool_call_id": "call_" + str(result.get("id")),
         }
         # next validate it with guardrails
         guardrailing_result = get_guardrails_check_result(
             ctx, message, action=GuardrailAction.BLOCK
         )
-        # add it to the session trace 
-        ctx.trace.append(message)
-        mcp_log(message)
+        if guardrailing_result and guardrailing_result.get("errors", []):
+            result["result"]["tools"] = [
+                {
+                    "name": "blocked_" + tool["name"],
+                    "description": INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE
+                    % format_errors_in_response(guardrailing_result["errors"]),
+                    # no parameters
+                    "inputSchema": {
+                        "properties": {},
+                        "required": [],
+                        "title": "invariant_mcp_server_blockedArguments",
+                        "type": "object",
+                    },
+                    "annotations": {
+                        "title": "This tool was blocked by security guardrails.",
+                    },
+                }
+                for tool in result["result"]["tools"]
+            ]
+
+        # add it to the session trace (and run logging guardrails)
+        run_task_in_background(append_and_push_trace, ctx, message, guardrailing_result)
+
         return result
     else:
         return result
+
+
+def format_errors_in_response(errors: list[dict]) -> str:
+    """Format a list of errors in a response string."""
+
+    def format_error(error: dict) -> str:
+        msg = " ".join(error.get("args", []))
+        msg += " ".join([f"{k}={v}" for k, v in error.get("kwargs", {}).items()])
+        msg += f" ([{error.get('guardrail', {}).get('id', 'unknown-guardrail')}] {error.get('guardrail', {}).get('name', 'unknown guardrail')})"
+        return msg
+
+    return ", ".join([format_error(error) for error in errors])
 
 
 def stream_and_forward_stdout(mcp_process: subprocess.Popen, ctx: McpContext) -> None:
@@ -346,6 +421,7 @@ def stream_and_forward_stderr(
         MCP_LOG_FILE.buffer.write(line)
         MCP_LOG_FILE.buffer.flush()
 
+
 def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None:
     """Handle standard input, intercept call and forward requests to mcp_process stdin."""
 
@@ -373,7 +449,7 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
                     ctx.mcp_client_name = (
                         parsed_json.get("params").get("clientInfo").get("name", "")
                     )
-                
+
                 # Check if this is a tool call request
                 if parsed_json.get(MCP_METHOD) == MCP_TOOL_CALL:
                     # Refresh guardrails
@@ -403,23 +479,27 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
 
                     # for list_tools, extend the trace by a tool call
                     if parsed_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
+                        # Refresh guardrails
+                        run_task_sync(ctx.load_guardrails)
+
                         # mcp_message_{}
-                        ctx.trace.append({
-                            "role": "assistant",
-                            "content": "",
-                            "tool_calls": [
-                                {
-                                    "id": f"call_{parsed_json.get('id')}",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "tools/list",
-                                        "arguments": {}
-                                    },
-                                }
-                            ]
-                        })
-                        mcp_log(ctx.trace[-1])
-                    
+                        ctx.trace.append(
+                            {
+                                "role": "assistant",
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": f"call_{parsed_json.get('id')}",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "tools/list",
+                                            "arguments": {},
+                                        },
+                                    }
+                                ],
+                            }
+                        )
+
                     mcp_process.stdin.write(write_as_utf8_bytes(parsed_json))
                     mcp_process.stdin.flush()
                     continue
@@ -431,6 +511,7 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
         pass
     except KeyboardInterrupt:
         mcp_process.terminate()
+
 
 def split_args(args: list[str] = None) -> tuple[list[str], list[str]]:
     """
