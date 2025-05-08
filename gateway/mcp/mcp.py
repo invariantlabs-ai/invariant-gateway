@@ -11,6 +11,12 @@ from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
 from invariant_sdk.types.push_traces import PushTracesRequest
 
+from gateway.common.constants import (
+    INVARIANT_GUARDRAILS_BLOCKED_MESSAGE,
+    MCP_METHOD,
+    MCP_TOOL_CALL,
+    MCP_LIST_TOOLS,
+)
 from gateway.common.guardrails import GuardrailAction
 from gateway.common.request_context import RequestContext
 from gateway.integrations.explorer import create_annotations_from_guardrails_errors
@@ -19,16 +25,8 @@ from gateway.mcp.log import mcp_log, MCP_LOG_FILE
 from gateway.mcp.mcp_context import McpContext
 from gateway.mcp.task_utils import run_task_in_background, run_task_sync
 
-MCP_METHOD = "method"
 UTF_8_ENCODING = "utf-8"
-MCP_TOOL_CALL = "tools/call"
-MCP_LIST_TOOLS = "tools/list"
 MCP_INITIALIZE = "initialize"
-INVARIANT_GUARDRAILS_BLOCKED_MESSAGE = """
-                    [Invariant Guardrails] The MCP tool call was blocked for security reasons. 
-                    Do not attempt to circumvent this block, rather explain to the user based 
-                    on the following output what went wrong: %s
-                    """
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
@@ -312,6 +310,7 @@ def stream_and_forward_stderr(
         MCP_LOG_FILE.buffer.write(line)
         MCP_LOG_FILE.buffer.flush()
 
+
 def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None:
     """Handle standard input, intercept call and forward requests to mcp_process stdin."""
 
@@ -376,6 +375,7 @@ def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None
         pass
     except KeyboardInterrupt:
         mcp_process.terminate()
+
 
 def split_args(args: list[str] = None) -> tuple[list[str], list[str]]:
     """

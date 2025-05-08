@@ -12,20 +12,22 @@ from fastapi.responses import StreamingResponse
 
 from gateway.common.constants import (
     CLIENT_TIMEOUT,
+    INVARIANT_GUARDRAILS_BLOCKED_MESSAGE,
+    MCP_METHOD,
+    MCP_TOOL_CALL,
+    MCP_LIST_TOOLS,
+    MCP_PARAMS,
+    MCP_RESULT,
+    MCP_SERVER_INFO,
+    MCP_CLIENT_INFO,
 )
+from gateway.common.guardrails import GuardrailAction
 from gateway.common.mcp_sessions_manager import (
     McpSessionsManager,
     SseHeaderAttributes,
 )
+from gateway.integrations.explorer import create_annotations_from_guardrails_errors
 
-
-MCP_METHOD = "method"
-MCP_TOOL_CALL = "tools/call"
-MCP_LIST_TOOLS = "tools/list"
-MCP_PARAMS = "params"
-MCP_RESULT = "result"
-MCP_SERVER_INFO = "serverInfo"
-MCP_CLIENT_INFO = "clientInfo"
 MCP_SERVER_POST_HEADERS = {
     "connection",
     "accept",
@@ -85,7 +87,22 @@ async def mcp_post_gateway(
         )
 
     if request_json.get(MCP_METHOD) == MCP_TOOL_CALL:
-        _hook_tool_call(session_id=session_id, request_json=request_json)
+        # Intercept and potentially block the request
+        hook_tool_call_result, is_blocked = await _hook_tool_call(
+            session_id=session_id, request_json=request_json
+        )
+        if is_blocked:
+            # If blocked, hook_tool_call_result contains the block message.
+            # Forward the block message result back to the caller.
+            # The original request is not passed to the MCP process.
+            return Response(
+                content=json.dumps(hook_tool_call_result),
+                status_code=403,
+                headers={
+                    "X-Proxied-By": "mcp-gateway",
+                    "Content-Type": "application/json",
+                },
+            )
 
     async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
         try:
@@ -168,7 +185,7 @@ async def mcp_get_sse_gateway(
                                 (
                                     event_bytes,
                                     session_id,
-                                ) = _handle_endpoint_event(
+                                ) = await _handle_endpoint_event(
                                     sse,
                                     sse_header_attributes=SseHeaderAttributes.from_request_headers(
                                         request.headers
@@ -176,7 +193,7 @@ async def mcp_get_sse_gateway(
                                 )
                             case "message":
                                 if session_id:
-                                    event_bytes = _handle_message_event(
+                                    event_bytes = await _handle_message_event(
                                         session_id=session_id, sse=sse
                                     )
                         yield event_bytes
@@ -196,7 +213,7 @@ async def mcp_get_sse_gateway(
     )
 
 
-def _hook_tool_call(session_id: str, request_json: dict) -> None:
+async def _hook_tool_call(session_id: str, request_json: dict) -> Tuple[dict, bool]:
     """
     Hook to process the request JSON before sending it to the MCP server.
 
@@ -213,17 +230,53 @@ def _hook_tool_call(session_id: str, request_json: dict) -> None:
         },
     }
     message = {"role": "assistant", "content": "", "tool_calls": [tool_call]}
+    # Check for blocking guardrails - this blocks until completion
+    session = session_store.get_session(session_id)
+    guardrails_result = await session.get_guardrails_check_result(
+        message, action=GuardrailAction.BLOCK
+    )
+    # If the request is blocked, return a message indicating the block reason.
+    # If there are new errors, run append_and_push_trace in background.
+    # If there are no new errors, just return the original request.
+    if (
+        guardrails_result
+        and guardrails_result.get("errors", [])
+        and _check_if_new_errors(session_id, guardrails_result)
+    ):
+        # Add the trace to the explorer
+        asyncio.create_task(
+            session_store.add_message_to_session(
+                session_id=session_id,
+                message=message,
+                guardrails_result=guardrails_result,
+            )
+        )
+        return {
+            "jsonrpc": "2.0",
+            "id": request_json.get("id"),
+            "error": {
+                "code": -32600,
+                "message": INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
+                % guardrails_result["errors"],
+            },
+        }, True
     # Push trace to the explorer - don't block on its response
-    asyncio.create_task(session_store.add_message_to_session(session_id, message))
+    asyncio.create_task(
+        session_store.add_message_to_session(session_id, message, guardrails_result)
+    )
+    return request_json, False
 
 
-def _hook_tool_call_response(session_id: str, response_json: dict) -> None:
+async def _hook_tool_call_response(session_id: str, response_json: dict) -> dict:
     """
 
     Hook to process the response JSON after receiving it from the MCP server.
     Args:
         session_id (str): The session ID associated with the request.
         response_json (dict): The response JSON to be processed.
+    Returns:
+        dict: The response JSON is returned if no guardrail is violated
+              else an error dict is returned.
     """
     message = {
         "role": "tool",
@@ -231,8 +284,28 @@ def _hook_tool_call_response(session_id: str, response_json: dict) -> None:
         "content": response_json.get(MCP_RESULT).get("content"),
         "error": response_json.get(MCP_RESULT).get("error"),
     }
+    result = response_json
+    session = session_store.get_session(session_id)
+    guardrailing_result = await session.get_guardrails_check_result(
+        message, action=GuardrailAction.BLOCK
+    )
+
+    if guardrailing_result and guardrailing_result.get("errors", []):
+        # If the request is blocked, return a message indicating the block reason.
+        result = {
+            "jsonrpc": "2.0",
+            "id": response_json.get("id"),
+            "error": {
+                "code": -32600,
+                "message": INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
+                % guardrailing_result["errors"],
+            },
+        }
     # Push trace to the explorer - don't block on its response
-    asyncio.create_task(session_store.add_message_to_session(session_id, message))
+    asyncio.create_task(
+        session_store.add_message_to_session(session_id, message, guardrailing_result)
+    )
+    return result
 
 
 def _convert_localhost_to_docker_host(mcp_server_base_url: str) -> str:
@@ -257,7 +330,7 @@ def _convert_localhost_to_docker_host(mcp_server_base_url: str) -> str:
     return mcp_server_base_url
 
 
-def _handle_endpoint_event(
+async def _handle_endpoint_event(
     sse: ServerSentEvent, sse_header_attributes: SseHeaderAttributes
 ) -> Tuple[bytes, str]:
     """
@@ -278,7 +351,7 @@ def _handle_endpoint_event(
         session_id = match.group(1)
         # Initialize this session in our store if needed
         if not session_store.session_exists(session_id):
-            session_store.initialize_session(session_id, sse_header_attributes)
+            await session_store.initialize_session(session_id, sse_header_attributes)
 
     # Rewrite the endpoint to use our gateway
     modified_data = sse.data.replace(
@@ -289,7 +362,7 @@ def _handle_endpoint_event(
     return event_bytes, session_id
 
 
-def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
+async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
     """
     Handle the message event type.
 
@@ -311,9 +384,15 @@ def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
 
         method = session.id_to_method_mapping.get(response_json.get("id"))
         if method == MCP_TOOL_CALL:
-            _hook_tool_call_response(
+            hook_tool_call_response = await _hook_tool_call_response(
                 session_id=session_id,
                 response_json=response_json,
+            )
+            # Update the event bytes with hook_tool_call_response.
+            # hook_tool_call_response is same as response_json if no guardrail is violated.
+            # If guardrail is violated, it contains the error message.
+            event_bytes = f"event: {sse.event}\ndata: {json.dumps(hook_tool_call_response)}\n\n".encode(
+                "utf-8"
             )
         elif method == MCP_LIST_TOOLS:
             session_store.get_session(session_id).metadata["tools"] = response_json.get(
@@ -330,3 +409,15 @@ def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
             flush=True,
         )
     return event_bytes
+
+
+def _check_if_new_errors(session_id: str, guardrails_result: dict) -> bool:
+    """Checks if there are new errors in the guardrails result."""
+    session = session_store.get_session(session_id)
+    annotations = create_annotations_from_guardrails_errors(
+        guardrails_result.get("errors", [])
+    )
+    for annotation in annotations:
+        if annotation not in session.annotations:
+            return True
+    return False

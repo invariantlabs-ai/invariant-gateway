@@ -13,6 +13,14 @@ from invariant_sdk.types.push_traces import PushTracesRequest
 from pydantic import BaseModel, Field, PrivateAttr
 from starlette.datastructures import Headers
 
+from gateway.common.guardrails import GuardrailRuleSet, GuardrailAction
+from gateway.common.request_context import RequestContext
+from gateway.integrations.explorer import (
+    create_annotations_from_guardrails_errors,
+    fetch_guardrails_from_explorer,
+)
+from gateway.integrations.guardrails import check_guardrails
+
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
@@ -29,9 +37,49 @@ class McpSession(BaseModel):
     push_explorer: bool
     trace_id: Optional[str] = None
     last_trace_length: int = 0
+    annotations: List[Dict[str, Any]] = Field(default_factory=list)
+    guardrails: GuardrailRuleSet = Field(
+        default_factory=lambda: GuardrailRuleSet(
+            blocking_guardrails=[], logging_guardrails=[]
+        )
+    )
 
     # Lock to maintain in-order pushes to explorer
     _lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
+
+    async def load_guardrails(self) -> None:
+        """
+        Load guardrails for the session.
+
+        This method fetches guardrails from the Invariant Explorer and assigns them to the session.
+        """
+        self.guardrails = await fetch_guardrails_from_explorer(
+            self.explorer_dataset,
+            "Bearer " + os.getenv("INVARIANT_API_KEY"),
+        )
+
+    def _deduplicate_annotations(self, new_annotations: list) -> list:
+        """Deduplicate new_annotations using the annotations in the session."""
+        deduped_annotations = []
+        for annotation in new_annotations:
+            # Check if an annotation with the same content and address exists in self.annotations
+            # TODO: Rely on the __eq__ method of the AnnotationCreate class directly via not in
+            # to remove duplicates instead of using a custom logic.
+            # This is a temporary solution until the Invariant SDK is updated.
+            is_duplicate = False
+            for current_annotation in self.annotations:
+                if (
+                    annotation.content == current_annotation.content
+                    and annotation.address == current_annotation.address
+                    and annotation.extra_metadata == current_annotation.extra_metadata
+                ):
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate:
+                deduped_annotations.append(annotation)
+
+        return deduped_annotations
 
     @contextlib.asynccontextmanager
     async def session_lock(self):
@@ -45,7 +93,45 @@ class McpSession(BaseModel):
         async with self._lock:
             yield
 
-    async def add_message(self, message: Dict[str, Any]) -> None:
+    async def get_guardrails_check_result(
+        self,
+        message: dict,
+        action: GuardrailAction = GuardrailAction.BLOCK,
+    ) -> dict:
+        """
+        Check against guardrails of type action.
+        """
+        # Skip if no guardrails are configured for this action
+        if not (
+            (self.guardrails.blocking_guardrails and action == GuardrailAction.BLOCK)
+            or (self.guardrails.logging_guardrails and action == GuardrailAction.LOG)
+        ):
+            return {}
+
+        # Prepare context and select appropriate guardrails
+        context = RequestContext.create(
+            request_json={},
+            dataset_name=self.explorer_dataset,
+            invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+            guardrails=self.guardrails,
+        )
+
+        guardrails_to_check = (
+            self.guardrails.blocking_guardrails
+            if action == GuardrailAction.BLOCK
+            else self.guardrails.logging_guardrails
+        )
+
+        result = await check_guardrails(
+            messages=self.messages + [message],
+            guardrails=guardrails_to_check,
+            context=context,
+        )
+        return result
+
+    async def add_message(
+        self, message: Dict[str, Any], guardrails_result=Dict
+    ) -> None:
         """
         Add a message to the session and optionally push to explorer.
 
@@ -53,13 +139,35 @@ class McpSession(BaseModel):
             message: The message to add
         """
         async with self.session_lock():
+            annotations = []
+            if guardrails_result and guardrails_result.get("errors", []):
+                annotations = create_annotations_from_guardrails_errors(
+                    guardrails_result.get("errors")
+                )
+
+            if self.guardrails.logging_guardrails:
+                logging_guardrails_check_result = (
+                    await self.get_guardrails_check_result(
+                        message, action=GuardrailAction.LOG
+                    )
+                )
+                if (
+                    logging_guardrails_check_result
+                    and logging_guardrails_check_result.get("errors", [])
+                ):
+                    annotations.extend(
+                        create_annotations_from_guardrails_errors(
+                            logging_guardrails_check_result["errors"]
+                        )
+                    )
+            deduplicated_annotations = self._deduplicate_annotations(annotations)
             # pylint: disable=no-member
             self.messages.append(message)
             # If push_explorer is enabled, push the trace
             if self.push_explorer:
-                await self._push_trace_update()
+                await self._push_trace_update(deduplicated_annotations)
 
-    async def _push_trace_update(self) -> None:
+    async def _push_trace_update(self, deduplicated_annotations: list) -> None:
         """
         Push trace updates to the explorer.
 
@@ -86,6 +194,7 @@ class McpSession(BaseModel):
                         messages=[self.messages],
                         dataset=self.explorer_dataset,
                         metadata=[metadata],
+                        annotations=[deduplicated_annotations],
                     )
                 )
                 self.trace_id = response.id[0]
@@ -96,8 +205,11 @@ class McpSession(BaseModel):
                         AppendMessagesRequest(
                             trace_id=self.trace_id,
                             messages=new_messages,
+                            annotations=deduplicated_annotations,
                         )
                     )
+            # pylint: disable=no-member
+            self.annotations.extend(deduplicated_annotations)
             self.last_trace_length = len(self.messages)
         except Exception as e:  # pylint: disable=broad-except
             print(f"[MCP SSE] Error pushing trace for session {self.session_id}: {e}")
@@ -151,16 +263,19 @@ class McpSessionsManager:
         """Check if a session exists"""
         return session_id in self._sessions
 
-    def initialize_session(
+    async def initialize_session(
         self, session_id: str, sse_header_attributes: SseHeaderAttributes
     ) -> None:
         """Initialize a new session"""
         if session_id not in self._sessions:
-            self._sessions[session_id] = McpSession(
+            session = McpSession(
                 session_id=session_id,
                 explorer_dataset=sse_header_attributes.explorer_dataset,
                 push_explorer=sse_header_attributes.push_explorer,
             )
+            self._sessions[session_id] = session
+            # Load guardrails for the session from the explorer
+            await session.load_guardrails()
 
     def get_session(self, session_id: str) -> McpSession:
         """Get a session by ID"""
@@ -169,7 +284,7 @@ class McpSessionsManager:
         return self._sessions.get(session_id)
 
     async def add_message_to_session(
-        self, session_id: str, message: Dict[str, Any]
+        self, session_id: str, message: Dict[str, Any], guardrails_result: dict
     ) -> None:
         """
         Add a message to a session and push to explorer if enabled.
@@ -177,6 +292,7 @@ class McpSessionsManager:
         Args:
             session_id: The session ID
             message: The message to add
+            guardrails_result: The result of the guardrails check
         """
         session = self.get_session(session_id)
-        await session.add_message(message)
+        await session.add_message(message, guardrails_result)
