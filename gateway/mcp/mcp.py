@@ -26,7 +26,6 @@ from gateway.mcp.mcp_context import McpContext
 from gateway.mcp.task_utils import run_task_in_background, run_task_sync
 
 UTF_8_ENCODING = "utf-8"
-MCP_INITIALIZE = "initialize"
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 

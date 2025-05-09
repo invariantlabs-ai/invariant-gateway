@@ -43,6 +43,9 @@ class McpSession(BaseModel):
             blocking_guardrails=[], logging_guardrails=[]
         )
     )
+    # When tool calls are blocked, the error message is stored here
+    # and sent to the client via the SSE stream.
+    pending_error_messages: List[dict] = Field(default_factory=list)
 
     # Lock to maintain in-order pushes to explorer
     _lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
@@ -214,6 +217,29 @@ class McpSession(BaseModel):
         except Exception as e:  # pylint: disable=broad-except
             print(f"[MCP SSE] Error pushing trace for session {self.session_id}: {e}")
 
+    async def add_pending_error_message(self, error_message: dict) -> None:
+        """
+        Add a pending error message to the session.
+
+        Args:
+            error_message: The error message to add
+        """
+        async with self.session_lock():
+            # pylint: disable=no-member
+            self.pending_error_messages.append(error_message)
+
+    async def get_pending_error_messages(self) -> List[dict]:
+        """
+        Get all pending error messages for the session.
+
+        Returns:
+            List[dict]: A list of pending error messages
+        """
+        async with self.session_lock():
+            messages = list(self.pending_error_messages)
+            self.pending_error_messages = []
+            return messages
+
 
 class SseHeaderAttributes(BaseModel):
     """
@@ -235,8 +261,8 @@ class SseHeaderAttributes(BaseModel):
             SseHeaderAttributes: An instance with values extracted from headers
         """
         # Extract and process header values
-        project_name = headers.get("PROJECT-NAME")
-        push_explorer_header = headers.get("PUSH-EXPLORER", "false").lower()
+        project_name = headers.get("INVARIANT-PROJECT-NAME")
+        push_explorer_header = headers.get("PUSH-INVARIANT-EXPLORER", "false").lower()
 
         # Determine explorer_dataset
         if project_name:
