@@ -145,7 +145,10 @@ async def push_trace(
 
 
 async def fetch_guardrails_from_explorer(
-    dataset_name: str, invariant_authorization: str
+    dataset_name: str,
+    invariant_authorization: str,
+    client_name: str | None = None,
+    server_name: str | None = None,
 ) -> GuardrailRuleSet:
     """Get the guardrails for the dataset.
 
@@ -179,7 +182,8 @@ async def fetch_guardrails_from_explorer(
 
     # Get the dataset policies.
     policies_response = await client.get(
-        f"/api/v1/dataset/byuser/{username}/{dataset_name}/policy"
+        f"/api/v1/dataset/byuser/{username}/{dataset_name}/policy",
+        params={"client_name": client_name, "server_name": server_name},
     )
     if policies_response.status_code != 200:
         if policies_response.status_code == 404:
