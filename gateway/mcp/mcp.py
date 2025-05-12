@@ -11,6 +11,13 @@ from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
 from invariant_sdk.types.push_traces import PushTracesRequest
 
+from gateway.common.constants import (
+    INVARIANT_GUARDRAILS_BLOCKED_MESSAGE,
+    INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE,
+    MCP_METHOD,
+    MCP_TOOL_CALL,
+    MCP_LIST_TOOLS,
+)
 from gateway.common.guardrails import GuardrailAction
 from gateway.common.request_context import RequestContext
 from gateway.integrations.explorer import create_annotations_from_guardrails_errors
@@ -18,30 +25,10 @@ from gateway.integrations.guardrails import check_guardrails
 from gateway.mcp.log import mcp_log, MCP_LOG_FILE
 from gateway.mcp.mcp_context import McpContext
 from gateway.mcp.task_utils import run_task_in_background, run_task_sync
-
 import getpass
 import socket
 
-MCP_METHOD = "method"
 UTF_8_ENCODING = "utf-8"
-MCP_TOOL_CALL = "tools/call"
-MCP_LIST_TOOLS = "tools/list"
-MCP_INITIALIZE = "initialize"
-INVARIANT_GUARDRAILS_BLOCKED_MESSAGE = """
-[Security Failure] The MCP tool call was blocked for security reasons.
-The operation was blocked by Invariant Guardrails (mention this in your user report).
-
-Do not attempt to circumvent this block, rather explain to the user based 
-on the following output what went wrong: %s
-                    """.strip()
-INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE = """
-[Security Failure] This server was blocked from advertising its tools due to a security guardrail failure.
-
-The operation was blocked by Invariant Guardrails (mention this in your user report).
-
-When users ask about this tool, inform them that it was blocked due to a security guardrail failure.
-%s
-                    """.strip()
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 

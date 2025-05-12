@@ -24,6 +24,7 @@ This allows you to _observe and debug_ your agents in [Invariant Explorer](https
 - [x] **Single Line Setup**: Just change the base URL of your LLM provider to the Invariant Gateway.
 - [x] **Intercepts agents on an LLM-level** for better debugging and analysis.
 - [x] **Tool Calling and Computer Use Support** to capture all forms of agentic interactions.
+- [x] **MCP Protocol Support** for both standard I/O and Server-Sent Events (SSE) transports.
 - [x] **Seamless forwarding and LLM streaming** to OpenAI, Anthropic, and other LLM providers.
 - [x] **Store and organize runtime traces** in the [Invariant Explorer](https://explorer.invariantlabs.ai/).
 
@@ -276,6 +277,30 @@ export ANTHROPIC_API_KEY={your-anthropic-api-key};invariant-auth={your-invariant
 > **Note:** Do not include the curly braces `{}`.
 
 This setup ensures that SWE-agent works seamlessly with Invariant Gateway, maintaining compatibility while enabling full functionality. 🚀
+
+### **Using MCP with Invariant Gateway**
+Invariant Gateway supports MCP (both stdio and SSE transports) tool calling.
+
+For stdio transport based MCP, follow steps [here](https://github.com/invariantlabs-ai/invariant-gateway/tree/main/gateway/mcp).
+
+For SSE transport based MCP, here are the steps to point your MCP client to a local instance of the Invariant Gateway which will then proxy all calls to the MCP server:
+
+* Run the Gateway locally by following the steps [here](https://github.com/invariantlabs-ai/invariant-gateway/tree/main?tab=readme-ov-file#run-the-gateway-locally).
+* Use the following configuration to connect to the local Gateway instance:
+```python
+await client.connect_to_sse_server(
+            server_url="http://localhost:8005/api/v1/gateway/mcp/sse",
+            headers={
+                "MCP-SERVER-BASE-URL": "<The base URL to your MCP server>",
+                "INVARIANT-PROJECT-NAME": "<The Invariant dataset name>",
+                "PUSH-INVARIANT-EXPLORER": "true",
+            },
+        )
+```
+
+If no `INVARIANT-PROJECT-NAME` header is specified but `PUSH-INVARIANT-EXPLORER` is set to "true", a new Invariant project will be created and the MCP traces will be pushed there.
+
+You can also specify blocking or logging guardrails for the project name by visiting the Explorer.
 
 ---
 

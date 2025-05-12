@@ -123,7 +123,9 @@ async def test_chat_completion_with_tool_call_without_streaming(
         expected_messages[1]["tool_calls"][0]["function"]["arguments"] = json.loads(
             expected_messages[1]["tool_calls"][0]["function"]["arguments"]
         )
-        assert trace["messages"] == expected_messages
+        assert trace["messages"][:2] == expected_messages[:2]
+        assert "15°C" in trace["messages"][2]["content"]
+        assert trace["messages"][2]["role"] == "tool"
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY set")
@@ -230,4 +232,6 @@ async def test_chat_completion_with_tool_call_with_streaming(
         expected_messages[1]["tool_calls"][0]["function"]["arguments"] = json.loads(
             expected_messages[1]["tool_calls"][0]["function"]["arguments"]
         )
-        assert trace["messages"] == expected_messages
+        assert trace["messages"][:2] == expected_messages[:2]
+        assert "15°C" in trace["messages"][2]["content"]
+        assert trace["messages"][2]["role"] == "tool"

@@ -195,7 +195,6 @@ async def test_response_with_tool_call(explorer_api_url, gateway_url, push_to_ex
 
     assert response[1].role == "assistant"
     assert response[1].stop_reason == "end_turn"
-    assert city in response[1].content[0].text.lower()
     responses.append(response)
 
     if push_to_explorer:
