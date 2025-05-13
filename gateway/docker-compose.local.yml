@@ -2,8 +2,8 @@ services:
   invariant-gateway:
     container_name: invariant-gateway
     build:
-      context: .
-      dockerfile: Dockerfile.gateway
+      context: ..
+      dockerfile: gateway/Dockerfile.gateway
     working_dir: /srv/gateway
     env_file:
       - .env
@@ -13,7 +13,7 @@ services:
       - ${INVARIANT_API_KEY:+INVARIANT_API_KEY=${INVARIANT_API_KEY}}
     volumes:
       - type: bind
-        source: ./gateway
+        source: ../gateway
         target: /srv/gateway
       - type: bind
         source: ${GUARDRAILS_FILE_PATH:-/dev/null}

@@ -2,11 +2,11 @@ FROM python:3.12
 
 WORKDIR /srv/gateway
 
-COPY pyproject.toml ./
+COPY ../pyproject.toml ./pyproject.toml
 
-COPY gateway/ ./
+COPY . .
 
-COPY README.md /srv/gateway/README.md
+COPY ../README.md ./README.md
 
 RUN pip install --no-cache-dir .
 
