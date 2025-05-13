@@ -164,7 +164,7 @@ async def fetch_guardrails_from_explorer(
     )
 
     # Get the user details.
-    user_info_response = await client.get("/api/v1/user/identity")
+    user_info_response = await client.get("/api/v1/user/identity", timeout=5)
     if user_info_response.status_code == 401:
         raise HTTPException(
             status_code=401,
@@ -179,7 +179,7 @@ async def fetch_guardrails_from_explorer(
 
     # Get the dataset policies.
     policies_response = await client.get(
-        f"/api/v1/dataset/byuser/{username}/{dataset_name}/policy"
+        f"/api/v1/dataset/byuser/{username}/{dataset_name}/policy", timeout=5
     )
     if policies_response.status_code != 200:
         if policies_response.status_code == 404:

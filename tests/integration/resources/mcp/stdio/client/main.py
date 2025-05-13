@@ -2,7 +2,7 @@
 
 import os
 import time
-
+from datetime import timedelta
 from contextlib import AsyncExitStack
 from typing import Any, Optional
 
@@ -68,7 +68,9 @@ class MCPClient:
         )
         self.stdio, self.write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(
-            ClientSession(self.stdio, self.write)
+            ClientSession(
+                self.stdio, self.write, read_timeout_seconds=timedelta(minutes=0.5)
+            )
         )
 
         await self.session.initialize()
@@ -130,5 +132,6 @@ async def run(
     finally:
         # Sleep for a while to allow the server to process the background tasks
         # like pushing traces to the explorer
-        time.sleep(2)
+        if push_to_explorer:
+            time.sleep(2)
         await client.cleanup()
