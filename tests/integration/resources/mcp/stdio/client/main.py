@@ -1,7 +1,7 @@
 """A MCP client implementation that interacts with MCP server to make tool calls."""
 
+import asyncio
 import os
-import time
 from datetime import timedelta
 from contextlib import AsyncExitStack
 from typing import Any, Optional
@@ -11,7 +11,7 @@ from mcp.client.stdio import stdio_client
 
 
 class MCPClient:
-    """MCP Client for interacting with a MCP server and processing queries"""
+    """MCP Client for interacting with a MCP stdio server and processing queries"""
 
     def __init__(self):
         self.session: Optional[ClientSession] = None
@@ -69,7 +69,7 @@ class MCPClient:
         self.stdio, self.write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(
             ClientSession(
-                self.stdio, self.write, read_timeout_seconds=timedelta(minutes=0.5)
+                self.stdio, self.write, read_timeout_seconds=timedelta(seconds=10)
             )
         )
 
@@ -133,5 +133,5 @@ async def run(
         # Sleep for a while to allow the server to process the background tasks
         # like pushing traces to the explorer
         if push_to_explorer:
-            time.sleep(2)
+            await asyncio.sleep(2)
         await client.cleanup()

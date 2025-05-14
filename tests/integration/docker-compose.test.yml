@@ -106,6 +106,22 @@ services:
       timeout: 5s
       retries: 5
 
+  mcp-messenger-sse-server:
+    # MCP SSE server used in integration tests
+    build:
+      context: ${GATEWAY_ROOT_PATH}
+      dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/sse/messenger_server/Dockerfile.mcp-server
+    container_name: invariant-gateway-test-mcp-server
+    networks:
+      - invariant-gateway-web-test
+    ports:
+      - "8123:8123"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/sse"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
 networks:
   invariant-gateway-web-test:
     external: true
