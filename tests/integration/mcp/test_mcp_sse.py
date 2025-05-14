@@ -1,31 +1,32 @@
-"""Test MCP gateway via stdio."""
+"""Test MCP gateway via SSE."""
 
 import os
 import uuid
+
+from resources.mcp.sse.client.main import run as mcp_client_run
+from utils import create_dataset, add_guardrail_to_dataset
 
 import pytest
 import requests
 
 from mcp.shared.exceptions import McpError
-from utils import create_dataset, add_guardrail_to_dataset
 
-from resources.mcp.stdio.client.main import run as mcp_client_run
+MCP_SERVER_HOST = "mcp-messenger-sse-server"
+MCP_SERVER_PORT = 8123
 
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(15)
 @pytest.mark.parametrize("push_to_explorer", [False, True])
-async def test_mcp_stdio_with_gateway(
-    explorer_api_url, invariant_gateway_package_whl_file, push_to_explorer
-):
-    """Test MCP gateway via stdio and verify trace is pushed to explorer"""
+async def test_mcp_sse_with_gateway(explorer_api_url, gateway_url, push_to_explorer):
+    """Test MCP gateway via sse and verify trace is pushed to explorer"""
     project_name = "test-mcp-" + str(uuid.uuid4())
 
     # Run the MCP client and make the tool call.
     result = await mcp_client_run(
-        invariant_gateway_package_whl_file,
+        gateway_url + "/api/v1/gateway/mcp/sse",
+        f"http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}",
         project_name,
-        server_script_path="resources/mcp/stdio/messenger_server/main.py",
         push_to_explorer=push_to_explorer,
         tool_name="get_last_message_from_user",
         tool_args={"username": "Alice"},
@@ -72,10 +73,10 @@ async def test_mcp_stdio_with_gateway(
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(15)
-async def test_mcp_stdio_with_gateway_and_logging_guardrails(
-    explorer_api_url, invariant_gateway_package_whl_file
+async def test_mcp_sse_with_gateway_and_logging_guardrails(
+    explorer_api_url, gateway_url
 ):
-    """Test MCP gateway via stdio and verify that logging guardrails work"""
+    """Test MCP gateway via sse and verify that logging guardrails work"""
     project_name = "test-mcp-" + str(uuid.uuid4())
 
     dataset_creation_response = await create_dataset(
@@ -101,9 +102,9 @@ async def test_mcp_stdio_with_gateway_and_logging_guardrails(
 
     # Run the MCP client and make the tool call.
     result = await mcp_client_run(
-        invariant_gateway_package_whl_file,
+        gateway_url + "/api/v1/gateway/mcp/sse",
+        f"http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}",
         project_name,
-        server_script_path="resources/mcp/stdio/messenger_server/main.py",
         push_to_explorer=True,
         tool_name="get_last_message_from_user",
         tool_args={"username": "Alice"},
@@ -177,10 +178,10 @@ async def test_mcp_stdio_with_gateway_and_logging_guardrails(
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(15)
-async def test_mcp_stdio_with_gateway_and_blocking_guardrails(
-    explorer_api_url, invariant_gateway_package_whl_file
+async def test_mcp_sse_with_gateway_and_blocking_guardrails(
+    explorer_api_url, gateway_url
 ):
-    """Test MCP gateway via stdio and verify that blocking guardrails work"""
+    """Test MCP gateway via sse and verify that blocking guardrails work"""
     project_name = "test-mcp-" + str(uuid.uuid4())
 
     dataset_creation_response = await create_dataset(
@@ -200,13 +201,15 @@ async def test_mcp_stdio_with_gateway_and_blocking_guardrails(
     # Run the MCP client and make the tool call.
     try:
         _ = await mcp_client_run(
-            invariant_gateway_package_whl_file,
+            gateway_url + "/api/v1/gateway/mcp/sse",
+            f"http://{MCP_SERVER_HOST}:{MCP_SERVER_PORT}",
             project_name,
-            server_script_path="resources/mcp/stdio/messenger_server/main.py",
             push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
         )
+        # If we get here, the tool call was not blocked
+        pytest.fail("Expected McpError to be raised")
     # The tool call should be blocked by the guardrail
     # and an error should be raised.
     except McpError as e:
