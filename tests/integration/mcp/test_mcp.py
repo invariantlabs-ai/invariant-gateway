@@ -302,6 +302,7 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(15)
+@pytest.mark.parametrize("transport", ["stdio", "sse"])
 async def test_mcp_sse_with_gateway_hybrid_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
 ):
