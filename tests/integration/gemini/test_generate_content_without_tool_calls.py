@@ -103,6 +103,7 @@ async def test_generate_content(
 
 @pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="No GEMINI_API_KEY set")
 @pytest.mark.parametrize("push_to_explorer", [True, False])
+@pytest.mark.skip(reason="Skipping this test: 500 error from Gemini API")
 async def test_generate_content_with_image(
     explorer_api_url, gateway_url, push_to_explorer
 ):
