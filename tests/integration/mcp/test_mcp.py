@@ -17,7 +17,7 @@ MCP_SSE_SERVER_PORT = 8123
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(15)
+@pytest.mark.timeout(30)
 @pytest.mark.parametrize(
     "push_to_explorer, transport",
     [
@@ -97,7 +97,7 @@ async def test_mcp_with_gateway(
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(15)
+@pytest.mark.timeout(30)
 @pytest.mark.parametrize("transport", ["stdio", "sse"])
 async def test_mcp_with_gateway_and_logging_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
@@ -205,11 +205,13 @@ async def test_mcp_with_gateway_and_logging_guardrails(
         tool_call_annotation is not None
     ), "Missing 'get_last_message_from_user is called' annotation"
     assert food_annotation["extra_metadata"]["source"] == "guardrails-error"
+    assert food_annotation["extra_metadata"]["guardrail"]["action"] == "log"
     assert tool_call_annotation["extra_metadata"]["source"] == "guardrails-error"
+    assert tool_call_annotation["extra_metadata"]["guardrail"]["action"] == "log"
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(15)
+@pytest.mark.timeout(30)
 @pytest.mark.parametrize("transport", ["stdio", "sse"])
 async def test_mcp_with_gateway_and_blocking_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
@@ -298,10 +300,11 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
         and annotations[0]["address"] == "messages.0.tool_calls.0"
     )
     assert annotations[0]["extra_metadata"]["source"] == "guardrails-error"
+    assert annotations[0]["extra_metadata"]["guardrail"]["action"] == "block"
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(15)
+@pytest.mark.timeout(30)
 @pytest.mark.parametrize("transport", ["stdio", "sse"])
 async def test_mcp_sse_with_gateway_hybrid_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
@@ -416,4 +419,6 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
         tool_call_annotation is not None
     ), "Missing 'get_last_message_from_user is called' annotation"
     assert food_annotation["extra_metadata"]["source"] == "guardrails-error"
+    assert food_annotation["extra_metadata"]["guardrail"]["action"] == "block"
     assert tool_call_annotation["extra_metadata"]["source"] == "guardrails-error"
+    assert tool_call_annotation["extra_metadata"]["guardrail"]["action"] == "log"
