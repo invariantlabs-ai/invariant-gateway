@@ -395,6 +395,7 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
     ]
 
     # Validate the annotations
+    annotations = trace["annotations"]
     food_annotation = None
     tool_call_annotation = None
 
