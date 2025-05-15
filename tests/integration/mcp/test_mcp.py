@@ -395,15 +395,24 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
     ]
 
     # Validate the annotations
-    annotations = trace["annotations"]
+    food_annotation = None
+    tool_call_annotation = None
+
     assert len(annotations) == 2
+    for annotation in annotations:
+        if (
+            annotation["content"] == "food in ToolOutput"
+            and annotation["address"] == "messages.1.content.0.text:22-26"
+        ):
+            food_annotation = annotation
+        elif (
+            annotation["content"] == "get_last_message_from_user is called"
+            and annotation["address"] == "messages.0.tool_calls.0"
+        ):
+            tool_call_annotation = annotation
+    assert food_annotation is not None, "Missing 'food in ToolOutput' annotation"
     assert (
-        annotations[0]["content"] == "get_last_message_from_user is called"
-        and annotations[0]["address"] == "messages.0.tool_calls.0"
-    )
-    assert annotations[0]["extra_metadata"]["source"] == "guardrails-error"
-    assert (
-        annotations[1]["content"] == "food in ToolOutput"
-        and annotations[1]["address"] == "messages.1.content.0.text:22-26"
-    )
-    assert annotations[1]["extra_metadata"]["source"] == "guardrails-error"
+        tool_call_annotation is not None
+    ), "Missing 'get_last_message_from_user is called' annotation"
+    assert food_annotation["extra_metadata"]["source"] == "guardrails-error"
+    assert tool_call_annotation["extra_metadata"]["source"] == "guardrails-error"
