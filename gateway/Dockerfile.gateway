@@ -4,7 +4,7 @@ WORKDIR /srv/gateway
 
 COPY pyproject.toml ./pyproject.toml
 
-COPY . .
+COPY gateway/ ./
 
 COPY README.md ./README.md
 
