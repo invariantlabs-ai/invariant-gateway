@@ -37,7 +37,7 @@ up() {
   fi
 
   # Start Docker Compose with the correct environment variable
-  docker compose -f docker-compose.local.yml up -d
+  docker compose -f gateway/docker-compose.local.yml up -d
 
   # Get the status of the container
   sleep 2
@@ -58,12 +58,12 @@ up() {
 
 build() {
   # Build local services
-  docker compose -f docker-compose.local.yml build
+  docker compose -f gateway/docker-compose.local.yml build
 }
 
 down() {
   # Bring down local services
-  docker compose -f docker-compose.local.yml down
+  docker compose -f gateway/docker-compose.local.yml down
   GATEWAY_ROOT_PATH=$(pwd) docker compose -f tests/integration/docker-compose.test.yml down
 }
 
@@ -146,6 +146,7 @@ integration_tests() {
   # Generate latest whl file for the invariant-gateway package. 
   # This is required to run the integration tests.
   pip install build
+  rm -rf dist
   python -m build
   WHEEL_FILE=$(ls dist/*.whl | head -n 1)
   echo "WHEEL_FILE: $WHEEL_FILE"
@@ -154,9 +155,13 @@ integration_tests() {
 
   docker build -t 'invariant-gateway-tests' -f ./tests/integration/Dockerfile.test ./tests
 
-  docker run \
+  docker rm -f invariant-gateway-integration-tests-container >/dev/null 2>&1 || true
+  mkdir -p /tmp/docker-logs/.invariant
+
+  docker run --name invariant-gateway-integration-tests-container \
     --mount type=bind,source=./tests/integration,target=/tests \
     --mount type=bind,source=$(realpath $WHEEL_FILE),target=/package/$(basename $WHEEL_FILE) \
+    --mount type=bind,source=/tmp/docker-logs/.invariant,target=/root/.invariant \
     --network invariant-gateway-web-test \
     -e OPENAI_API_KEY="$OPENAI_API_KEY" \
     -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"\
@@ -188,7 +193,7 @@ case "$1" in
     down
     ;;
   "logs")
-    docker compose -f docker-compose.local.yml logs -f
+    docker compose -f gateway/docker-compose.local.yml logs -f
     ;;
   "unit-tests")
     shift

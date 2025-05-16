@@ -371,6 +371,7 @@ async def check_guardrails(
                     "Authorization": context.get_guardrailing_authorization(),
                     "Accept": "application/json"
                 },
+                timeout=5,
             )
             if not result.is_success:
                 if result.status_code == 401:

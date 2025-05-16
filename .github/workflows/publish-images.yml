@@ -47,8 +47,8 @@ jobs:
       - name: build gateway image
         uses: docker/build-push-action@v5
         with:
-          context: ./gateway
-          file: Dockerfile.gateway
+          context: .
+          file: ./gateway/Dockerfile.gateway
           platforms: linux/amd64
           push: true
           tags: ${{ env.tags }}

@@ -25,7 +25,7 @@ services:
     container_name: invariant-gateway-test
     build:
       context: ${GATEWAY_ROOT_PATH}
-      dockerfile: ${GATEWAY_ROOT_PATH}/Dockerfile.gateway
+      dockerfile: ${GATEWAY_ROOT_PATH}/gateway/Dockerfile.gateway
     depends_on:
       app-api:
         condition: service_healthy
@@ -103,6 +103,22 @@ services:
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mcp-messenger-sse-server:
+    # MCP SSE server used in integration tests
+    build:
+      context: ${GATEWAY_ROOT_PATH}
+      dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/sse/messenger_server/Dockerfile.mcp-server
+    container_name: invariant-gateway-test-mcp-server
+    networks:
+      - invariant-gateway-web-test
+    ports:
+      - "8123:8123"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/sse"]
+      interval: 3s
       timeout: 5s
       retries: 5
 

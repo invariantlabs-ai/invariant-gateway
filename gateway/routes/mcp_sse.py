@@ -333,9 +333,7 @@ async def _hook_tool_call(session_id: str, request_json: dict) -> Tuple[dict, bo
             },
         }, True
     # Push trace to the explorer - don't block on its response
-    asyncio.create_task(
-        session_store.add_message_to_session(session_id, message, guardrails_result)
-    )
+    await session_store.add_message_to_session(session_id, message, guardrails_result)
     return request_json, False
 
 

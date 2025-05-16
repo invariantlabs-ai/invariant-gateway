@@ -4,7 +4,7 @@ import os
 import uuid
 from typing import Any, Dict, Literal, Optional
 
-from httpx import AsyncClient, Client
+from httpx import Client
 from openai import OpenAI
 from google import genai
 from anthropic import Anthropic

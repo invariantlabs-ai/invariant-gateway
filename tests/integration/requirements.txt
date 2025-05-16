@@ -6,5 +6,6 @@ openai
 pillow
 pytest
 pytest-asyncio
+pytest-timeout
 tavily-python
 uv

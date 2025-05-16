@@ -1,0 +1,2 @@
+include gateway/docker-compose.local.yml
+include gateway/Dockerfile.gateway

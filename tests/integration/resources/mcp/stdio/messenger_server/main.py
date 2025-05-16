@@ -1,6 +1,5 @@
 """This is a messenger server implementation that returns a few messages based on the username."""
 
-import random
 import hashlib
 
 from mcp.server.fastmcp import FastMCP
