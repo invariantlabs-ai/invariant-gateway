@@ -67,6 +67,14 @@ Key Parameters
 
 *	--push-explorer: Enables pushing annotated traces of MCP message flows to the specified project in Invariant Explorer.
 
+### Logs
+
+To see logs and errors from the MCP gateway and the MCP server, you can do:
+
+```bash
+tail -f ~/.invariant/mcp.log
+```
+
 ### Local Development Workflow
 
 To test or develop the gateway locally:

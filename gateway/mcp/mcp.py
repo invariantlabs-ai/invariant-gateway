@@ -464,10 +464,6 @@ def split_args(args: list[str] = None) -> tuple[list[str], list[str]]:
 
 async def execute(args: list[str] = None):
     """Main function to execute the MCP gateway."""
-    if "INVARIANT_API_KEY" not in os.environ:
-        mcp_log("[ERROR] INVARIANT_API_KEY environment variable is not set.")
-        sys.exit(1)
-
     mcp_gateway_args, mcp_server_command_args = split_args(args)
     ctx = McpContext(mcp_gateway_args)
 
