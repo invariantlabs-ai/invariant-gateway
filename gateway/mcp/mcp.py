@@ -25,7 +25,7 @@ from gateway.common.guardrails import GuardrailAction
 from gateway.common.request_context import RequestContext
 from gateway.integrations.explorer import create_annotations_from_guardrails_errors
 from gateway.integrations.guardrails import check_guardrails
-from gateway.mcp.log import mcp_log, MCP_LOG_FILE
+from gateway.mcp.log import mcp_log, MCP_LOG_FILE, format_errors_in_response
 from gateway.mcp.mcp_context import McpContext
 from gateway.mcp.task_utils import run_task_in_background, run_task_sync
 import getpass
@@ -401,18 +401,6 @@ async def hook_tool_result(ctx: McpContext, result: dict) -> dict:
         return result
     else:
         return result
-
-
-def format_errors_in_response(errors: list[dict]) -> str:
-    """Format a list of errors in a response string."""
-
-    def format_error(error: dict) -> str:
-        msg = " ".join(error.get("args", []))
-        msg += " ".join([f"{k}={v}" for k, v in error.get("kwargs", {}).items()])
-        msg += f" ([{error.get('guardrail', {}).get('id', 'unknown-guardrail')}] {error.get('guardrail', {}).get('name', 'unknown guardrail')})"
-        return msg
-
-    return ", ".join([format_error(error) for error in errors])
 
 
 async def stream_and_forward_stdout(
