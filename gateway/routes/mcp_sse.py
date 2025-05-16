@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import os
 from typing import Tuple
 
 import httpx
@@ -90,6 +91,23 @@ async def mcp_post_gateway(
         # Intercept and potentially block the request
         hook_tool_call_result, is_blocked = await _hook_tool_call(
             session_id=session_id, request_json=request_json
+        )
+        if is_blocked:
+            # Add the error message to the session.
+            # The error message is sent back to the client using the SSE stream.
+            await session.add_pending_error_message(hook_tool_call_result)
+            return Response(content="Accepted", status_code=202)
+    elif request_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
+        # Intercept and potentially block the request
+        hook_tool_call_result, is_blocked = await _hook_tool_call(
+            session_id=session_id, request_json={
+                "id": request_json.get("id"),
+                "method": MCP_LIST_TOOLS,
+                "params": {
+                    "name": request_json.get(MCP_METHOD),
+                    "arguments": {}
+                },
+            }
         )
         if is_blocked:
             # Add the error message to the session.
@@ -392,6 +410,10 @@ def _convert_localhost_to_docker_host(mcp_server_base_url: str) -> str:
     Returns:
         str: Modified server address with localhost references changed to host.docker.internal
     """
+    # check if we are running in a docker container
+    if not os.environ.get("DOCKER_ENV"):
+        return mcp_server_base_url
+
     if "localhost" in mcp_server_base_url or "127.0.0.1" in mcp_server_base_url:
         # Replace localhost or 127.0.0.1 with host.docker.internal
         modified_address = re.sub(
@@ -470,15 +492,30 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
                 "utf-8"
             )
         elif method == MCP_LIST_TOOLS:
+            # store tools in metadata
             session_store.get_session(session_id).metadata["tools"] = response_json.get(
                 MCP_RESULT
             ).get("tools")
+            # store tools/list tool call in trace
+            hook_tool_call_response = await _hook_tool_call_response(
+                session_id=session_id,
+                response_json={
+                    "id": response_json.get("id"),
+                    "result": {
+                        "content": json.dumps(response_json.get(MCP_RESULT).get("tools"))
+                    }
+                }
+            )
+
     except json.JSONDecodeError as e:
         print(
             f"[MCP SSE] Error parsing message JSON: {e}",
             flush=True,
         )
     except Exception as e:  # pylint: disable=broad-except
+        if os.environ.get("DEBUG") == "true":
+            import traceback
+            traceback.print_exc()
         print(
             f"[MCP SSE] Error processing message: {e}",
             flush=True,

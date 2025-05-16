@@ -81,7 +81,10 @@ class MCPClient:
             )
         )
 
+        # initialize the session
         await self.session.initialize()
+        # list tools
+        await self.session.list_tools()
 
     async def call_tool(
         self, tool_name: str, tool_args: dict[str, Any]

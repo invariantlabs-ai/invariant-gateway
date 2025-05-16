@@ -306,6 +306,8 @@ async def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
     ):
         if ctx.push_explorer:
             await append_and_push_trace(ctx, message, guardrailing_result)
+        else:
+            ctx.trace.append(message)
 
         return json_rpc_error_response(
             request.get("id"),
@@ -364,7 +366,7 @@ async def hook_tool_result(ctx: McpContext, result: dict) -> dict:
         message = {
             "role": "tool",
             "content": json.dumps(result.get("result").get("tools")),
-            "tool_call_id": "call_" + str(result.get("id")),
+            "tool_call_id": call_id,
         }
         # next validate it with guardrails
         guardrailing_result = await get_guardrails_check_result(
