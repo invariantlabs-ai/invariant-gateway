@@ -10,6 +10,7 @@ import time
 from typing import Optional
 
 from gateway.mcp import mcp
+from gateway.mcp.log import mcp_log
 
 
 LOCAL_COMPOSE_FILE = "gateway/docker-compose.local.yml"
@@ -224,8 +225,18 @@ def main():
         sys.exit(1)
 
     verb = sys.argv[1]
+    if verb == "help":
+        print_help()
+        return 0
+
+    if "INVARIANT_API_KEY" not in os.environ:
+        print("[ERROR] INVARIANT_API_KEY environment variable is not set.")
+        mcp_log("[ERROR] INVARIANT_API_KEY environment variable is not set.")
+        sys.exit(1)
+
     if verb == "mcp":
         return asyncio.run(mcp.execute(sys.argv[2:]))
+
     if verb == "server":
         if len(sys.argv) < 3:
             print(
@@ -239,9 +250,7 @@ def main():
         if not run_server_command(command, args):
             return 1
         return 0
-    if verb == "help":
-        print_help()
-        return 0
+
     print(f"[gateway/__main__.py] Unknown action: {verb}")
     return 1
 

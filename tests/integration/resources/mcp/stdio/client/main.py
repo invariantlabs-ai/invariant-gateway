@@ -1,7 +1,7 @@
 """A MCP client implementation that interacts with MCP server to make tool calls."""
 
-import asyncio
 import os
+
 from datetime import timedelta
 from contextlib import AsyncExitStack
 from typing import Any, Optional
@@ -77,7 +77,7 @@ class MCPClient:
         self.stdio, self.write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(
             ClientSession(
-                self.stdio, self.write, read_timeout_seconds=timedelta(seconds=10)
+                self.stdio, self.write, read_timeout_seconds=timedelta(seconds=15)
             )
         )
 
@@ -93,10 +93,6 @@ class MCPClient:
             tool_name: Name of the tool to call
             tool_args: Arguments for the tool call
         """
-        response = await self.session.list_tools()
-        if tool_name not in [tool.name for tool in response.tools]:
-            raise ValueError(f"Tool '{tool_name}' not found in available tools")
-
         # Execute tool call
         result = await self.session.call_tool(tool_name, tool_args)
         return result
@@ -140,8 +136,4 @@ async def run(
         )
         return await client.call_tool(tool_name, tool_args)
     finally:
-        # Sleep for a while to allow the server to process the background tasks
-        # like pushing traces to the explorer
-        if push_to_explorer:
-            await asyncio.sleep(2)
         await client.cleanup()

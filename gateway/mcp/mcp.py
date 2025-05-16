@@ -5,7 +5,7 @@ import subprocess
 import json
 import os
 import select
-import threading
+import asyncio
 
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
@@ -15,6 +15,9 @@ from gateway.common.constants import (
     INVARIANT_GUARDRAILS_BLOCKED_MESSAGE,
     INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE,
     MCP_METHOD,
+    MCP_CLIENT_INFO,
+    MCP_PARAMS,
+    MCP_SERVER_INFO,
     MCP_TOOL_CALL,
     MCP_LIST_TOOLS,
 )
@@ -90,16 +93,50 @@ def check_if_new_errors(ctx: McpContext, guardrails_result: dict) -> bool:
     return False
 
 
+async def get_guardrails_check_result(
+    ctx: McpContext,
+    message: dict,
+    action: GuardrailAction = GuardrailAction.BLOCK,
+) -> dict:
+    """
+    Check against guardrails of type action in an async manner.
+    """
+    # Skip if no guardrails are configured for this action
+    if not (
+        (ctx.guardrails.blocking_guardrails and action == GuardrailAction.BLOCK)
+        or (ctx.guardrails.logging_guardrails and action == GuardrailAction.LOG)
+    ):
+        return {}
+
+    # Prepare context and select appropriate guardrails
+    context = RequestContext.create(
+        request_json={},
+        dataset_name=ctx.explorer_dataset,
+        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+        guardrails=ctx.guardrails,
+    )
+
+    guardrails_to_check = (
+        ctx.guardrails.blocking_guardrails
+        if action == GuardrailAction.BLOCK
+        else ctx.guardrails.logging_guardrails
+    )
+
+    # Run check_guardrails asynchronously
+    return await check_guardrails(
+        messages=ctx.trace + [message],
+        guardrails=guardrails_to_check,
+        context=context,
+    )
+
+
 async def append_and_push_trace(
     ctx: McpContext, message: dict, guardrails_result: dict
 ) -> None:
     """
     Append a message to the trace if it exists or create a new one
     and push it to the Invariant Explorer.
-
-    This function runs asynchronously in the background.
     """
-
     annotations = []
     if guardrails_result and guardrails_result.get("errors", []):
         annotations = create_annotations_from_guardrails_errors(
@@ -107,7 +144,7 @@ async def append_and_push_trace(
         )
 
     if ctx.guardrails.logging_guardrails:
-        logging_guardrails_check_result = get_guardrails_check_result(
+        logging_guardrails_check_result = await get_guardrails_check_result(
             ctx, message, action=GuardrailAction.LOG
         )
         if logging_guardrails_check_result and logging_guardrails_check_result.get(
@@ -161,7 +198,7 @@ async def append_and_push_trace(
         mcp_log("[ERROR] Error pushing trace in append_and_push_trace:", e)
 
 
-def get_guardrails_check_result(
+async def get_guardrails_check_result(
     ctx: McpContext,
     message: dict,
     action: GuardrailAction = GuardrailAction.BLOCK,
@@ -185,7 +222,6 @@ def get_guardrails_check_result(
         guardrails=ctx.guardrails,
         guardrails_parameters={"metadata": session_metadata(ctx), "action": action},
     )
-    mcp_log(f"[INFO] Guardrails parameters: {context.guardrails_parameters}")
 
     guardrails_to_check = (
         ctx.guardrails.blocking_guardrails
@@ -238,7 +274,7 @@ def json_rpc_error_response(
     return base_response
 
 
-def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
+async def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
     """
     Hook function to intercept tool calls.
 
@@ -257,23 +293,21 @@ def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
 
     message = {"role": "assistant", "content": "", "tool_calls": [tool_call]}
 
-    # Check for blocking guardrails - this blocks until completion
-    guardrailing_result = get_guardrails_check_result(
+    # Check for blocking guardrails
+    guardrailing_result = await get_guardrails_check_result(
         ctx, message, action=GuardrailAction.BLOCK
     )
 
     # If the request is blocked, return a message indicating the block reason.
-    # If there are new errors, run append_and_push_trace in background.
-    # If there are no new errors, just return the original request.
     if (
         guardrailing_result
         and guardrailing_result.get("errors", [])
         and check_if_new_errors(ctx, guardrailing_result)
     ):
         if ctx.push_explorer:
-            run_task_in_background(
-                append_and_push_trace, ctx, message, guardrailing_result
-            )
+
+            await append_and_push_trace(ctx, message, guardrailing_result)
+
         return json_rpc_error_response(
             request.get("id"),
             INVARIANT_GUARDRAILS_BLOCKED_MESSAGE % guardrailing_result["errors"],
@@ -285,28 +319,30 @@ def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
     return request, False
 
 
-def hook_tool_result(ctx: McpContext, result: dict) -> dict:
+async def hook_tool_result(ctx: McpContext, result: dict) -> dict:
     """
     Hook function to intercept tool results.
-    Modify this function to change behavior for tool results.
     Returns the potentially modified result.
     """
     method = ctx.id_to_method_mapping.get(result.get("id"))
     call_id = f"call_{result.get('id')}"
-    if "serverInfo" in result.get("result"):
-        ctx.mcp_server_name = result.get("result").get("serverInfo").get("name", "")
+
+    # Safely handle result object
+    result_obj = result.get("result", {})
+    if isinstance(result_obj, dict) and MCP_SERVER_INFO in result_obj:
+        ctx.mcp_server_name = result_obj.get(MCP_SERVER_INFO, {}).get("name", "")
 
     if method is None:
         return result
     elif method == MCP_TOOL_CALL:
         message = {
             "role": "tool",
-            "content": result.get("result").get("content"),
-            "error": result.get("result").get("error"),
-            "tool_call_id": "call_" + str(result.get("id")),
+            "content": result_obj.get("content"),
+            "error": result_obj.get("error"),
+            "tool_call_id": call_id
         }
-        # Check for blocking guardrails - this blocks until completion
-        guardrailing_result = get_guardrails_check_result(
+        # Check for blocking guardrails
+        guardrailing_result = await get_guardrails_check_result(
             ctx, message, action=GuardrailAction.BLOCK
         )
 
@@ -319,20 +355,18 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
             )
 
         if ctx.push_explorer:
-            # Run append_and_push_trace in background
-            run_task_in_background(
-                append_and_push_trace, ctx, message, guardrailing_result
-            )
+            await append_and_push_trace(ctx, message, guardrailing_result)
+
         return result
     elif method == MCP_LIST_TOOLS:
-        ctx.tools = result.get("result").get("tools")
+        ctx.tools = result_obj.get("tools")
         message = {
             "role": "tool",
             "content": json.dumps(result.get("result").get("tools")),
             "tool_call_id": "call_" + str(result.get("id")),
         }
         # next validate it with guardrails
-        guardrailing_result = get_guardrails_check_result(
+        guardrailing_result = await get_guardrails_check_result(
             ctx, message, action=GuardrailAction.BLOCK
         )
         if guardrailing_result and guardrailing_result.get("errors", []):
@@ -356,7 +390,8 @@ def hook_tool_result(ctx: McpContext, result: dict) -> dict:
             ]
 
         # add it to the session trace (and run logging guardrails)
-        run_task_in_background(append_and_push_trace, ctx, message, guardrailing_result)
+        if ctx.push_explorer:
+            await append_and_push_trace(ctx, message, guardrailing_result)
 
         return result
     else:
@@ -375,9 +410,17 @@ def format_errors_in_response(errors: list[dict]) -> str:
     return ", ".join([format_error(error) for error in errors])
 
 
-def stream_and_forward_stdout(mcp_process: subprocess.Popen, ctx: McpContext) -> None:
-    """Read from the mcp_process stdout, apply guardrails and and forward to sys.stdout"""
-    for line in iter(mcp_process.stdout.readline, b""):
+async def stream_and_forward_stdout(
+    mcp_process: subprocess.Popen, ctx: McpContext
+) -> None:
+    """Read from the mcp_process stdout, apply guardrails and forward to sys.stdout"""
+    loop = asyncio.get_event_loop()
+
+    while True:
+        line = await loop.run_in_executor(None, mcp_process.stdout.readline)
+        if not line:
+            break
+
         try:
             # Process complete JSON lines
             line_str = line.decode(UTF_8_ENCODING).strip()
@@ -388,117 +431,179 @@ def stream_and_forward_stdout(mcp_process: subprocess.Popen, ctx: McpContext) ->
                 mcp_log(f"[INFO] server -> client: {line_str}")
 
             parsed_json = json.loads(line_str)
-            processed_json = hook_tool_result(ctx, parsed_json)
+            processed_json = await hook_tool_result(ctx, parsed_json)
 
             # Write and flush immediately
             sys.stdout.buffer.write(write_as_utf8_bytes(processed_json))
             sys.stdout.buffer.flush()
-        except json.JSONDecodeError as je:
-            mcp_log(f"[ERROR] JSON decode error in stdout processing: {str(je)}")
-            mcp_log(f"[ERROR] Problematic line: {line[:200]}...")
 
         except Exception as e:
+            import traceback
+            mcp_log(traceback.format_exc())
             mcp_log(f"[ERROR] Error in stream_and_forward_stdout: {str(e)}")
             if line:
                 mcp_log(f"[ERROR] Problematic line causing error: {line[:200]}...")
 
 
-def stream_and_forward_stderr(
-    mcp_process: subprocess.Popen, ctx: McpContext, read_chunk_size: int = 1
+async def stream_and_forward_stderr(
+    mcp_process: subprocess.Popen, read_chunk_size: int = 10
 ) -> None:
     """Read from the mcp_process stderr and write to sys.stderr"""
-    for line in iter(lambda: mcp_process.stderr.read(read_chunk_size), b""):
-        MCP_LOG_FILE.buffer.write(line)
+    loop = asyncio.get_event_loop()
+
+    while True:
+        # Read chunks asynchronously
+        chunk = await loop.run_in_executor(
+            None, lambda: mcp_process.stderr.read(read_chunk_size)
+        )
+
+        MCP_LOG_FILE.buffer.write(chunk)
         MCP_LOG_FILE.buffer.flush()
 
 
-def run_stdio_input_loop(ctx: McpContext, mcp_process: subprocess.Popen) -> None:
+async def process_line(
+    ctx: McpContext, mcp_process: subprocess.Popen, line: bytes
+) -> None:
+    if ctx.verbose:
+        mcp_log(f"[INFO] client -> server: {line}")
+
+    # Try to decode and parse as JSON to check for tool calls
+    try:
+        text = line.decode(UTF_8_ENCODING)
+        parsed_json = json.loads(text)
+    except json.JSONDecodeError as je:
+        mcp_log(f"[ERROR] JSON decode error in run_stdio_input_loop: {str(je)}")
+        mcp_log(f"[ERROR] Problematic line: {line[:200]}...")
+        return
+
+    if parsed_json.get(MCP_METHOD) is not None:
+        ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(
+            MCP_METHOD
+        )
+    if "params" in parsed_json and "clientInfo" in parsed_json.get("params"):
+        ctx.mcp_client_name = (
+            parsed_json.get("params").get("clientInfo").get("name", "")
+        )
+
+    # Check if this is a tool call request
+    if parsed_json.get(MCP_METHOD) == MCP_TOOL_CALL:
+        # Refresh guardrails
+        run_task_sync(ctx.load_guardrails)
+
+        # Intercept and potentially block modify the request
+        hook_tool_call_result, is_blocked = await hook_tool_call(ctx, parsed_json)
+        if not is_blocked:
+            # If blocked, hook_tool_call_result contains the original request.
+            # Forward the request to the MCP process.
+            # It will handle the request and return a response.
+            mcp_process.stdin.write(write_as_utf8_bytes(hook_tool_call_result))
+            mcp_process.stdin.flush()
+        else:
+            # If blocked, hook_tool_call_result contains the block message.
+            # Forward the block message result back to the caller.
+            # The original request is not passed to the MCP process.
+            sys.stdout.buffer.write(write_as_utf8_bytes(hook_tool_call_result))
+            sys.stdout.buffer.flush()
+        return
+    else:
+        # pass through the request to the MCP process
+
+        # for list_tools, extend the trace by a tool call
+        if parsed_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
+            # Refresh guardrails
+            run_task_sync(ctx.load_guardrails)
+
+            # mcp_message_{}
+            ctx.trace.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": f"call_{parsed_json.get('id')}",
+                            "type": "function",
+                            "function": {
+                                "name": "tools/list",
+                                "arguments": {},
+                            },
+                        }
+                    ],
+                }
+            )
+        mcp_process.stdin.write(write_as_utf8_bytes(parsed_json))
+        mcp_process.stdin.flush()
+
+
+async def run_stdio_input_loop(
+    ctx: McpContext,
+    mcp_process: subprocess.Popen,
+    stdout_task: asyncio.Task,
+    stderr_task: asyncio.Task,
+) -> None:
     """Handle standard input, intercept call and forward requests to mcp_process stdin."""
+    loop = asyncio.get_event_loop()
+    stdin_fd = sys.stdin.fileno()
+    buffer = b""
+
+    # Set stdin to non-blocking mode
+    os.set_blocking(stdin_fd, False)
 
     try:
         while True:
-            ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+            # Check for input using select
+            ready, _, _ = await loop.run_in_executor(
+                None, lambda: select.select([stdin_fd], [], [], 0.1)
+            )
+
             if not ready:
+                # No input available, yield to other tasks
+                await asyncio.sleep(0.01)
                 continue
 
-            line = sys.stdin.buffer.readline()
-            if not line:
-                break
+            # Read available data
+            chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
+            if not chunk:
+                break  # EOF
 
-            if ctx.verbose:
-                mcp_log(f"[INFO] client -> server: {line}")
+            buffer += chunk
 
-            # Try to decode and parse as JSON to check for tool calls
+            # Process complete lines
+            while b"\n" in buffer:
+                line, buffer = buffer.split(b"\n", 1)
+                if not line:
+                    continue
+
+                await process_line(ctx, mcp_process, line)
+    except (BrokenPipeError, KeyboardInterrupt):
+        # Broken pipe = client disappeared, just start shutdown
+        mcp_log("Client disconnected or keyboard interrupt")
+    finally:
+        # Close stdin
+        if mcp_process.stdin:
+            mcp_process.stdin.close()
+
+        # Process any remaining data
+        while b"\n" in buffer:
+            line, buffer = buffer.split(b"\n", 1)
+            if line:
+                await process_line(ctx, mcp_process, line)
+
+        # Terminate process if needed
+        if mcp_process.poll() is None:
+            mcp_process.terminate()
             try:
-                text = line.decode(UTF_8_ENCODING)
-                parsed_json = json.loads(text)
-            except json.JSONDecodeError as je:
-                mcp_log(f"[ERROR] JSON decode error in run_stdio_input_loop: {str(je)}")
-                mcp_log(f"[ERROR] Problematic line: {line[:200]}...")
-                continue
-
-            if parsed_json.get(MCP_METHOD) is not None:
-                ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(
-                    MCP_METHOD
+                await asyncio.wait_for(
+                    loop.run_in_executor(None, mcp_process.wait), timeout=2
                 )
-            if "params" in parsed_json and "clientInfo" in parsed_json.get("params"):
-                ctx.mcp_client_name = (
-                    parsed_json.get("params").get("clientInfo").get("name", "")
-                )
+            except asyncio.TimeoutError:
+                mcp_process.kill()
 
-            # Check if this is a tool call request
-            if parsed_json.get(MCP_METHOD) == MCP_TOOL_CALL:
-                # Refresh guardrails
-                run_task_sync(ctx.load_guardrails)
+        # Cancel I/O tasks
+        stdout_task.cancel()
+        stderr_task.cancel()
 
-                # Intercept and potentially block modify the request
-                hook_tool_call_result, is_blocked = hook_tool_call(ctx, parsed_json)
-                if not is_blocked:
-                    # If blocked, hook_tool_call_result contains the original request.
-                    # Forward the request to the MCP process.
-                    # It will handle the request and return a response.
-                    mcp_process.stdin.write(write_as_utf8_bytes(hook_tool_call_result))
-                    mcp_process.stdin.flush()
-                else:
-                    # If blocked, hook_tool_call_result contains the block message.
-                    # Forward the block message result back to the caller.
-                    # The original request is not passed to the MCP process.
-                    sys.stdout.buffer.write(write_as_utf8_bytes(hook_tool_call_result))
-                    sys.stdout.buffer.flush()
-                continue
-            else:
-                # pass through the request to the MCP process
-
-                # for list_tools, extend the trace by a tool call
-                if parsed_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
-                    # Refresh guardrails
-                    run_task_sync(ctx.load_guardrails)
-
-                    # mcp_message_{}
-                    ctx.trace.append(
-                        {
-                            "role": "assistant",
-                            "content": "",
-                            "tool_calls": [
-                                {
-                                    "id": f"call_{parsed_json.get('id')}",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "tools/list",
-                                        "arguments": {},
-                                    },
-                                }
-                            ],
-                        }
-                    )
-                mcp_process.stdin.write(write_as_utf8_bytes(parsed_json))
-                mcp_process.stdin.flush()
-                continue
-
-    except BrokenPipeError:
-        pass
-    except KeyboardInterrupt:
-        mcp_process.terminate()
+        # Final flush
+        sys.stdout.flush()
 
 
 def split_args(args: list[str] = None) -> tuple[list[str], list[str]]:
@@ -539,7 +644,7 @@ async def execute(args: list[str] = None):
         mcp_log("[ERROR] INVARIANT_API_KEY environment variable is not set.")
         sys.exit(1)
 
-    mcp_log("[INFO] Running with Python version: %s", sys.version)
+    mcp_log("[INFO] Running with Python version:", sys.version)
 
     mcp_gateway_args, mcp_server_command_args = split_args(args)
     ctx = McpContext(mcp_gateway_args)
@@ -552,17 +657,9 @@ async def execute(args: list[str] = None):
         bufsize=0,
     )
 
-    # Start threads to forward stdout and stderr
-    threading.Thread(
-        target=stream_and_forward_stdout,
-        args=(mcp_process, ctx),
-        daemon=True,
-    ).start()
-    threading.Thread(
-        target=stream_and_forward_stderr,
-        args=(mcp_process, ctx),
-        daemon=True,
-    ).start()
+    # Start async tasks for stdout and stderr
+    stdout_task = asyncio.create_task(stream_and_forward_stdout(mcp_process, ctx))
+    stderr_task = asyncio.create_task(stream_and_forward_stderr(mcp_process))
 
     # Handle forwarding stdin and intercept tool calls
-    run_stdio_input_loop(ctx, mcp_process)
+    await run_stdio_input_loop(ctx, mcp_process, stdout_task, stderr_task)
