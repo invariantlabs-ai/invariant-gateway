@@ -137,6 +137,11 @@ async def run(
             push_to_explorer,
             metadata_keys=metadata_keys
         )
-        return await client.call_tool(tool_name, tool_args)
+        listed_tools = await client.session.list_tools()
+        if tool_name == "tools/list":
+            # list tools
+            return listed_tools
+        else:
+            return await client.call_tool(tool_name, tool_args)
     finally:
         await client.cleanup()

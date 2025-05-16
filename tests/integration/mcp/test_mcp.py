@@ -423,3 +423,55 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
     assert food_annotation["extra_metadata"]["guardrail"]["action"] == "block"
     assert tool_call_annotation["extra_metadata"]["source"] == "guardrails-error"
     assert tool_call_annotation["extra_metadata"]["guardrail"]["action"] == "log"
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(30)
+@pytest.mark.parametrize("transport", ["stdio", "sse"])
+async def test_mcp_tool_list_blocking(
+    explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
+):
+    """
+    Tests that blocking guardrails work for the tools/list call.
+    
+    For those, the expected behavior is that the returned tools are all renamed to blocked_... and include an informative block notice, instead of the original tool description.
+    """
+    project_name = "test-mcp-" + str(uuid.uuid4())
+
+    dataset_creation_response = await create_dataset(
+        explorer_api_url,
+        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+        dataset_name=project_name,
+    )
+    dataset_id = dataset_creation_response["id"]
+    _ = await add_guardrail_to_dataset(
+        explorer_api_url,
+        dataset_id=dataset_id,
+        policy='raise "get_last_message_from_user is called" if:\n   (tool_output: ToolOutput)\n   tool_call(tool_output).function.name == "tools/list"',
+        action="block",
+        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+    )
+
+    # Run the MCP client and make the tools/list call.
+    if transport == "sse":
+        tools_result = await mcp_sse_client_run(
+            gateway_url + "/api/v1/gateway/mcp/sse",
+            f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
+            project_name,
+            push_to_explorer=True,
+            tool_name="tools/list",
+            tool_args={},
+        )
+    else:
+        tools_result = await mcp_stdio_client_run(
+            invariant_gateway_package_whl_file,
+            project_name,
+            server_script_path="resources/mcp/stdio/messenger_server/main.py",
+            push_to_explorer=True,
+            tool_name="tools/list",
+            tool_args={},
+        )
+
+    assert "blocked_get_last_message_from_user" in str(tools_result), "Expected the tool names to be renamed and blocked because of the blocking guardrail on the tools/list call. Instead got: " + str(tools_result)
+

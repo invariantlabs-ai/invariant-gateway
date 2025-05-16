@@ -108,7 +108,7 @@ async def mcp_post_gateway(
                 "method": MCP_LIST_TOOLS,
                 "params": {
                     "name": MCP_LIST_TOOLS,
-                    "arguments": "{}"
+                    "arguments": {}
                 },
             }
         )
