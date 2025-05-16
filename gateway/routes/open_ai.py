@@ -517,6 +517,7 @@ async def push_to_explorer(
             messages=[messages],
             annotations=[annotations],
             metadata=[create_metadata(context, merged_response)],
+            push_behavior=context.push_behavior,
         )
 
 
