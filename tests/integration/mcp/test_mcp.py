@@ -298,7 +298,7 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
     assert len(annotations) == 1
     assert (
         annotations[0]["content"] == "get_last_message_from_user is called"
-        and annotations[0]["address"] == "messages.0.tool_calls.0"
+        and annotations[0]["address"] == "messages.2.tool_calls.0"
     )
     assert annotations[0]["extra_metadata"]["source"] == "guardrails-error"
     assert annotations[0]["extra_metadata"]["guardrail"]["action"] == "block"
