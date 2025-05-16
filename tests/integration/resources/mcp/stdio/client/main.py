@@ -23,6 +23,7 @@ class MCPClient:
         project_name: str,
         server_script_path: str,
         push_to_explorer: bool,
+        metadata_keys: Optional[dict[str, str]] = None,
     ):
         """
         Connect to an MCP server.
@@ -42,6 +43,12 @@ class MCPClient:
             "--project-name",
             project_name,
         ]
+        # add metadata cli args
+        if metadata_keys is not None:
+            for key, value in metadata_keys.items():
+                args.append("--metadata-" + key + "=" + value)
+
+
         if push_to_explorer:
             args.append("--push-explorer")
         args.extend(
@@ -54,6 +61,7 @@ class MCPClient:
                 os.path.basename(server_script_path),
             ]
         )
+
         server_params = StdioServerParameters(
             command="uvx",
             args=args,
@@ -73,6 +81,7 @@ class MCPClient:
             )
         )
 
+        # initialize the session
         await self.session.initialize()
 
     async def call_tool(
@@ -101,6 +110,7 @@ async def run(
     push_to_explorer: bool,
     tool_name: str,
     tool_args: dict[str, Any],
+    metadata_keys: Optional[dict[str, str]] = None,
 ) -> types.CallToolResult:
     """
     Main function to setup the MCP client and server.
@@ -123,7 +133,13 @@ async def run(
             project_name,
             server_script_path,
             push_to_explorer,
+            metadata_keys=metadata_keys
         )
-        return await client.call_tool(tool_name, tool_args)
+        listed_tools = await client.session.list_tools()
+        if tool_name == "tools/list":
+            # list tools
+            return listed_tools
+        else:
+            return await client.call_tool(tool_name, tool_args)
     finally:
         await client.cleanup()

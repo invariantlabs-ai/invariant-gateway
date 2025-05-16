@@ -97,7 +97,13 @@ async def run(
                 "PUSH-INVARIANT-EXPLORER": str(push_to_explorer),
             },
         )
-        return await client.process_query(tool_name, tool_args)
+        # list tools
+        listed_tools = await client.session.list_tools()
+        # call tool
+        if tool_name == "tools/list":
+            return listed_tools
+        else:
+            return await client.process_query(tool_name, tool_args)
     finally:
         # Sleep for a while to allow the server to process the background tasks
         # like pushing traces to the explorer
