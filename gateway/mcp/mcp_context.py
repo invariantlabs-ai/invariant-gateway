@@ -95,9 +95,9 @@ class McpContext:
         )
         parser.add_argument(
             "--failure-response-format",
-            help="The response format to use to communicate guardrail failures to the client (error: JSON-RPC error response; potentially invisble to the agent, content: JSON-RPC content response, visible to the agent)",
+            help="The response format to use to communicate guardrail failures to the client (error: JSON-RPC error response; potentially invisible to the agent, content: JSON-RPC content response, visible to the agent)",
             type=str,
-            default="content",
+            default="error",
         )
 
         return parser.parse_known_args(cli_args)
