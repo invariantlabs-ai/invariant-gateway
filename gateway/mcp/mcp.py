@@ -305,7 +305,6 @@ async def hook_tool_call(ctx: McpContext, request: dict) -> tuple[dict, bool]:
         and check_if_new_errors(ctx, guardrailing_result)
     ):
         if ctx.push_explorer:
-
             await append_and_push_trace(ctx, message, guardrailing_result)
 
         return json_rpc_error_response(
@@ -356,6 +355,8 @@ async def hook_tool_result(ctx: McpContext, result: dict) -> dict:
 
         if ctx.push_explorer:
             await append_and_push_trace(ctx, message, guardrailing_result)
+        else:
+            ctx.trace.append(message)
 
         return result
     elif method == MCP_LIST_TOOLS:
@@ -392,6 +393,8 @@ async def hook_tool_result(ctx: McpContext, result: dict) -> dict:
         # add it to the session trace (and run logging guardrails)
         if ctx.push_explorer:
             await append_and_push_trace(ctx, message, guardrailing_result)
+        else:
+            ctx.trace.append(message)
 
         return result
     else:
