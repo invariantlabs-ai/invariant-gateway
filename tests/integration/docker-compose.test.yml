@@ -122,6 +122,7 @@ services:
       timeout: 5s
       retries: 5
 
+
 networks:
   invariant-gateway-web-test:
     external: true

@@ -45,7 +45,7 @@ async def test_mcp_with_gateway(
             project_name,
             push_to_explorer=push_to_explorer,
             tool_name="get_last_message_from_user",
-            tool_args={"username": "Alice"},
+            tool_args={"username": "Alice"}
         )
     else:
         result = await mcp_stdio_client_run(
@@ -55,6 +55,7 @@ async def test_mcp_with_gateway(
             push_to_explorer=push_to_explorer,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
+            metadata_keys={"my-custom-key": "value1", "my-custom-key-2": "value2"},
         )
 
     assert result.isError is False
@@ -85,13 +86,13 @@ async def test_mcp_with_gateway(
             and metadata["mcp_client"] == "mcp"
             and metadata["mcp_server"] == "messenger_server"
         )
-        assert trace["messages"][0]["role"] == "assistant"
-        assert trace["messages"][0]["tool_calls"][0]["function"] == {
+        assert trace["messages"][2]["role"] == "assistant"
+        assert trace["messages"][2]["tool_calls"][0]["function"] == {
             "name": "get_last_message_from_user",
             "arguments": {"username": "Alice"},
         }
-        assert trace["messages"][1]["role"] == "tool"
-        assert trace["messages"][1]["content"] == [
+        assert trace["messages"][3]["role"] == "tool"
+        assert trace["messages"][3]["content"] == [
             {"type": "text", "text": "What is your favorite food?\n"}
         ]
 
@@ -173,13 +174,13 @@ async def test_mcp_with_gateway_and_logging_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
-    assert trace["messages"][0]["role"] == "assistant"
-    assert trace["messages"][0]["tool_calls"][0]["function"] == {
+    assert trace["messages"][2]["role"] == "assistant"
+    assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
         "arguments": {"username": "Alice"},
     }
-    assert trace["messages"][1]["role"] == "tool"
-    assert trace["messages"][1]["content"] == [
+    assert trace["messages"][3]["role"] == "tool"
+    assert trace["messages"][3]["content"] == [
         {"type": "text", "text": "What is your favorite food?\n"}
     ]
 
@@ -192,12 +193,12 @@ async def test_mcp_with_gateway_and_logging_guardrails(
     for annotation in annotations:
         if (
             annotation["content"] == "food in ToolOutput"
-            and annotation["address"] == "messages.1.content.0.text:22-26"
+            and annotation["address"] == "messages.3.content.0.text:22-26"
         ):
             food_annotation = annotation
         elif (
             annotation["content"] == "get_last_message_from_user is called"
-            and annotation["address"] == "messages.0.tool_calls.0"
+            and annotation["address"] == "messages.2.tool_calls.0"
         ):
             tool_call_annotation = annotation
     assert food_annotation is not None, "Missing 'food in ToolOutput' annotation"
@@ -286,8 +287,8 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
-    assert trace["messages"][0]["role"] == "assistant"
-    assert trace["messages"][0]["tool_calls"][0]["function"] == {
+    assert trace["messages"][2]["role"] == "assistant"
+    assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
         "arguments": {"username": "Alice"},
     }
@@ -297,7 +298,7 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
     assert len(annotations) == 1
     assert (
         annotations[0]["content"] == "get_last_message_from_user is called"
-        and annotations[0]["address"] == "messages.0.tool_calls.0"
+        and annotations[0]["address"] == "messages.2.tool_calls.0"
     )
     assert annotations[0]["extra_metadata"]["source"] == "guardrails-error"
     assert annotations[0]["extra_metadata"]["guardrail"]["action"] == "block"
@@ -387,13 +388,13 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
-    assert trace["messages"][0]["role"] == "assistant"
-    assert trace["messages"][0]["tool_calls"][0]["function"] == {
+    assert trace["messages"][2]["role"] == "assistant"
+    assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
         "arguments": {"username": "Alice"},
     }
-    assert trace["messages"][1]["role"] == "tool"
-    assert trace["messages"][1]["content"] == [
+    assert trace["messages"][3]["role"] == "tool"
+    assert trace["messages"][3]["content"] == [
         {"type": "text", "text": "What is your favorite food?\n"}
     ]
 
@@ -406,12 +407,12 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
     for annotation in annotations:
         if (
             annotation["content"] == "food in ToolOutput"
-            and annotation["address"] == "messages.1.content.0.text:22-26"
+            and annotation["address"] == "messages.3.content.0.text:22-26"
         ):
             food_annotation = annotation
         elif (
             annotation["content"] == "get_last_message_from_user is called"
-            and annotation["address"] == "messages.0.tool_calls.0"
+            and annotation["address"] == "messages.2.tool_calls.0"
         ):
             tool_call_annotation = annotation
     assert food_annotation is not None, "Missing 'food in ToolOutput' annotation"
@@ -422,3 +423,55 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
     assert food_annotation["extra_metadata"]["guardrail"]["action"] == "block"
     assert tool_call_annotation["extra_metadata"]["source"] == "guardrails-error"
     assert tool_call_annotation["extra_metadata"]["guardrail"]["action"] == "log"
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(30)
+@pytest.mark.parametrize("transport", ["stdio", "sse"])
+async def test_mcp_tool_list_blocking(
+    explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
+):
+    """
+    Tests that blocking guardrails work for the tools/list call.
+    
+    For those, the expected behavior is that the returned tools are all renamed to blocked_... and include an informative block notice, instead of the original tool description.
+    """
+    project_name = "test-mcp-" + str(uuid.uuid4())
+
+    dataset_creation_response = await create_dataset(
+        explorer_api_url,
+        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+        dataset_name=project_name,
+    )
+    dataset_id = dataset_creation_response["id"]
+    _ = await add_guardrail_to_dataset(
+        explorer_api_url,
+        dataset_id=dataset_id,
+        policy='raise "get_last_message_from_user is called" if:\n   (tool_output: ToolOutput)\n   tool_call(tool_output).function.name == "tools/list"',
+        action="block",
+        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+    )
+
+    # Run the MCP client and make the tools/list call.
+    if transport == "sse":
+        tools_result = await mcp_sse_client_run(
+            gateway_url + "/api/v1/gateway/mcp/sse",
+            f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
+            project_name,
+            push_to_explorer=True,
+            tool_name="tools/list",
+            tool_args={},
+        )
+    else:
+        tools_result = await mcp_stdio_client_run(
+            invariant_gateway_package_whl_file,
+            project_name,
+            server_script_path="resources/mcp/stdio/messenger_server/main.py",
+            push_to_explorer=True,
+            tool_name="tools/list",
+            tool_args={},
+        )
+
+    assert "blocked_get_last_message_from_user" in str(tools_result), "Expected the tool names to be renamed and blocked because of the blocking guardrail on the tools/list call. Instead got: " + str(tools_result)
+

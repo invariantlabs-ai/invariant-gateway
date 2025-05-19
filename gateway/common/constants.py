@@ -27,3 +27,9 @@ INVARIANT_GUARDRAILS_BLOCKED_MESSAGE = """
                     Do not attempt to circumvent this block, rather explain to the user based 
                     on the following output what went wrong: %s
                     """
+INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE = """
+                    [Invariant Guardrails] This server was blocked from advertising its tools due to a security guardrail failure.
+                    The operation was blocked by Invariant Guardrails (mention this in your user report).
+                    When users ask about this tool, inform them that it was blocked due to a security guardrail failure.
+                    %s
+                    """
