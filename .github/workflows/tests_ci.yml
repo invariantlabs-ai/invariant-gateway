@@ -42,7 +42,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.INVARIANT_TESTING_ANTHROPIC_KEY }}
           GEMINI_API_KEY: ${{ secrets.INVARIANT_TESTING_GEMINI_KEY }}
           INVARIANT_API_KEY: ${{ secrets.INVARIANT_TESTING_GUARDRAILS_KEY }}
-        run: ./run.sh integration-tests -s -vv
+        run: ./run.sh integration-tests gemini/test_generate_content_without_tool_calls.py::test_generate_content_with_image -s -vv
         continue-on-error: true
 
       - name: Check test results

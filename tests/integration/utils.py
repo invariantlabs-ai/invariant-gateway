@@ -43,7 +43,10 @@ def get_anthropic_client(
 
 
 def get_gemini_client(
-    gateway_url: str, push_to_explorer: bool, dataset_name: str
+    gateway_url: str,
+    push_to_explorer: bool,
+    dataset_name: str,
+    api_version: str = "v1beta",
 ) -> genai.Client:
     """Create a Gemini client for integration tests."""
     return genai.Client(
@@ -55,6 +58,7 @@ def get_gemini_client(
             "headers": {
                 "Invariant-Authorization": f"Bearer {os.getenv('INVARIANT_API_KEY')}"
             },
+            "api_version": api_version,
         },
     )
 
