@@ -528,6 +528,49 @@ async def process_line(
         mcp_process.stdin.flush()
 
 
+async def wait_for_stdin_input(loop: asyncio.AbstractEventLoop, stdin_fd: int) -> tuple[bytes | None, str]:
+    """
+    Platform-specific implementation to wait for and read input from stdin.
+    
+    Args:
+        loop: The asyncio event loop
+        stdin_fd: The file descriptor for stdin
+        
+    Returns:
+        tuple[bytes | None, str]: A tuple containing:
+            - The data read from stdin or None
+            - Status: 'eof' if EOF detected, 'data' if data available, 'wait' if no data yet
+    """
+    if platform.system() == "Windows":
+        # On Windows, we can't use select for stdin
+        # Instead, we'll use a brief sleep and then try to read
+        await asyncio.sleep(0.01)
+        try:
+            chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
+            if not chunk:  # Empty bytes means EOF
+                return None, 'eof'
+            return chunk, 'data'
+        except (BlockingIOError, OSError):
+            # No data available yet
+            return None, 'wait'
+    else:
+        # On Unix-like systems, use select
+        ready, _, _ = await loop.run_in_executor(
+            None, lambda: select.select([stdin_fd], [], [], 0.1)
+        )
+
+        if not ready:
+            # No input available, yield to other tasks
+            await asyncio.sleep(0.01)
+            return None, 'wait'
+
+        # Read available data
+        chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
+        if not chunk:  # Empty bytes means EOF
+            return None, 'eof'
+        return chunk, 'data'
+
+
 async def run_stdio_input_loop(
     ctx: McpContext,
     mcp_process: subprocess.Popen,
@@ -544,44 +587,26 @@ async def run_stdio_input_loop(
 
     try:
         while True:
-            # Cross-platform way to check for input
-            if platform.system() == "Windows":
-                # On Windows, we can't use select for stdin
-                # Instead, we'll use a brief sleep and then try to read
-                await asyncio.sleep(0.01)
-                try:
-                    chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
-                    if not chunk:
-                        break  # EOF
-                    buffer += chunk
-                except (BlockingIOError, OSError):
-                    # No data available yet
-                    continue
-            else:
-                # On Unix-like systems, use select
-                ready, _, _ = await loop.run_in_executor(
-                    None, lambda: select.select([stdin_fd], [], [], 0.1)
-                )
-
-                if not ready:
-                    # No input available, yield to other tasks
-                    await asyncio.sleep(0.01)
-                    continue
-
-                # Read available data
-                chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
-                if not chunk:
-                    break  # EOF
-
+            # Get input using platform-specific method
+            chunk, status = await wait_for_stdin_input(loop, stdin_fd)
+            
+            if status == 'eof':
+                # EOF detected, break the loop
+                break
+            elif status == 'wait':
+                # No data available yet, continue polling
+                continue
+            elif status == 'data':
+                # We got some data, process it
                 buffer += chunk
 
-            # Process complete lines
-            while b"\n" in buffer:
-                line, buffer = buffer.split(b"\n", 1)
-                if not line:
-                    continue
+                # Process complete lines
+                while b"\n" in buffer:
+                    line, buffer = buffer.split(b"\n", 1)
+                    if not line:
+                        continue
 
-                await process_line(ctx, mcp_process, line)
+                    await process_line(ctx, mcp_process, line)
     except (BrokenPipeError, KeyboardInterrupt):
         # Broken pipe = client disappeared, just start shutdown
         mcp_log("Client disconnected or keyboard interrupt")
