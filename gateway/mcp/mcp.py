@@ -6,6 +6,7 @@ import json
 import os
 import select
 import asyncio
+import platform
 
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
@@ -543,22 +544,36 @@ async def run_stdio_input_loop(
 
     try:
         while True:
-            # Check for input using select
-            ready, _, _ = await loop.run_in_executor(
-                None, lambda: select.select([stdin_fd], [], [], 0.1)
-            )
-
-            if not ready:
-                # No input available, yield to other tasks
+            # Cross-platform way to check for input
+            if platform.system() == "Windows":
+                # On Windows, we can't use select for stdin
+                # Instead, we'll use a brief sleep and then try to read
                 await asyncio.sleep(0.01)
-                continue
+                try:
+                    chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
+                    if not chunk:
+                        break  # EOF
+                    buffer += chunk
+                except (BlockingIOError, OSError):
+                    # No data available yet
+                    continue
+            else:
+                # On Unix-like systems, use select
+                ready, _, _ = await loop.run_in_executor(
+                    None, lambda: select.select([stdin_fd], [], [], 0.1)
+                )
 
-            # Read available data
-            chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
-            if not chunk:
-                break  # EOF
+                if not ready:
+                    # No input available, yield to other tasks
+                    await asyncio.sleep(0.01)
+                    continue
 
-            buffer += chunk
+                # Read available data
+                chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
+                if not chunk:
+                    break  # EOF
+
+                buffer += chunk
 
             # Process complete lines
             while b"\n" in buffer:
