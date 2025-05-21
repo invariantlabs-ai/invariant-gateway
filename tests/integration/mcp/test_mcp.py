@@ -174,6 +174,8 @@ async def test_mcp_with_gateway_and_logging_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
+    assert "session_id" in metadata
+    assert "system_user" in metadata
     assert trace["messages"][2]["role"] == "assistant"
     assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
@@ -287,6 +289,8 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
+    assert "session_id" in metadata
+    assert "system_user" in metadata
     assert trace["messages"][2]["role"] == "assistant"
     assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
@@ -388,6 +392,8 @@ async def test_mcp_with_gateway_hybrid_guardrails(
         and metadata["mcp_client"] == "mcp"
         and metadata["mcp_server"] == "messenger_server"
     )
+    assert "session_id" in metadata
+    assert "system_user" in metadata
     assert trace["messages"][2]["role"] == "assistant"
     assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",

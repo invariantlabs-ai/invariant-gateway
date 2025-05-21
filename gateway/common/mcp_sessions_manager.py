@@ -2,8 +2,10 @@
 
 import asyncio
 import contextlib
+import getpass
 import os
 import random
+import socket
 
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +24,14 @@ from gateway.integrations.explorer import (
 from gateway.integrations.guardrails import check_guardrails
 
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
+
+
+def user_and_host() -> str:
+    """Get the current user and hostname."""
+    username = getpass.getuser()
+    hostname = socket.gethostname()
+
+    return f"{username}@{hostname}"
 
 
 class McpSession(BaseModel):
@@ -81,6 +91,14 @@ class McpSession(BaseModel):
         async with self._lock:
             yield
 
+    def session_metadata(self) -> dict:
+        """Generate metadata for the current session."""
+        return {
+            "session_id": self.session_id,
+            "system_user": user_and_host(),
+            **(self.metadata or {}),
+        }
+
     async def get_guardrails_check_result(
         self,
         message: dict,
@@ -102,6 +120,10 @@ class McpSession(BaseModel):
             dataset_name=self.explorer_dataset,
             invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
             guardrails=self.guardrails,
+            guardrails_parameters={
+                "metadata": self.session_metadata(),
+                "action": action,
+            },
         )
 
         guardrails_to_check = (
@@ -170,12 +192,10 @@ class McpSession(BaseModel):
 
             # If no trace exists, create a new one
             if not self.trace_id:
-                # pylint: disable=no-member
-                metadata = {"source": "mcp", "tools": self.metadata.get("tools", [])}
-                if self.metadata.get("mcp_client_name"):
-                    metadata["mcp_client"] = self.metadata.get("mcp_client_name")
-                if self.metadata.get("mcp_server_name"):
-                    metadata["mcp_server"] = self.metadata.get("mcp_server_name")
+                # default metadata
+                metadata = {"source": "mcp"}
+                # include MCP session metadata
+                metadata.update(self.session_metadata())
 
                 response = await client.push_trace(
                     PushTracesRequest(
