@@ -106,6 +106,6 @@ class McpContext:
         """Run async setup logic (e.g. fetching guardrails)."""
         self.guardrails = await fetch_guardrails_from_explorer(
             self.explorer_dataset, "Bearer " + os.getenv("INVARIANT_API_KEY"),
-            self.mcp_client_name,
-            self.mcp_server_name,
+            self.extra_metadata.get("client", self.mcp_client_name),
+            self.extra_metadata.get("server", self.mcp_server_name),
         )
