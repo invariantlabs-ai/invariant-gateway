@@ -69,7 +69,7 @@ down() {
 
 unit_tests() {
   echo "Running unit tests..."
-  PYTHONPATH=. pytest tests/unit_tests $@
+  PYTHONPATH=. uv run pytest tests/unit_tests $@
 
   TEST_EXIT_CODE=$?
   echo "Unit tests finished with exit code: $TEST_EXIT_CODE"
@@ -142,9 +142,9 @@ integration_tests() {
 
   # Generate latest whl file for the invariant-gateway package. 
   # This is required to run the integration tests.
-  pip install build
+  uv pip install build
   rm -rf dist
-  python -m build
+  uv python -m build
   WHEEL_FILE=$(ls dist/*.whl | head -n 1)
   echo "WHEEL_FILE: $WHEEL_FILE"
 
