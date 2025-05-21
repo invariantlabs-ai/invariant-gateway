@@ -89,7 +89,7 @@ async def mcp_post_gateway(
     if request_json.get(MCP_PARAMS) and request_json.get(MCP_PARAMS).get(
         MCP_CLIENT_INFO
     ):
-        session.metadata["mcp_client_name"] = (
+        session.metadata["mcp_client"] = (
             request_json.get(MCP_PARAMS).get(MCP_CLIENT_INFO).get("name", "")
         )
 
@@ -446,10 +446,6 @@ def _convert_localhost_to_docker_host(mcp_server_base_url: str) -> str:
     Returns:
         str: Modified server address with localhost references changed to host.docker.internal
     """
-    # check if we are running in a docker container
-    if not os.environ.get("DOCKER_ENV"):
-        return mcp_server_base_url
-
     if "localhost" in mcp_server_base_url or "127.0.0.1" in mcp_server_base_url:
         # Replace localhost or 127.0.0.1 with host.docker.internal
         modified_address = re.sub(
@@ -510,7 +506,7 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
         if response_json.get(MCP_RESULT) and response_json.get(MCP_RESULT).get(
             MCP_SERVER_INFO
         ):
-            session.metadata["mcp_server_name"] = (
+            session.metadata["mcp_server"] = (
                 response_json.get(MCP_RESULT).get(MCP_SERVER_INFO).get("name", "")
             )
 
