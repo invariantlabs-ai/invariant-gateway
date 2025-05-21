@@ -22,6 +22,7 @@ from gateway.common.constants import (
     MCP_RESULT,
     MCP_SERVER_INFO,
     MCP_CLIENT_INFO,
+    UTF_8,
 )
 from gateway.common.guardrails import GuardrailAction
 from gateway.common.mcp_sessions_manager import (
@@ -42,12 +43,12 @@ MCP_SERVER_SSE_HEADERS = {
     "accept",
     "cache-control",
 }
+MCP_SERVER_BASE_URL_HEADER = "mcp-server-base-url"
 
 gateway = APIRouter()
 session_store = McpSessionsManager()
 
 
-@gateway.post("/mcp/messages/")
 @gateway.post("/mcp/sse/messages/")
 async def mcp_post_gateway(
     request: Request,
@@ -64,15 +65,17 @@ async def mcp_post_gateway(
             status_code=400,
             detail="Session does not exist",
         )
-    if not request.headers.get("mcp-server-base-url"):
+    if not request.headers.get(MCP_SERVER_BASE_URL_HEADER):
         return HTTPException(
             status_code=400,
-            detail="Missing 'mcp-server-base-url' header",
+            detail=f"Missing {MCP_SERVER_BASE_URL_HEADER} header",
         )
 
     session_id = query_params.get("session_id")
     mcp_server_messages_endpoint = (
-        _convert_localhost_to_docker_host(request.headers.get("mcp-server-base-url"))
+        _convert_localhost_to_docker_host(
+            request.headers.get(MCP_SERVER_BASE_URL_HEADER)
+        )
         + "/messages/?"
         + session_id
     )
@@ -103,14 +106,12 @@ async def mcp_post_gateway(
     elif request_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
         # Intercept and potentially block the request
         hook_tool_call_result, is_blocked = await _hook_tool_call(
-            session_id=session_id, request_json={
+            session_id=session_id,
+            request_json={
                 "id": request_json.get("id"),
                 "method": MCP_LIST_TOOLS,
-                "params": {
-                    "name": MCP_LIST_TOOLS,
-                    "arguments": {}
-                },
-            }
+                "params": {"name": MCP_LIST_TOOLS, "arguments": {}},
+            },
         )
         if is_blocked:
             # Add the error message to the session.
@@ -147,18 +148,16 @@ async def mcp_post_gateway(
             raise HTTPException(status_code=500, detail="Unexpected error") from e
 
 
-
 @gateway.get("/mcp/sse")
 async def mcp_get_sse_gateway(
     request: Request,
 ) -> StreamingResponse:
     """Proxy calls to the MCP Server tools"""
-    mcp_server_base_url = request.headers.get("mcp-server-base-url")
+    mcp_server_base_url = request.headers.get(MCP_SERVER_BASE_URL_HEADER)
     if not mcp_server_base_url:
-        print("missing base url", request.headers, flush=True)
         raise HTTPException(
             status_code=400,
-            detail="Missing 'mcp-server-base-url' header",
+            detail=f"Missing {MCP_SERVER_BASE_URL_HEADER} header",
         )
     mcp_server_sse_endpoint = (
         _convert_localhost_to_docker_host(mcp_server_base_url) + "/sse"
@@ -243,7 +242,7 @@ async def mcp_get_sse_gateway(
                                     # Pass through other event types
                                     # pylint: disable=line-too-long
                                     event_bytes = f"event: {sse.event}\ndata: {sse.data}\n\n".encode(
-                                        "utf-8"
+                                        UTF_8
                                     )
 
                                 # Put the processed event in the queue
@@ -251,7 +250,7 @@ async def mcp_get_sse_gateway(
 
                     except httpx.StreamClosed as e:
                         print(f"Server stream closed: {e}", flush=True)
-                    except Exception as e:
+                    except Exception as e:  # pylint: disable=broad-except
                         print(f"Error processing server events: {e}", flush=True)
 
             # Start server events processor
@@ -360,7 +359,9 @@ async def _hook_tool_call(session_id: str, request_json: dict) -> Tuple[dict, bo
     return request_json, False
 
 
-async def _hook_tool_call_response(session_id: str, response_json: dict, is_tools_list=False) -> dict:
+async def _hook_tool_call_response(
+    session_id: str, response_json: dict, is_tools_list=False
+) -> dict:
     """
 
     Hook to process the response JSON after receiving it from the MCP server.
@@ -404,10 +405,10 @@ async def _hook_tool_call_response(session_id: str, response_json: dict, is_tool
         else:
             # special error response for tools/list tool call
             result = {
-                    "jsonrpc": "2.0",
-                    "id": response_json.get("id"),
-                    "result": {
-                        "tools": [
+                "jsonrpc": "2.0",
+                "id": response_json.get("id"),
+                "result": {
+                    "tools": [
                         {
                             "name": "blocked_" + tool["name"],
                             "description": INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE
@@ -425,7 +426,7 @@ async def _hook_tool_call_response(session_id: str, response_json: dict, is_tool
                         }
                         for tool in response_json["result"]["tools"]
                     ]
-                }
+                },
             }
 
     # Push trace to the explorer - don't block on its response
@@ -489,7 +490,7 @@ async def _handle_endpoint_event(
         "/messages/?session_id=",
         "/api/v1/gateway/mcp/sse/messages/?session_id=",
     )
-    event_bytes = f"event: {sse.event}\ndata: {modified_data}\n\n".encode("utf-8")
+    event_bytes = f"event: {sse.event}\ndata: {modified_data}\n\n".encode(UTF_8)
     return event_bytes, session_id
 
 
@@ -501,7 +502,7 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
         session_id (str): The session ID associated with the request.
         sse (ServerSentEvent): The original SSE object.
     """
-    event_bytes = f"event: {sse.event}\ndata: {sse.data}\n\n".encode("utf-8")
+    event_bytes = f"event: {sse.event}\ndata: {sse.data}\n\n".encode(UTF_8)
     session = session_store.get_session(session_id)
     try:
         response_json = json.loads(sse.data)
@@ -525,7 +526,7 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
             # pylint: disable=line-too-long
             if blocked:
                 event_bytes = f"event: {sse.event}\ndata: {json.dumps(hook_tool_call_response)}\n\n".encode(
-                    "utf-8"
+                    UTF_8
                 )
         elif method == MCP_LIST_TOOLS:
             # store tools in metadata
@@ -538,9 +539,11 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
                 response_json={
                     "id": response_json.get("id"),
                     "result": {
-                        "content": json.dumps(response_json.get(MCP_RESULT).get("tools")),
+                        "content": json.dumps(
+                            response_json.get(MCP_RESULT).get("tools")
+                        ),
                         "tools": response_json.get(MCP_RESULT).get("tools"),
-                    }
+                    },
                 },
                 is_tools_list=True,
             )
@@ -550,7 +553,7 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
             # pylint: disable=line-too-long
             if blocked:
                 event_bytes = f"event: {sse.event}\ndata: {json.dumps(hook_tool_call_response)}\n\n".encode(
-                    "utf-8"
+                    UTF_8
                 )
 
     except json.JSONDecodeError as e:
@@ -591,7 +594,7 @@ async def _check_for_pending_error_messages(
                 for error_message in error_messages:
                     error_bytes = (
                         f"event: message\ndata: {json.dumps(error_message)}\n\n".encode(
-                            "utf-8"
+                            UTF_8
                         )
                     )
                     await pending_error_messages_queue.put(error_bytes)

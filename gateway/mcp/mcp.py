@@ -1,12 +1,14 @@
 """Gateway for MCP (Model Context Protocol) integration with Invariant."""
 
-import sys
-import subprocess
+import asyncio
+import getpass
 import json
 import os
-import select
-import asyncio
 import platform
+import select
+import socket
+import subprocess
+import sys
 
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
@@ -21,6 +23,7 @@ from gateway.common.constants import (
     MCP_SERVER_INFO,
     MCP_TOOL_CALL,
     MCP_LIST_TOOLS,
+    UTF_8,
 )
 from gateway.common.guardrails import GuardrailAction
 from gateway.common.request_context import RequestContext
@@ -28,15 +31,17 @@ from gateway.integrations.explorer import create_annotations_from_guardrails_err
 from gateway.integrations.guardrails import check_guardrails
 from gateway.mcp.log import mcp_log, MCP_LOG_FILE, format_errors_in_response
 from gateway.mcp.mcp_context import McpContext
-from gateway.mcp.task_utils import run_task_in_background, run_task_sync
-import getpass
-import socket
+from gateway.mcp.task_utils import run_task_sync
 
-UTF_8_ENCODING = "utf-8"
+
 DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
+STATUS_EOF = "eof"
+STATUS_DATA = "data"
+STATUS_WAIT = "wait"
 
 
 def user_and_host() -> str:
+    """Get the current user and hostname."""
     username = getpass.getuser()
     hostname = socket.gethostname()
 
@@ -44,6 +49,7 @@ def user_and_host() -> str:
 
 
 def session_metadata(ctx: McpContext) -> dict:
+    """Generate metadata for the current session."""
     return {
         "session_id": ctx.local_session_id,
         "system_user": user_and_host(),
@@ -56,30 +62,15 @@ def session_metadata(ctx: McpContext) -> dict:
 
 def write_as_utf8_bytes(data: dict) -> bytes:
     """Serializes dict to bytes using UTF-8 encoding."""
-    return json.dumps(data).encode(UTF_8_ENCODING) + b"\n"
+    return json.dumps(data).encode(UTF_8) + b"\n"
 
 
 def deduplicate_annotations(ctx: McpContext, new_annotations: list) -> list:
     """Deduplicate new_annotations using the annotations in the context."""
     deduped_annotations = []
     for annotation in new_annotations:
-        # Check if an annotation with the same content and address exists in ctx.annotations
-        # TODO: Rely on the __eq__ method of the AnnotationCreate class directly via not in
-        # to remove duplicates instead of using a custom logic.
-        # This is a temporary solution until the Invariant SDK is updated.
-        is_duplicate = False
-        for ctx_annotation in ctx.annotations:
-            if (
-                annotation.content == ctx_annotation.content
-                and annotation.address == ctx_annotation.address
-                and annotation.extra_metadata == ctx_annotation.extra_metadata
-            ):
-                is_duplicate = True
-                break
-
-        if not is_duplicate:
+        if annotation not in ctx.annotations:
             deduped_annotations.append(annotation)
-
     return deduped_annotations
 
 
@@ -92,43 +83,6 @@ def check_if_new_errors(ctx: McpContext, guardrails_result: dict) -> bool:
         if annotation not in ctx.annotations:
             return True
     return False
-
-
-async def get_guardrails_check_result(
-    ctx: McpContext,
-    message: dict,
-    action: GuardrailAction = GuardrailAction.BLOCK,
-) -> dict:
-    """
-    Check against guardrails of type action in an async manner.
-    """
-    # Skip if no guardrails are configured for this action
-    if not (
-        (ctx.guardrails.blocking_guardrails and action == GuardrailAction.BLOCK)
-        or (ctx.guardrails.logging_guardrails and action == GuardrailAction.LOG)
-    ):
-        return {}
-
-    # Prepare context and select appropriate guardrails
-    context = RequestContext.create(
-        request_json={},
-        dataset_name=ctx.explorer_dataset,
-        invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
-        guardrails=ctx.guardrails,
-    )
-
-    guardrails_to_check = (
-        ctx.guardrails.blocking_guardrails
-        if action == GuardrailAction.BLOCK
-        else ctx.guardrails.logging_guardrails
-    )
-
-    # Run check_guardrails asynchronously
-    return await check_guardrails(
-        messages=ctx.trace + [message],
-        guardrails=guardrails_to_check,
-        context=context,
-    )
 
 
 async def append_and_push_trace(
@@ -195,7 +149,7 @@ async def append_and_push_trace(
             )
             ctx.last_trace_length = len(ctx.trace)
             ctx.annotations.extend(deduplicated_annotations)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         mcp_log("[ERROR] Error pushing trace in append_and_push_trace:", e)
 
 
@@ -331,17 +285,17 @@ async def hook_tool_result(ctx: McpContext, result: dict) -> dict:
 
     # Safely handle result object
     result_obj = result.get("result", {})
-    if isinstance(result_obj, dict) and MCP_SERVER_INFO in result_obj:
+    if result_obj.get(MCP_SERVER_INFO):
         ctx.mcp_server_name = result_obj.get(MCP_SERVER_INFO, {}).get("name", "")
 
-    if method is None:
+    if not method:
         return result
     elif method == MCP_TOOL_CALL:
         message = {
             "role": "tool",
             "content": result_obj.get("content"),
             "error": result_obj.get("error"),
-            "tool_call_id": call_id
+            "tool_call_id": call_id,
         }
         # Check for blocking guardrails
         guardrailing_result = await get_guardrails_check_result(
@@ -417,7 +371,7 @@ async def stream_and_forward_stdout(
 
         try:
             # Process complete JSON lines
-            line_str = line.decode(UTF_8_ENCODING).strip()
+            line_str = line.decode(UTF_8).strip()
             if not line_str:
                 continue
 
@@ -431,9 +385,7 @@ async def stream_and_forward_stdout(
             sys.stdout.buffer.write(write_as_utf8_bytes(processed_json))
             sys.stdout.buffer.flush()
 
-        except Exception as e:
-            import traceback
-            mcp_log(traceback.format_exc())
+        except Exception as e:  # pylint: disable=broad-except
             mcp_log(f"[ERROR] Error in stream_and_forward_stdout: {str(e)}")
             if line:
                 mcp_log(f"[ERROR] Problematic line causing error: {line[:200]}...")
@@ -458,12 +410,13 @@ async def stream_and_forward_stderr(
 async def process_line(
     ctx: McpContext, mcp_process: subprocess.Popen, line: bytes
 ) -> None:
+    """Process a line of input from stdin, decode it, and forward to mcp_process."""
     if ctx.verbose:
         mcp_log(f"[INFO] client -> server: {line}")
 
     # Try to decode and parse as JSON to check for tool calls
     try:
-        text = line.decode(UTF_8_ENCODING)
+        text = line.decode(UTF_8)
         parsed_json = json.loads(text)
     except json.JSONDecodeError as je:
         mcp_log(f"[ERROR] JSON decode error in run_stdio_input_loop: {str(je)}")
@@ -471,12 +424,10 @@ async def process_line(
         return
 
     if parsed_json.get(MCP_METHOD) is not None:
-        ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(
-            MCP_METHOD
-        )
-    if "params" in parsed_json and "clientInfo" in parsed_json.get("params"):
+        ctx.id_to_method_mapping[parsed_json.get("id")] = parsed_json.get(MCP_METHOD)
+    if parsed_json.get(MCP_PARAMS) and parsed_json.get(MCP_PARAMS).get(MCP_CLIENT_INFO):
         ctx.mcp_client_name = (
-            parsed_json.get("params").get("clientInfo").get("name", "")
+            parsed_json.get(MCP_PARAMS).get(MCP_CLIENT_INFO).get("name", "")
         )
 
     # Check if this is a tool call request
@@ -506,8 +457,6 @@ async def process_line(
         if parsed_json.get(MCP_METHOD) == MCP_LIST_TOOLS:
             # Refresh guardrails
             run_task_sync(ctx.load_guardrails)
-
-            # mcp_message_{}
             ctx.trace.append(
                 {
                     "role": "assistant",
@@ -528,14 +477,16 @@ async def process_line(
         mcp_process.stdin.flush()
 
 
-async def wait_for_stdin_input(loop: asyncio.AbstractEventLoop, stdin_fd: int) -> tuple[bytes | None, str]:
+async def wait_for_stdin_input(
+    loop: asyncio.AbstractEventLoop, stdin_fd: int
+) -> tuple[bytes | None, str]:
     """
     Platform-specific implementation to wait for and read input from stdin.
-    
+
     Args:
         loop: The asyncio event loop
         stdin_fd: The file descriptor for stdin
-        
+
     Returns:
         tuple[bytes | None, str]: A tuple containing:
             - The data read from stdin or None
@@ -548,11 +499,11 @@ async def wait_for_stdin_input(loop: asyncio.AbstractEventLoop, stdin_fd: int) -
         try:
             chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
             if not chunk:  # Empty bytes means EOF
-                return None, 'eof'
-            return chunk, 'data'
+                return None, STATUS_EOF
+            return chunk, STATUS_DATA
         except (BlockingIOError, OSError):
             # No data available yet
-            return None, 'wait'
+            return None, STATUS_WAIT
     else:
         # On Unix-like systems, use select
         ready, _, _ = await loop.run_in_executor(
@@ -562,13 +513,13 @@ async def wait_for_stdin_input(loop: asyncio.AbstractEventLoop, stdin_fd: int) -
         if not ready:
             # No input available, yield to other tasks
             await asyncio.sleep(0.01)
-            return None, 'wait'
+            return None, STATUS_WAIT
 
         # Read available data
         chunk = await loop.run_in_executor(None, lambda: os.read(stdin_fd, 4096))
         if not chunk:  # Empty bytes means EOF
-            return None, 'eof'
-        return chunk, 'data'
+            return None, STATUS_EOF
+        return chunk, STATUS_DATA
 
 
 async def run_stdio_input_loop(
@@ -589,14 +540,14 @@ async def run_stdio_input_loop(
         while True:
             # Get input using platform-specific method
             chunk, status = await wait_for_stdin_input(loop, stdin_fd)
-            
-            if status == 'eof':
+
+            if status == STATUS_EOF:
                 # EOF detected, break the loop
                 break
-            elif status == 'wait':
+            elif status == STATUS_WAIT:
                 # No data available yet, continue polling
                 continue
-            elif status == 'data':
+            elif status == STATUS_DATA:
                 # We got some data, process it
                 buffer += chunk
 
