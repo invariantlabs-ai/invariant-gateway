@@ -2,41 +2,11 @@
 
 import asyncio
 import concurrent.futures
-import threading
 
 from contextlib import redirect_stdout
 from typing import Any
 
-from gateway.mcp.log import MCP_LOG_FILE, mcp_log
-
-
-def run_task_in_background(async_func, *args, **kwargs):
-    """
-    Runs an async function in a background thread with its own event loop.
-    This function does NOT block the calling thread as it immediately returns
-    after starting the background thread.
-
-    Args:
-        async_func: The async function to run
-        *args: Positional arguments to pass to the async function
-        **kwargs: Keyword arguments to pass to the async function
-    """
-
-    def thread_target():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(async_func(*args, **kwargs))
-        except Exception as e:
-            mcp_log(
-                f"[ERROR] Error in async thread while running run_task_in_background: {e}"
-            )
-        finally:
-            loop.close()
-
-    # Create and start a daemon thread
-    thread = threading.Thread(target=thread_target, daemon=True)
-    thread.start()
+from gateway.mcp.log import MCP_LOG_FILE
 
 
 def run_task_sync(async_func, *args, **kwargs) -> Any:

@@ -66,9 +66,6 @@ def create_annotations_from_guardrails_errors(
                 )
             )
     # Remove duplicates
-    # TODO: Rely on the __eq__ and __hash__ methods of the AnnotationCreate class
-    # to remove duplicates instead of using a custom function.
-    # This is a temporary solution until the Invariant SDK is updated.
     return remove_duplicates(annotations)
 
 
@@ -85,7 +82,7 @@ def remove_duplicates(annotations: List[AnnotationCreate]) -> List[AnnotationCre
     for annotation in annotations:
         # Convert the entire extra_metadata dict to a JSON string
         # This creates a hashable representation regardless of nested content
-        metadata_str = json.dumps(annotation.extra_metadata, sort_keys=True)
+        metadata_str = json.dumps(annotation.extra_metadata or {}, sort_keys=True)
 
         # Create a unique identifier using all three fields
         unique_key = (annotation.content, annotation.address, metadata_str)

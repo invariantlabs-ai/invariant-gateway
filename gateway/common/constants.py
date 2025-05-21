@@ -15,6 +15,7 @@ IGNORED_HEADERS = [
 CLIENT_TIMEOUT = 60.0
 
 # MCP related constants
+UTF_8 = "utf-8"
 MCP_METHOD = "method"
 MCP_TOOL_CALL = "tools/call"
 MCP_LIST_TOOLS = "tools/list"

@@ -45,7 +45,7 @@ async def test_mcp_with_gateway(
             project_name,
             push_to_explorer=push_to_explorer,
             tool_name="get_last_message_from_user",
-            tool_args={"username": "Alice"}
+            tool_args={"username": "Alice"},
         )
     else:
         result = await mcp_stdio_client_run(
@@ -307,7 +307,7 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
 @pytest.mark.asyncio
 @pytest.mark.timeout(30)
 @pytest.mark.parametrize("transport", ["stdio", "sse"])
-async def test_mcp_sse_with_gateway_hybrid_guardrails(
+async def test_mcp_with_gateway_hybrid_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
 ):
     """Test MCP gateway and verify that logging and blocking guardrails work together"""
@@ -425,7 +425,6 @@ async def test_mcp_sse_with_gateway_hybrid_guardrails(
     assert tool_call_annotation["extra_metadata"]["guardrail"]["action"] == "log"
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.timeout(30)
 @pytest.mark.parametrize("transport", ["stdio", "sse"])
@@ -434,7 +433,7 @@ async def test_mcp_tool_list_blocking(
 ):
     """
     Tests that blocking guardrails work for the tools/list call.
-    
+
     For those, the expected behavior is that the returned tools are all renamed to blocked_... and include an informative block notice, instead of the original tool description.
     """
     project_name = "test-mcp-" + str(uuid.uuid4())
@@ -473,5 +472,7 @@ async def test_mcp_tool_list_blocking(
             tool_args={},
         )
 
-    assert "blocked_get_last_message_from_user" in str(tools_result), "Expected the tool names to be renamed and blocked because of the blocking guardrail on the tools/list call. Instead got: " + str(tools_result)
-
+    assert "blocked_get_last_message_from_user" in str(tools_result), (
+        "Expected the tool names to be renamed and blocked because of the blocking guardrail on the tools/list call. Instead got: "
+        + str(tools_result)
+    )

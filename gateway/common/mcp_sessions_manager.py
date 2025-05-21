@@ -65,23 +65,8 @@ class McpSession(BaseModel):
         """Deduplicate new_annotations using the annotations in the session."""
         deduped_annotations = []
         for annotation in new_annotations:
-            # Check if an annotation with the same content and address exists in self.annotations
-            # TODO: Rely on the __eq__ method of the AnnotationCreate class directly via not in
-            # to remove duplicates instead of using a custom logic.
-            # This is a temporary solution until the Invariant SDK is updated.
-            is_duplicate = False
-            for current_annotation in self.annotations:
-                if (
-                    annotation.content == current_annotation.content
-                    and annotation.address == current_annotation.address
-                    and annotation.extra_metadata == current_annotation.extra_metadata
-                ):
-                    is_duplicate = True
-                    break
-
-            if not is_duplicate:
+            if annotation not in self.annotations:
                 deduped_annotations.append(annotation)
-
         return deduped_annotations
 
     @contextlib.asynccontextmanager
