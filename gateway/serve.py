@@ -8,6 +8,7 @@ from gateway.routes.anthropic import gateway as anthropic_gateway
 from gateway.routes.gemini import gateway as gemini_gateway
 from gateway.routes.open_ai import gateway as open_ai_gateway
 from gateway.routes.mcp_sse import gateway as mcp_sse_gateway
+from gateway.routes.mcp_streamable import gateway as mcp_streamable_gateway
 
 app = fastapi.app = fastapi.FastAPI(
     docs_url="/api/v1/gateway/docs",
@@ -32,6 +33,10 @@ router.include_router(anthropic_gateway, prefix="/gateway", tags=["anthropic_gat
 router.include_router(gemini_gateway, prefix="/gateway", tags=["gemini_gateway"])
 
 router.include_router(mcp_sse_gateway, prefix="/gateway", tags=["mcp_sse_gateway"])
+
+router.include_router(
+    mcp_streamable_gateway, prefix="/gateway", tags=["mcp_streamable_gateway"]
+)
 
 app.include_router(router)
 

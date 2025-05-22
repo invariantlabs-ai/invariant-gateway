@@ -7,6 +7,7 @@ from resources.mcp.sse.client.main import run as mcp_sse_client_run
 from resources.mcp.stdio.client.main import run as mcp_stdio_client_run
 from utils import create_dataset, add_guardrail_to_dataset
 
+import httpx
 import pytest
 import requests
 
@@ -14,6 +15,14 @@ from mcp.shared.exceptions import McpError
 
 MCP_SSE_SERVER_HOST = "mcp-messenger-sse-server"
 MCP_SSE_SERVER_PORT = 8123
+
+
+def _get_headers(project_name: str, push_to_explorer: bool = True) -> dict[str, str]:
+    return {
+        "MCP-SERVER-BASE-URL": f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
+        "INVARIANT-PROJECT-NAME": project_name,
+        "PUSH-INVARIANT-EXPLORER": str(push_to_explorer),
+    }
 
 
 @pytest.mark.asyncio
@@ -41,11 +50,10 @@ async def test_mcp_with_gateway(
     if transport == "sse":
         result = await mcp_sse_client_run(
             gateway_url + "/api/v1/gateway/mcp/sse",
-            f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
-            project_name,
             push_to_explorer=push_to_explorer,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
+            headers=_get_headers(project_name, push_to_explorer),
         )
     else:
         result = await mcp_stdio_client_run(
@@ -131,11 +139,10 @@ async def test_mcp_with_gateway_and_logging_guardrails(
     if transport == "sse":
         result = await mcp_sse_client_run(
             gateway_url + "/api/v1/gateway/mcp/sse",
-            f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
-            project_name,
             push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
+            headers=_get_headers(project_name, True),
         )
     else:
         result = await mcp_stdio_client_run(
@@ -241,11 +248,10 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
         if transport == "sse":
             _ = await mcp_sse_client_run(
                 gateway_url + "/api/v1/gateway/mcp/sse",
-                f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
-                project_name,
                 push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
+                headers=_get_headers(project_name, True),
             )
         else:
             _ = await mcp_stdio_client_run(
@@ -344,11 +350,10 @@ async def test_mcp_with_gateway_hybrid_guardrails(
         if transport == "sse":
             _ = await mcp_sse_client_run(
                 gateway_url + "/api/v1/gateway/mcp/sse",
-                f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
-                project_name,
                 push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
+                headers=_get_headers(project_name, True),
             )
         else:
             _ = await mcp_stdio_client_run(
@@ -462,11 +467,10 @@ async def test_mcp_tool_list_blocking(
     if transport == "sse":
         tools_result = await mcp_sse_client_run(
             gateway_url + "/api/v1/gateway/mcp/sse",
-            f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
-            project_name,
             push_to_explorer=True,
             tool_name="tools/list",
             tool_args={},
+            headers=_get_headers(project_name, True),
         )
     else:
         tools_result = await mcp_stdio_client_run(
@@ -482,3 +486,44 @@ async def test_mcp_tool_list_blocking(
         "Expected the tool names to be renamed and blocked because of the blocking guardrail on the tools/list call. Instead got: "
         + str(tools_result)
     )
+
+
+@pytest.mark.asyncio
+async def test_mcp_sse_post_endpoint_exceptions(gateway_url):
+    """
+    Tests that the SSE POST endpoint returns the correct error messages for various exceptions.
+    """
+    # Test missing session_id query parameter
+    response = requests.post(
+        f"{gateway_url}/api/v1/gateway/mcp/sse/messages/",
+        timeout=5,
+    )
+    assert response.status_code == 400
+    assert "Missing 'session_id' query parameter" in response.text
+
+    # Test unknown session_id in query parameter
+    response = requests.post(
+        f"{gateway_url}/api/v1/gateway/mcp/sse/messages/?session_id=session_id_1",
+        timeout=5,
+    )
+    assert response.status_code == 400
+    assert "Session does not exist" in response.text
+
+    # Test missing mcp-server-base-url header
+    with pytest.raises(ExceptionGroup) as exc_group:
+        await mcp_sse_client_run(
+            gateway_url + "/api/v1/gateway/mcp/sse",
+            push_to_explorer=True,
+            tool_name="get_last_message_from_user",
+            tool_args={"username": "Alice"},
+            headers={
+                "INVARIANT-PROJECT-NAME": "something-123",
+                "PUSH-INVARIANT-EXPLORER": "True",
+            },
+        )
+
+    # Extract the actual HTTPStatusError
+    http_errors = [
+        e for e in exc_group.value.exceptions if isinstance(e, httpx.HTTPStatusError)
+    ]
+    assert http_errors[0].response.status_code == 400

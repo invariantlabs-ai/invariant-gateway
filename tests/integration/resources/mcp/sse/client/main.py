@@ -69,19 +69,16 @@ class MCPClient:
 
 async def run(
     gateway_url: str,
-    mcp_server_base_url: str,
-    project_name: str,
     push_to_explorer: bool,
     tool_name: str,
     tool_args: dict[str, Any],
+    headers: dict[str, str] = None,
 ):
     """
     Run the MCP client with the given parameters.
 
     Args:
         gateway_url: URL of the Invariant Gateway
-        mcp_server_base_url: Base URL of the MCP server
-        project_name: Name of the project in Invariant Explorer
         push_to_explorer: Whether to push traces to the Invariant Explorer
         tool_name: Name of the tool to call
         tool_args: Arguments for the tool call
@@ -90,12 +87,7 @@ async def run(
     client = MCPClient()
     try:
         await client.connect_to_sse_server(
-            server_url=gateway_url,
-            headers={
-                "MCP-SERVER-BASE-URL": mcp_server_base_url,
-                "INVARIANT-PROJECT-NAME": project_name,
-                "PUSH-INVARIANT-EXPLORER": str(push_to_explorer),
-            },
+            server_url=gateway_url, headers=headers or {}
         )
         # list tools
         listed_tools = await client.session.list_tools()
