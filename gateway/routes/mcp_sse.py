@@ -50,17 +50,11 @@ session_store = McpSessionsManager()
 
 
 @gateway.post("/mcp/sse/messages/")
-async def mcp_post_gateway(
+async def mcp_post_sse_gateway(
     request: Request,
 ) -> Response:
     """Proxy calls to the MCP Server tools"""
     query_params = dict(request.query_params)
-    print("[MCP POST] Query params:", query_params, flush=True)
-    print(
-        "[MCP POST] Query params session_id:",
-        query_params.get("session_id"),
-        flush=True,
-    )
     if not query_params.get("session_id"):
         raise HTTPException(
             status_code=400,
@@ -193,6 +187,9 @@ async def mcp_get_sse_gateway(
                                     status_code=event_source.response.status_code,
                                     detail=error_content,
                                 )
+                            response_headers.update(
+                                dict(event_source.response.headers.items())
+                            )
 
                             async for sse in event_source.aiter_sse():
                                 if sse.event == "endpoint":

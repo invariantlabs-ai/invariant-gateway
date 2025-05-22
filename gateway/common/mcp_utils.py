@@ -48,4 +48,4 @@ def get_mcp_server_base_url(request: Request) -> str:
             status_code=400,
             detail=f"Missing {MCP_SERVER_BASE_URL_HEADER} header",
         )
-    return _convert_localhost_to_docker_host(mcp_server_base_url)
+    return _convert_localhost_to_docker_host(mcp_server_base_url).rstrip("/")
