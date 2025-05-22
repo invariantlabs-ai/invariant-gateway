@@ -58,6 +58,7 @@ class McpSession(BaseModel):
     pending_error_messages: List[dict] = Field(default_factory=list)
 
     # Lock to maintain in-order pushes to explorer
+    # and other session-related operations
     _lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
     async def load_guardrails(self) -> None:
@@ -292,24 +293,53 @@ class McpSessionsManager:
 
     def __init__(self):
         self._sessions: dict[str, McpSession] = {}
+        # Dictionary to store per-session locks.
+        # Used for session initialization and deletion.
+        self._session_locks: dict[str, asyncio.Lock] = {}
+        # Global lock to protect the locks dictionary itself
+        self._global_lock = asyncio.Lock()
 
     def session_exists(self, session_id: str) -> bool:
         """Check if a session exists"""
         return session_id in self._sessions
 
+    async def _get_session_lock(self, session_id: str) -> asyncio.Lock:
+        """
+        Get a lock for a specific session ID, creating one if it doesn't exist.
+        Uses the global lock to protect access to the locks dictionary.
+        """
+        async with self._global_lock:
+            if session_id not in self._session_locks:
+                self._session_locks[session_id] = asyncio.Lock()
+            return self._session_locks[session_id]
+
+    async def cleanup_session_lock(self, session_id: str) -> None:
+        """Remove a session lock when it's no longer needed"""
+        async with self._global_lock:
+            if session_id in self._session_locks:
+                del self._session_locks[session_id]
+
     async def initialize_session(
         self, session_id: str, sse_header_attributes: SseHeaderAttributes
     ) -> None:
         """Initialize a new session"""
-        if session_id not in self._sessions:
-            session = McpSession(
-                session_id=session_id,
-                explorer_dataset=sse_header_attributes.explorer_dataset,
-                push_explorer=sse_header_attributes.push_explorer,
-            )
-            self._sessions[session_id] = session
-            # Load guardrails for the session from the explorer
-            await session.load_guardrails()
+        # Get the lock for this specific session
+        session_lock = await self._get_session_lock(session_id)
+
+        # Acquire the lock for this session
+        async with session_lock:
+            # Check again if session exists (it might have been created while waiting for the lock)
+            if session_id not in self._sessions:
+                session = McpSession(
+                    session_id=session_id,
+                    explorer_dataset=sse_header_attributes.explorer_dataset,
+                    push_explorer=sse_header_attributes.push_explorer,
+                )
+                self._sessions[session_id] = session
+                # Load guardrails for the session from the explorer
+                await session.load_guardrails()
+            else:
+                print(f"Session {session_id} already exists, skipping initialization", flush=True)
 
     def get_session(self, session_id: str) -> McpSession:
         """Get a session by ID"""
