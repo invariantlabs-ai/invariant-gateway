@@ -69,6 +69,9 @@ class McpSession(BaseModel):
         self.guardrails = await fetch_guardrails_from_explorer(
             self.explorer_dataset,
             "Bearer " + os.getenv("INVARIANT_API_KEY"),
+            # pylint: disable=no-member
+            self.metadata.get("mcp_client"),
+            self.metadata.get("mcp_server"),
         )
 
     def _deduplicate_annotations(self, new_annotations: list) -> list:
