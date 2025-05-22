@@ -9,7 +9,7 @@ import select
 import socket
 import subprocess
 import sys
-
+from datetime import datetime
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
 from invariant_sdk.types.push_traces import PushTracesRequest
@@ -72,6 +72,11 @@ def deduplicate_annotations(ctx: McpContext, new_annotations: list) -> list:
         if annotation not in ctx.annotations:
             deduped_annotations.append(annotation)
     return deduped_annotations
+
+
+def generate_message_timestamp() -> str:
+    """Generate a timestamp for a message."""
+    return datetime.now().isoformat()
 
 
 def check_if_new_errors(ctx: McpContext, guardrails_result: dict) -> bool:
@@ -168,6 +173,10 @@ async def get_guardrails_check_result(
         or (ctx.guardrails.logging_guardrails and action == GuardrailAction.LOG)
     ):
         return {}
+    
+    # Add timestamp to message if it doesn't already have one
+    if "timestamp" not in message:
+        message["timestamp"] = generate_message_timestamp()
 
     # Prepare context and select appropriate guardrails
     context = RequestContext.create(
@@ -471,6 +480,7 @@ async def process_line(
                             },
                         }
                     ],
+                    "timestamp": generate_message_timestamp(),
                 }
             )
         mcp_process.stdin.write(write_as_utf8_bytes(parsed_json))
