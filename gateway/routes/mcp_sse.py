@@ -3,7 +3,6 @@
 import asyncio
 import json
 import re
-import os
 from typing import Tuple
 
 import httpx
@@ -29,6 +28,7 @@ from gateway.common.mcp_sessions_manager import (
     McpSessionsManager,
     SseHeaderAttributes,
 )
+from gateway.common.mcp_utils import get_mcp_server_base_url
 from gateway.mcp.log import format_errors_in_response
 from gateway.integrations.explorer import create_annotations_from_guardrails_errors
 
@@ -55,29 +55,26 @@ async def mcp_post_gateway(
 ) -> Response:
     """Proxy calls to the MCP Server tools"""
     query_params = dict(request.query_params)
+    print("[MCP POST] Query params:", query_params, flush=True)
+    print(
+        "[MCP POST] Query params session_id:",
+        query_params.get("session_id"),
+        flush=True,
+    )
     if not query_params.get("session_id"):
-        return HTTPException(
+        raise HTTPException(
             status_code=400,
             detail="Missing 'session_id' query parameter",
         )
     if not session_store.session_exists(query_params.get("session_id")):
-        return HTTPException(
+        raise HTTPException(
             status_code=400,
             detail="Session does not exist",
-        )
-    if not request.headers.get(MCP_SERVER_BASE_URL_HEADER):
-        return HTTPException(
-            status_code=400,
-            detail=f"Missing {MCP_SERVER_BASE_URL_HEADER} header",
         )
 
     session_id = query_params.get("session_id")
     mcp_server_messages_endpoint = (
-        _convert_localhost_to_docker_host(
-            request.headers.get(MCP_SERVER_BASE_URL_HEADER)
-        )
-        + "/messages/?"
-        + session_id
+        get_mcp_server_base_url(request) + "/messages/?" + session_id
     )
     request_body_bytes = await request.body()
     request_json = json.loads(request_body_bytes)
@@ -153,15 +150,7 @@ async def mcp_get_sse_gateway(
     request: Request,
 ) -> StreamingResponse:
     """Proxy calls to the MCP Server tools"""
-    mcp_server_base_url = request.headers.get(MCP_SERVER_BASE_URL_HEADER)
-    if not mcp_server_base_url:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Missing {MCP_SERVER_BASE_URL_HEADER} header",
-        )
-    mcp_server_sse_endpoint = (
-        _convert_localhost_to_docker_host(mcp_server_base_url) + "/sse"
-    )
+    mcp_server_sse_endpoint = get_mcp_server_base_url(request) + "/sse"
 
     query_params = dict(request.query_params)
     response_headers = {}
@@ -434,28 +423,6 @@ async def _hook_tool_call_response(
         session_store.add_message_to_session(session_id, message, guardrails_result)
     )
     return result, blocked
-
-
-def _convert_localhost_to_docker_host(mcp_server_base_url: str) -> str:
-    """
-    Convert localhost or 127.0.0.1 in an address to host.docker.internal
-
-    Args:
-        mcp_server_base_url (str): The original server address from the header
-
-    Returns:
-        str: Modified server address with localhost references changed to host.docker.internal
-    """
-    if "localhost" in mcp_server_base_url or "127.0.0.1" in mcp_server_base_url:
-        # Replace localhost or 127.0.0.1 with host.docker.internal
-        modified_address = re.sub(
-            r"(https?://)(?:localhost|127\.0\.0\.1)(\b|:)",
-            r"\1host.docker.internal\2",
-            mcp_server_base_url,
-        )
-        return modified_address
-
-    return mcp_server_base_url
 
 
 async def _handle_endpoint_event(

@@ -34,3 +34,4 @@ INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE = """
                     When users ask about this tool, inform them that it was blocked due to a security guardrail failure.
                     %s
                     """
+MCP_SERVER_BASE_URL_HEADER = "mcp-server-base-url"
