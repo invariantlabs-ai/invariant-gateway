@@ -45,6 +45,7 @@ class McpSession(BaseModel):
     id_to_method_mapping: Dict[int, str] = Field(default_factory=dict)
     explorer_dataset: str
     push_explorer: bool
+    invariant_api_key: Optional[str] = None
     trace_id: Optional[str] = None
     last_trace_length: int = 0
     annotations: List[Dict[str, Any]] = Field(default_factory=list)
@@ -61,6 +62,17 @@ class McpSession(BaseModel):
     # and other session-related operations
     _lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
+    def get_invariant_api_key(self) -> str:
+        """
+        Get the Invariant API key for the session.
+
+        Returns:
+            str: The Invariant API key
+        """
+        if self.invariant_api_key:
+            return self.invariant_api_key
+        return os.getenv("INVARIANT_API_KEY")
+
     async def load_guardrails(self) -> None:
         """
         Load guardrails for the session.
@@ -69,7 +81,7 @@ class McpSession(BaseModel):
         """
         self.guardrails = await fetch_guardrails_from_explorer(
             self.explorer_dataset,
-            "Bearer " + os.getenv("INVARIANT_API_KEY"),
+            "Bearer " + self.get_invariant_api_key(),
             # pylint: disable=no-member
             self.metadata.get("mcp_client"),
             self.metadata.get("mcp_server"),
@@ -122,7 +134,7 @@ class McpSession(BaseModel):
         context = RequestContext.create(
             request_json={},
             dataset_name=self.explorer_dataset,
-            invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
+            invariant_authorization="Bearer " + self.get_invariant_api_key(),
             guardrails=self.guardrails,
             guardrails_parameters={
                 "metadata": self.session_metadata(),
@@ -192,6 +204,7 @@ class McpSession(BaseModel):
         try:
             client = AsyncClient(
                 api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL),
+                api_key=self.get_invariant_api_key(),
             )
 
             # If no trace exists, create a new one
@@ -257,6 +270,7 @@ class SseHeaderAttributes(BaseModel):
 
     push_explorer: bool
     explorer_dataset: str
+    invariant_api_key: Optional[str] = None
 
     @classmethod
     def from_request_headers(cls, headers: Headers) -> "SseHeaderAttributes":
@@ -272,6 +286,7 @@ class SseHeaderAttributes(BaseModel):
         # Extract and process header values
         project_name = headers.get("INVARIANT-PROJECT-NAME")
         push_explorer_header = headers.get("PUSH-INVARIANT-EXPLORER", "false").lower()
+        invariant_api_key = headers.get("INVARIANT-API-KEY")
 
         # Determine explorer_dataset
         if project_name:
@@ -283,7 +298,11 @@ class SseHeaderAttributes(BaseModel):
         push_explorer = push_explorer_header == "true"
 
         # Create and return instance
-        return cls(push_explorer=push_explorer, explorer_dataset=explorer_dataset)
+        return cls(
+            push_explorer=push_explorer,
+            explorer_dataset=explorer_dataset,
+            invariant_api_key=invariant_api_key,
+        )
 
 
 class McpSessionsManager:
@@ -332,14 +351,18 @@ class McpSessionsManager:
             if session_id not in self._sessions:
                 session = McpSession(
                     session_id=session_id,
-                    explorer_dataset=sse_header_attributes.explorer_dataset,
-                    push_explorer=sse_header_attributes.push_explorer,
+                    **sse_header_attributes.model_dump(
+                        exclude_unset=True,
+                    ),
                 )
                 self._sessions[session_id] = session
                 # Load guardrails for the session from the explorer
                 await session.load_guardrails()
             else:
-                print(f"Session {session_id} already exists, skipping initialization", flush=True)
+                print(
+                    f"Session {session_id} already exists, skipping initialization",
+                    flush=True,
+                )
 
     def get_session(self, session_id: str) -> McpSession:
         """Get a session by ID"""
