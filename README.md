@@ -289,14 +289,17 @@ For SSE transport based MCP, here are the steps to point your MCP client to a lo
 * Use the following configuration to connect to the local Gateway instance:
 ```python
 await client.connect_to_sse_server(
-            server_url="http://localhost:8005/api/v1/gateway/mcp/sse",
+            server_url="http://localhost:8005/api/vs1/gateway/mcp/sse",
             headers={
                 "MCP-SERVER-BASE-URL": "<The base URL to your MCP server>",
                 "INVARIANT-PROJECT-NAME": "<The Invariant dataset name>",
                 "PUSH-INVARIANT-EXPLORER": "true",
+                "INVARIANT-API-KEY": "<your-invariant-api-key>"
             },
         )
 ```
+
+The `INVARIANT-API-KEY` header is used both for pushing the traces to explorer and for guardrailing.
 
 If no `INVARIANT-PROJECT-NAME` header is specified but `PUSH-INVARIANT-EXPLORER` is set to "true", a new Invariant project will be created and the MCP traces will be pushed there.
 
