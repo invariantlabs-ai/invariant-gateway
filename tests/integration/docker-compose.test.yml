@@ -111,7 +111,7 @@ services:
     build:
       context: ${GATEWAY_ROOT_PATH}
       dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/sse/messenger_server/Dockerfile.mcp-server
-    container_name: invariant-gateway-test-mcp-server
+    container_name: invariant-gateway-test-mcp-sse-server
     networks:
       - invariant-gateway-web-test
     ports:

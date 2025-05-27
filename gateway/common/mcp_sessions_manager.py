@@ -15,6 +15,7 @@ from invariant_sdk.types.push_traces import PushTracesRequest
 from pydantic import BaseModel, Field, PrivateAttr
 from starlette.datastructures import Headers
 
+from gateway.common.constants import INVARIANT_SESSION_ID_PREFIX
 from gateway.common.guardrails import GuardrailRuleSet, GuardrailAction
 from gateway.common.request_context import RequestContext
 from gateway.integrations.explorer import (
@@ -109,11 +110,13 @@ class McpSession(BaseModel):
 
     def session_metadata(self) -> dict:
         """Generate metadata for the current session."""
-        return {
+        metadata = {
             "session_id": self.session_id,
             "system_user": user_and_host(),
             **(self.metadata or {}),
         }
+        metadata["is_stateless_http_server"] = self.session_id.startswith(INVARIANT_SESSION_ID_PREFIX)
+        return metadata
 
     async def get_guardrails_check_result(
         self,
@@ -237,6 +240,9 @@ class McpSession(BaseModel):
             self.annotations.extend(deduplicated_annotations)
             self.last_trace_length = len(self.messages)
         except Exception as e:  # pylint: disable=broad-except
+            import traceback
+
+            traceback.print_exc()
             print(f"[MCP SSE] Error pushing trace for session {self.session_id}: {e}")
 
     async def add_pending_error_message(self, error_message: dict) -> None:

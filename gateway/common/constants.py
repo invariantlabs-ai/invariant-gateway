@@ -15,7 +15,7 @@ IGNORED_HEADERS = [
 CLIENT_TIMEOUT = 60.0
 
 # MCP related constants
-UTF_8 = "utf-8"
+INVARIANT_SESSION_ID_PREFIX = "inv-"
 MCP_METHOD = "method"
 MCP_TOOL_CALL = "tools/call"
 MCP_LIST_TOOLS = "tools/list"
@@ -35,3 +35,4 @@ INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE = """
                     %s
                     """
 MCP_SERVER_BASE_URL_HEADER = "mcp-server-base-url"
+UTF_8 = "utf-8"
