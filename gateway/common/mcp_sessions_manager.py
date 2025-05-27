@@ -240,9 +240,6 @@ class McpSession(BaseModel):
             self.annotations.extend(deduplicated_annotations)
             self.last_trace_length = len(self.messages)
         except Exception as e:  # pylint: disable=broad-except
-            import traceback
-
-            traceback.print_exc()
             print(f"[MCP SSE] Error pushing trace for session {self.session_id}: {e}")
 
     async def add_pending_error_message(self, error_message: dict) -> None:

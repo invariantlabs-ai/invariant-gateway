@@ -289,7 +289,7 @@ For SSE transport based MCP, here are the steps to point your MCP client to a lo
 * Use the following configuration to connect to the local Gateway instance:
 ```python
 await client.connect_to_sse_server(
-            server_url="http://localhost:8005/api/vs1/gateway/mcp/sse",
+            server_url="http://localhost:8005/api/v1/gateway/mcp/sse",
             headers={
                 "MCP-SERVER-BASE-URL": "<The base URL to your MCP server>",
                 "INVARIANT-PROJECT-NAME": "<The Invariant dataset name>",
