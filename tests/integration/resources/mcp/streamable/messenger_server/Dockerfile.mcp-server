@@ -1,0 +1,18 @@
+FROM python:3.13-alpine
+
+WORKDIR /app
+
+# Copy the messenger server code
+COPY tests/integration/resources/mcp/streamable/messenger_server /app/messenger_server
+
+# Install dependencies
+RUN pip install --no-cache-dir "uvicorn[standard]" "httpx" "mcp[cli]" "starlette"
+
+# Default values (will be overridden in compose)
+ENV HOST=0.0.0.0
+ENV PORT=8124
+ENV TRANSPORT=json
+ENV STATEFUL=false
+
+# Use environment variables in the CMD
+CMD ["sh", "-c", "python messenger_server/main.py --host $HOST --port $PORT --transport $TRANSPORT --stateful $STATEFUL"]

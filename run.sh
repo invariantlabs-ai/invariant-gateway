@@ -142,9 +142,9 @@ integration_tests() {
 
   # Generate latest whl file for the invariant-gateway package. 
   # This is required to run the integration tests.
-  pip install build
+  pip install build --quiet
   rm -rf dist
-  python -m build
+  python -m build > /dev/null 2>&1
   WHEEL_FILE=$(ls dist/*.whl | head -n 1)
   echo "WHEEL_FILE: $WHEEL_FILE"
 

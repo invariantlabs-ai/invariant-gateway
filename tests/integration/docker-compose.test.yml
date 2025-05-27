@@ -106,8 +106,8 @@ services:
       timeout: 5s
       retries: 5
 
+  # MCP SSE server used in integration tests
   mcp-messenger-sse-server:
-    # MCP SSE server used in integration tests
     build:
       context: ${GATEWAY_ROOT_PATH}
       dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/sse/messenger_server/Dockerfile.mcp-server
@@ -117,11 +117,74 @@ services:
     ports:
       - "8123:8123"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8123/sse"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8123/sse" ]
       interval: 3s
       timeout: 5s
       retries: 5
 
+  # MCP Streamable HTTP server with json_response=True, stateless_http=True
+  # to use in integration tests
+  mcp-messenger-streamable-json-stateless-server:
+    build:
+      context: ${GATEWAY_ROOT_PATH}
+      dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/streamable/messenger_server/Dockerfile.mcp-server
+    container_name: invariant-gateway-test-mcp-streamable-json-stateless-server
+    networks:
+      - invariant-gateway-web-test
+    ports:
+      - "8124:8124"
+    environment:
+      PORT: 8124
+      TRANSPORT: json
+      STATEFUL: false
+
+  # MCP Streamable HTTP server with json_response=True, stateless_http=False
+  # to use in integration tests
+  mcp-messenger-streamable-json-stateful-server:
+    build:
+      context: ${GATEWAY_ROOT_PATH}
+      dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/streamable/messenger_server/Dockerfile.mcp-server
+    container_name: invariant-gateway-test-mcp-streamable-json-stateful-server
+    networks:
+      - invariant-gateway-web-test
+    ports:
+      - "8125:8125"
+    environment:
+      PORT: 8125
+      TRANSPORT: json
+      STATEFUL: true
+
+  # MCP Streamable HTTP server with json_response=False, stateless_http=True
+  # to use in integration tests
+  mcp-messenger-streamable-sse-stateless-server:
+    build:
+      context: ${GATEWAY_ROOT_PATH}
+      dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/streamable/messenger_server/Dockerfile.mcp-server
+    container_name: invariant-gateway-test-mcp-streamable-sse-stateless-server
+    networks:
+      - invariant-gateway-web-test
+    ports:
+      - "8126:8126"
+    environment:
+      PORT: 8126
+      TRANSPORT: sse
+      STATEFUL: false
+
+  # MCP Streamable HTTP server with json_response=False, stateless_http=False
+  # to use in integration tests
+  mcp-messenger-streamable-sse-stateful-server:
+    build:
+      context: ${GATEWAY_ROOT_PATH}
+      dockerfile: ${GATEWAY_ROOT_PATH}/tests/integration/resources/mcp/streamable/messenger_server/Dockerfile.mcp-server
+    container_name: invariant-gateway-test-mcp-streamable-sse-stateful-server
+    networks:
+      - invariant-gateway-web-test
+    ports:
+      - "8127:8127"
+    environment:
+      PORT: 8127
+      TRANSPORT: sse
+      STATEFUL: true
 
 networks:
   invariant-gateway-web-test:
