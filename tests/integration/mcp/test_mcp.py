@@ -5,6 +5,7 @@ import uuid
 
 from resources.mcp.sse.client.main import run as mcp_sse_client_run
 from resources.mcp.stdio.client.main import run as mcp_stdio_client_run
+from resources.mcp.streamable.client.main import run as mcp_streamable_client_run
 from utils import create_dataset, add_guardrail_to_dataset
 
 import httpx
@@ -13,13 +14,45 @@ import requests
 
 from mcp.shared.exceptions import McpError
 
+# Taken from docker-compose.test.yml
 MCP_SSE_SERVER_HOST = "mcp-messenger-sse-server"
 MCP_SSE_SERVER_PORT = 8123
+MCP_STREAMABLE_HOSTS = {
+    "streamable-json-stateless": {
+        "host": "mcp-messenger-streamable-json-stateless-server",
+        "port": 8124,
+    },
+    "streamable-json-stateful": {
+        "host": "mcp-messenger-streamable-json-stateful-server",
+        "port": 8125,
+    },
+    "streamable-sse-stateless": {
+        "host": "mcp-messenger-streamable-sse-stateless-server",
+        "port": 8126,
+    },
+    "streamable-sse-stateful": {
+        "host": "mcp-messenger-streamable-sse-stateful-server",
+        "port": 8127,
+    },
+}
 
 
-def _get_headers(project_name: str, push_to_explorer: bool = True) -> dict[str, str]:
+def _get_mcp_sse_server_base_url() -> str:
+    return f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}"
+
+
+def _get_streamable_server_base_url(transport: str) -> str:
+    if transport not in MCP_STREAMABLE_HOSTS:
+        raise ValueError(f"Unknown transport: {transport}")
+    host_info = MCP_STREAMABLE_HOSTS[transport]
+    return f"http://{host_info['host']}:{host_info['port']}"
+
+
+def _get_headers(
+    server_base_url: str, project_name: str, push_to_explorer: bool = True
+) -> dict[str, str]:
     return {
-        "MCP-SERVER-BASE-URL": f"http://{MCP_SSE_SERVER_HOST}:{MCP_SSE_SERVER_PORT}",
+        "MCP-SERVER-BASE-URL": server_base_url,
         "INVARIANT-PROJECT-NAME": project_name,
         "PUSH-INVARIANT-EXPLORER": str(push_to_explorer),
     }
@@ -28,19 +61,20 @@ def _get_headers(project_name: str, push_to_explorer: bool = True) -> dict[str, 
 @pytest.mark.asyncio
 @pytest.mark.timeout(30)
 @pytest.mark.parametrize(
-    "push_to_explorer, transport",
+    "transport",
     [
-        (False, "stdio"),
-        (False, "sse"),
-        (True, "stdio"),
-        (True, "sse"),
+        "stdio",
+        "sse",
+        "streamable-json-stateless",
+        "streamable-json-stateful",
+        "streamable-sse-stateless",
+        "streamable-sse-stateful",
     ],
 )
 async def test_mcp_with_gateway(
     explorer_api_url,
     invariant_gateway_package_whl_file,
     gateway_url,
-    push_to_explorer,
     transport,
 ):
     """Test MCP gateway and verify trace is pushed to explorer"""
@@ -50,20 +84,30 @@ async def test_mcp_with_gateway(
     if transport == "sse":
         result = await mcp_sse_client_run(
             gateway_url + "/api/v1/gateway/mcp/sse",
-            push_to_explorer=push_to_explorer,
+            push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
-            headers=_get_headers(project_name, push_to_explorer),
+            headers=_get_headers(_get_mcp_sse_server_base_url(), project_name, True),
         )
-    else:
+    elif transport == "stdio":
         result = await mcp_stdio_client_run(
             invariant_gateway_package_whl_file,
             project_name,
             server_script_path="resources/mcp/stdio/messenger_server/main.py",
-            push_to_explorer=push_to_explorer,
+            push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
             metadata_keys={"my-custom-key": "value1", "my-custom-key-2": "value2"},
+        )
+    else:
+        result = await mcp_streamable_client_run(
+            gateway_url + "/api/v1/gateway/mcp/streamable",
+            push_to_explorer=True,
+            tool_name="get_last_message_from_user",
+            tool_args={"username": "Alice"},
+            headers=_get_headers(
+                _get_streamable_server_base_url(transport), project_name, True
+            ),
         )
 
     assert result.isError is False
@@ -72,37 +116,50 @@ async def test_mcp_with_gateway(
         and result.content[0].text == "What is your favorite food?\n"
     )
 
-    if push_to_explorer:
-        # Fetch the trace ids for the dataset
-        traces_response = requests.get(
-            f"{explorer_api_url}/api/v1/dataset/byuser/developer/{project_name}/traces",
-            timeout=5,
-        )
-        traces = traces_response.json()
-        assert len(traces) == 1
-        trace_id = traces[0]["id"]
+    # Fetch the trace ids for the dataset
+    traces_response = requests.get(
+        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{project_name}/traces",
+        timeout=5,
+    )
+    traces = traces_response.json()
+    assert len(traces) == 1
+    trace_id = traces[0]["id"]
 
-        # Fetch the trace
-        trace_response = requests.get(
-            f"{explorer_api_url}/api/v1/trace/{trace_id}",
-            timeout=5,
-        )
-        trace = trace_response.json()
-        metadata = trace["extra_metadata"]
-        assert (
-            metadata["source"] == "mcp"
-            and metadata["mcp_client"] == "mcp"
-            and metadata["mcp_server"] == "messenger_server"
-        )
-        assert trace["messages"][2]["role"] == "assistant"
-        assert trace["messages"][2]["tool_calls"][0]["function"] == {
-            "name": "get_last_message_from_user",
-            "arguments": {"username": "Alice"},
-        }
-        assert trace["messages"][3]["role"] == "tool"
-        assert trace["messages"][3]["content"] == [
-            {"type": "text", "text": "What is your favorite food?\n"}
-        ]
+    # Fetch the trace
+    trace_response = requests.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id}",
+        timeout=5,
+    )
+    trace = trace_response.json()
+
+    metadata = trace["extra_metadata"]
+    assert (
+        metadata["source"] == "mcp"
+        and metadata["mcp_client"] == "mcp"
+        and metadata["mcp_server"] == "messenger_server"
+    )
+    if transport == "streamable-json-stateless":
+        assert metadata["server_response_type"] == "json"
+        assert metadata["is_stateless_http_server"] is True
+    elif transport == "streamable-json-stateful":
+        assert metadata["server_response_type"] == "json"
+        assert metadata["is_stateless_http_server"] is False
+    elif transport == "streamable-sse-stateless":
+        assert metadata["server_response_type"] == "sse"
+        assert metadata["is_stateless_http_server"] is True
+    elif transport == "streamable-sse-stateful":
+        assert metadata["server_response_type"] == "sse"
+        assert metadata["is_stateless_http_server"] is False
+
+    assert trace["messages"][2]["role"] == "assistant"
+    assert trace["messages"][2]["tool_calls"][0]["function"] == {
+        "name": "get_last_message_from_user",
+        "arguments": {"username": "Alice"},
+    }
+    assert trace["messages"][3]["role"] == "tool"
+    assert trace["messages"][3]["content"] == [
+        {"type": "text", "text": "What is your favorite food?\n"}
+    ]
 
 
 @pytest.mark.asyncio
@@ -142,7 +199,7 @@ async def test_mcp_with_gateway_and_logging_guardrails(
             push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
-            headers=_get_headers(project_name, True),
+            headers=_get_headers(_get_mcp_sse_server_base_url(), project_name, True),
         )
     else:
         result = await mcp_stdio_client_run(
@@ -251,7 +308,9 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
                 push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
-                headers=_get_headers(project_name, True),
+                headers=_get_headers(
+                    _get_mcp_sse_server_base_url(), project_name, True
+                ),
             )
         else:
             _ = await mcp_stdio_client_run(
@@ -353,7 +412,9 @@ async def test_mcp_with_gateway_hybrid_guardrails(
                 push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
-                headers=_get_headers(project_name, True),
+                headers=_get_headers(
+                    _get_mcp_sse_server_base_url(), project_name, True
+                ),
             )
         else:
             _ = await mcp_stdio_client_run(
@@ -470,7 +531,7 @@ async def test_mcp_tool_list_blocking(
             push_to_explorer=True,
             tool_name="tools/list",
             tool_args={},
-            headers=_get_headers(project_name, True),
+            headers=_get_headers(_get_mcp_sse_server_base_url(), project_name, True),
         )
     else:
         tools_result = await mcp_stdio_client_run(
