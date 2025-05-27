@@ -81,8 +81,9 @@ async def mcp_post_streamable_gateway(request: Request) -> StreamingResponse:
 
     # Intercept the request and check for guardrails.
     if not is_initialization_request:
-        if result := await _intercept_request(session_id, request_body) and result:  # noqa: F821 pylint: disable=used-before-assignment
-            return result
+        request_interception_result = await _intercept_request(session_id, request_body)
+        if request_interception_result:
+            return request_interception_result
 
     async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
         try:

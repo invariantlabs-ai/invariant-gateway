@@ -164,7 +164,17 @@ async def test_mcp_with_gateway(
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(30)
-@pytest.mark.parametrize("transport", ["stdio", "sse"])
+@pytest.mark.parametrize(
+    "transport",
+    [
+        "stdio",
+        "sse",
+        "streamable-json-stateless",
+        "streamable-json-stateful",
+        "streamable-sse-stateless",
+        "streamable-sse-stateful",
+    ],
+)
 async def test_mcp_with_gateway_and_logging_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
 ):
@@ -201,7 +211,7 @@ async def test_mcp_with_gateway_and_logging_guardrails(
             tool_args={"username": "Alice"},
             headers=_get_headers(_get_mcp_sse_server_base_url(), project_name, True),
         )
-    else:
+    elif transport == "stdio":
         result = await mcp_stdio_client_run(
             invariant_gateway_package_whl_file,
             project_name,
@@ -209,6 +219,16 @@ async def test_mcp_with_gateway_and_logging_guardrails(
             push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
+        )
+    else:
+        result = await mcp_streamable_client_run(
+            gateway_url + "/api/v1/gateway/mcp/streamable",
+            push_to_explorer=True,
+            tool_name="get_last_message_from_user",
+            tool_args={"username": "Alice"},
+            headers=_get_headers(
+                _get_streamable_server_base_url(transport), project_name, True
+            ),
         )
 
     assert result.isError is False
@@ -232,6 +252,7 @@ async def test_mcp_with_gateway_and_logging_guardrails(
         timeout=5,
     )
     trace = trace_response.json()
+
     metadata = trace["extra_metadata"]
     assert (
         metadata["source"] == "mcp"
@@ -240,6 +261,19 @@ async def test_mcp_with_gateway_and_logging_guardrails(
     )
     assert "session_id" in metadata
     assert "system_user" in metadata
+    if transport == "streamable-json-stateless":
+        assert metadata["server_response_type"] == "json"
+        assert metadata["is_stateless_http_server"] is True
+    elif transport == "streamable-json-stateful":
+        assert metadata["server_response_type"] == "json"
+        assert metadata["is_stateless_http_server"] is False
+    elif transport == "streamable-sse-stateless":
+        assert metadata["server_response_type"] == "sse"
+        assert metadata["is_stateless_http_server"] is True
+    elif transport == "streamable-sse-stateful":
+        assert metadata["server_response_type"] == "sse"
+        assert metadata["is_stateless_http_server"] is False
+
     assert trace["messages"][2]["role"] == "assistant"
     assert trace["messages"][2]["tool_calls"][0]["function"] == {
         "name": "get_last_message_from_user",
@@ -279,7 +313,17 @@ async def test_mcp_with_gateway_and_logging_guardrails(
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(30)
-@pytest.mark.parametrize("transport", ["stdio", "sse"])
+@pytest.mark.parametrize(
+    "transport",
+    [
+        "stdio",
+        "sse",
+        "streamable-json-stateless",
+        "streamable-json-stateful",
+        "streamable-sse-stateless",
+        "streamable-sse-stateful",
+    ],
+)
 async def test_mcp_with_gateway_and_blocking_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
 ):
@@ -312,7 +356,7 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
                     _get_mcp_sse_server_base_url(), project_name, True
                 ),
             )
-        else:
+        elif transport == "stdio":
             _ = await mcp_stdio_client_run(
                 invariant_gateway_package_whl_file,
                 project_name,
@@ -321,8 +365,9 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
             )
-        # If we get here, the tool call was not blocked
-        pytest.fail("Expected McpError to be raised")
+        if not transport.startswith("streamable-"):
+            # If we get here, the tool call was not blocked
+            pytest.fail("Expected McpError to be raised")
     # The tool call should be blocked by the guardrail
     # and an error should be raised.
     except McpError as e:
@@ -332,6 +377,25 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
         )
         assert "get_last_message_from_user is called" in e.error.message
         assert e.error.code == -32600
+
+    if transport.startswith("streamable-"):
+        with pytest.raises(ExceptionGroup) as exc_group:
+            _ = await mcp_streamable_client_run(
+                gateway_url + "/api/v1/gateway/mcp/streamable",
+                push_to_explorer=True,
+                tool_name="get_last_message_from_user",
+                tool_args={"username": "Alice"},
+                headers=_get_headers(
+                    _get_streamable_server_base_url(transport), project_name, True
+                ),
+            )
+        # Extract the actual HTTPStatusError
+        http_errors = [
+            e
+            for e in exc_group.value.exceptions
+            if isinstance(e, httpx.HTTPStatusError)
+        ]
+        assert http_errors[0].response.status_code == 400
 
     # Fetch the trace ids for the dataset
     traces_response = requests.get(
@@ -375,7 +439,17 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(30)
-@pytest.mark.parametrize("transport", ["stdio", "sse"])
+@pytest.mark.parametrize(
+    "transport",
+    [
+        "stdio",
+        "sse",
+        "streamable-json-stateless",
+        "streamable-json-stateful",
+        "streamable-sse-stateless",
+        "streamable-sse-stateful",
+    ],
+)
 async def test_mcp_with_gateway_hybrid_guardrails(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
 ):
@@ -416,7 +490,7 @@ async def test_mcp_with_gateway_hybrid_guardrails(
                     _get_mcp_sse_server_base_url(), project_name, True
                 ),
             )
-        else:
+        elif transport == "stdio":
             _ = await mcp_stdio_client_run(
                 invariant_gateway_package_whl_file,
                 project_name,
@@ -425,8 +499,9 @@ async def test_mcp_with_gateway_hybrid_guardrails(
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
             )
-        # If we get here, the tool call was not blocked
-        pytest.fail("Expected McpError to be raised")
+        if not transport.startswith("streamable-"):
+            # If we get here, the tool call was not blocked
+            pytest.fail("Expected McpError to be raised")
     # The tool call output should be blocked by the guardrail
     # and an error should be raised.
     except McpError as e:
@@ -436,6 +511,34 @@ async def test_mcp_with_gateway_hybrid_guardrails(
         )
         assert "food in ToolOutput" in e.error.message
         assert e.error.code == -32600
+
+    if transport.startswith("streamable-"):
+        with pytest.raises(ExceptionGroup) as exc_group:
+            _ = await mcp_streamable_client_run(
+                gateway_url + "/api/v1/gateway/mcp/streamable",
+                push_to_explorer=True,
+                tool_name="get_last_message_from_user",
+                tool_args={"username": "Alice"},
+                headers=_get_headers(
+                    _get_streamable_server_base_url(transport), project_name, True
+                ),
+            )
+        if transport.startswith("streamable-json"):
+            # Extract the actual HTTPStatusError
+            http_errors = [
+                e
+                for e in exc_group.value.exceptions
+                if isinstance(e, httpx.HTTPStatusError)
+            ]
+            assert http_errors[0].response.status_code == 400
+        else:
+            mcp_error = [e for e in exc_group.value.exceptions][0].exceptions[0]
+            assert (
+                "[Invariant Guardrails] The MCP tool call was blocked for security reasons"
+                in mcp_error.error.message
+            )
+            assert "food in ToolOutput" in mcp_error.error.message
+            assert -32600 == mcp_error.error.code
 
     # Fetch the trace ids for the dataset
     traces_response = requests.get(
@@ -499,7 +602,17 @@ async def test_mcp_with_gateway_hybrid_guardrails(
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(30)
-@pytest.mark.parametrize("transport", ["stdio", "sse"])
+@pytest.mark.parametrize(
+    "transport",
+    [
+        "stdio",
+        "sse",
+        "streamable-json-stateless",
+        "streamable-json-stateful",
+        "streamable-sse-stateless",
+        "streamable-sse-stateful",
+    ],
+)
 async def test_mcp_tool_list_blocking(
     explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
 ):
@@ -524,6 +637,26 @@ async def test_mcp_tool_list_blocking(
         invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
     )
 
+    if transport.startswith("streamable-json"):
+        with pytest.raises(ExceptionGroup) as exc_group:
+            _ = await mcp_streamable_client_run(
+                gateway_url + "/api/v1/gateway/mcp/streamable",
+                push_to_explorer=True,
+                tool_name="tools/list",
+                tool_args={},
+                headers=_get_headers(
+                    _get_streamable_server_base_url(transport), project_name, True
+                ),
+            )
+        # Extract the actual HTTPStatusError
+        http_errors = [
+            e
+            for e in exc_group.value.exceptions
+            if isinstance(e, httpx.HTTPStatusError)
+        ]
+        assert http_errors[0].response.status_code == 400
+        return
+
     # Run the MCP client and make the tools/list call.
     if transport == "sse":
         tools_result = await mcp_sse_client_run(
@@ -533,7 +666,7 @@ async def test_mcp_tool_list_blocking(
             tool_args={},
             headers=_get_headers(_get_mcp_sse_server_base_url(), project_name, True),
         )
-    else:
+    elif transport == "stdio":
         tools_result = await mcp_stdio_client_run(
             invariant_gateway_package_whl_file,
             project_name,
@@ -542,7 +675,16 @@ async def test_mcp_tool_list_blocking(
             tool_name="tools/list",
             tool_args={},
         )
-
+    else:
+        tools_result = await mcp_streamable_client_run(
+            gateway_url + "/api/v1/gateway/mcp/streamable",
+            push_to_explorer=True,
+            tool_name="tools/list",
+            tool_args={},
+            headers=_get_headers(
+                _get_streamable_server_base_url(transport), project_name, True
+            ),
+        )
     assert "blocked_get_last_message_from_user" in str(tools_result), (
         "Expected the tool names to be renamed and blocked because of the blocking guardrail on the tools/list call. Instead got: "
         + str(tools_result)
