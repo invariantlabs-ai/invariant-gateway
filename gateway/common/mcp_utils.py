@@ -89,6 +89,7 @@ async def hook_tool_call(
     guardrails_result = await session.get_guardrails_check_result(
         message, action=GuardrailAction.BLOCK
     )
+    print("[hook_tool_call] Guardrails result:", guardrails_result, flush=True)
     # If the request is blocked, return a message indicating the block reason.
     # If there are new errors, run append_and_push_trace in background.
     # If there are no new errors, just return the original request.
