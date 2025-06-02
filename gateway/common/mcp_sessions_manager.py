@@ -1,5 +1,6 @@
 """MCP Sessions Manager related classes"""
 
+import argparse
 import asyncio
 import contextlib
 import getpass
@@ -7,7 +8,7 @@ import os
 import random
 import socket
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
@@ -41,15 +42,12 @@ class McpSession(BaseModel):
     """
 
     session_id: str
-    messages: List[Dict[str, Any]] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    id_to_method_mapping: Dict[int, str] = Field(default_factory=dict)
-    explorer_dataset: str
-    push_explorer: bool
-    invariant_api_key: Optional[str] = None
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    attributes: Optional["McpAttributes"] = None
+    id_to_method_mapping: dict[int, str] = Field(default_factory=dict)
     trace_id: Optional[str] = None
     last_trace_length: int = 0
-    annotations: List[Dict[str, Any]] = Field(default_factory=list)
+    annotations: list[dict[str, Any]] = Field(default_factory=list)
     guardrails: GuardrailRuleSet = Field(
         default_factory=lambda: GuardrailRuleSet(
             blocking_guardrails=[], logging_guardrails=[]
@@ -57,22 +55,21 @@ class McpSession(BaseModel):
     )
     # When tool calls are blocked, the error message is stored here
     # and sent to the client via the SSE stream.
-    pending_error_messages: List[dict] = Field(default_factory=list)
+    pending_error_messages: list[dict] = Field(default_factory=list)
 
     # Lock to maintain in-order pushes to explorer
     # and other session-related operations
     _lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
     def get_invariant_api_key(self) -> str:
-        """
-        Get the Invariant API key for the session.
-
-        Returns:
-            str: The Invariant API key
-        """
-        if self.invariant_api_key:
-            return self.invariant_api_key
+        """Get the Invariant API key for the session."""
+        if self.attributes.invariant_api_key:
+            return self.attributes.invariant_api_key
         return os.getenv("INVARIANT_API_KEY")
+
+    def get_invariant_authorization(self) -> str:
+        """Get the Invariant authorization header for the session."""
+        return "Bearer " + self.get_invariant_api_key()
 
     async def load_guardrails(self) -> None:
         """
@@ -80,12 +77,13 @@ class McpSession(BaseModel):
 
         This method fetches guardrails from the Invariant Explorer and assigns them to the session.
         """
+        print("Inside load_guardrails attributes: ", self.attributes, flush=True)
         self.guardrails = await fetch_guardrails_from_explorer(
-            self.explorer_dataset,
-            "Bearer " + self.get_invariant_api_key(),
+            self.attributes.explorer_dataset,
+            self.get_invariant_authorization(),
             # pylint: disable=no-member
-            self.metadata.get("mcp_client"),
-            self.metadata.get("mcp_server"),
+            self.attributes.metadata.get("mcp_client"),
+            self.attributes.metadata.get("mcp_server"),
         )
 
     def _deduplicate_annotations(self, new_annotations: list) -> list:
@@ -113,9 +111,11 @@ class McpSession(BaseModel):
         metadata = {
             "session_id": self.session_id,
             "system_user": user_and_host(),
-            **(self.metadata or {}),
+            **(self.attributes.metadata or {}),
         }
-        metadata["is_stateless_http_server"] = self.session_id.startswith(INVARIANT_SESSION_ID_PREFIX)
+        metadata["is_stateless_http_server"] = self.session_id.startswith(
+            INVARIANT_SESSION_ID_PREFIX
+        )
         return metadata
 
     async def get_guardrails_check_result(
@@ -134,10 +134,15 @@ class McpSession(BaseModel):
             return {}
 
         # Prepare context and select appropriate guardrails
+        print(
+            "Inside get_guardrails_check_result attributes: ",
+            self.attributes,
+            flush=True,
+        )
         context = RequestContext.create(
             request_json={},
-            dataset_name=self.explorer_dataset,
-            invariant_authorization="Bearer " + self.get_invariant_api_key(),
+            dataset_name=self.attributes.explorer_dataset,
+            invariant_authorization=self.get_invariant_authorization(),
             guardrails=self.guardrails,
             guardrails_parameters={
                 "metadata": self.session_metadata(),
@@ -159,13 +164,14 @@ class McpSession(BaseModel):
         return result
 
     async def add_message(
-        self, message: Dict[str, Any], guardrails_result=Dict
+        self, message: dict[str, Any], guardrails_result=dict
     ) -> None:
         """
         Add a message to the session and optionally push to explorer.
 
         Args:
             message: The message to add
+            guardrails_result: The result of the guardrails check
         """
         async with self.session_lock():
             annotations = []
@@ -193,7 +199,7 @@ class McpSession(BaseModel):
             # pylint: disable=no-member
             self.messages.append(message)
             # If push_explorer is enabled, push the trace
-            if self.push_explorer:
+            if self.attributes.push_explorer:
                 await self._push_trace_update(deduplicated_annotations)
 
     async def _push_trace_update(self, deduplicated_annotations: list) -> None:
@@ -204,6 +210,7 @@ class McpSession(BaseModel):
 
         This is an internal method that should only be called within a lock.
         """
+        print("Inside _push_trace_update attributes: ", self.attributes, flush=True)
         try:
             client = AsyncClient(
                 api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL),
@@ -220,7 +227,7 @@ class McpSession(BaseModel):
                 response = await client.push_trace(
                     PushTracesRequest(
                         messages=[self.messages],
-                        dataset=self.explorer_dataset,
+                        dataset=self.attributes.explorer_dataset,
                         metadata=[metadata],
                         annotations=[deduplicated_annotations],
                     )
@@ -253,12 +260,12 @@ class McpSession(BaseModel):
             # pylint: disable=no-member
             self.pending_error_messages.append(error_message)
 
-    async def get_pending_error_messages(self) -> List[dict]:
+    async def get_pending_error_messages(self) -> list[dict]:
         """
         Get all pending error messages for the session.
 
         Returns:
-            List[dict]: A list of pending error messages
+            list[dict]: A list of pending error messages
         """
         async with self.session_lock():
             messages = list(self.pending_error_messages)
@@ -266,17 +273,22 @@ class McpSession(BaseModel):
             return messages
 
 
-class SseHeaderAttributes(BaseModel):
+class McpAttributes(BaseModel):
     """
-    A Pydantic model to represent header attributes.
+    A Pydantic model to represent MCP attributes.
+    This can be initialized using HTTP headers for SSE and Streamable transports.
+    This can also be initialized using CLI arguments for the Stdio transport.
     """
 
     push_explorer: bool
     explorer_dataset: str
     invariant_api_key: Optional[str] = None
+    failure_response_format: Optional[str] = None
+    verbose: Optional[bool] = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_request_headers(cls, headers: Headers) -> "SseHeaderAttributes":
+    def from_request_headers(cls, headers: Headers) -> "McpAttributes":
         """
         Create an instance from FastAPI request headers.
 
@@ -284,7 +296,7 @@ class SseHeaderAttributes(BaseModel):
             headers: FastAPI Request headers
 
         Returns:
-            SseHeaderAttributes: An instance with values extracted from headers
+            McpAttributes: An instance with values extracted from headers
         """
         # Extract and process header values
         project_name = headers.get("INVARIANT-PROJECT-NAME")
@@ -305,6 +317,61 @@ class SseHeaderAttributes(BaseModel):
             push_explorer=push_explorer,
             explorer_dataset=explorer_dataset,
             invariant_api_key=invariant_api_key,
+        )
+
+    @classmethod
+    def from_cli_args(cls, cli_args: list) -> "McpAttributes":
+        """
+        Create an instance from command line arguments.
+
+        Args:
+            cli_args: List of command line arguments
+
+        Returns:
+            McpAttributes: An instance with values extracted from CLI arguments
+        """
+        parser = argparse.ArgumentParser(description="MCP Gateway")
+        parser.add_argument(
+            "--project-name",
+            help="Name of the Project from Invariant Explorer where we want to push the MCP traces. The guardrails are pulled from this project.",
+            type=str,
+            default=f"mcp-capture-{random.randint(1, 100)}",
+        )
+        parser.add_argument(
+            "--push-explorer",
+            help="Enable pushing traces to Invariant Explorer",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--verbose",
+            help="Enable verbose logging",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--failure-response-format",
+            help="The response format to use to communicate guardrail failures to the client (error: JSON-RPC error response; potentially invisible to the agent, content: JSON-RPC content response, visible to the agent)",
+            type=str,
+            default="error",
+        )
+
+        config, extra_args = parser.parse_known_args(cli_args)
+
+        metadata: dict[str, Any] = {}
+        for arg in extra_args:
+            assert "=" in arg, f"Invalid extra metadata argument: {arg}"
+            key, value = arg.split("=")
+            assert key.startswith(
+                "--metadata-"
+            ), f"Invalid extra metadata argument: {arg}, must start with --metadata-"
+            key = key[len("--metadata-") :]
+            metadata[key] = value
+
+        return cls(
+            push_explorer=config.push_explorer,
+            explorer_dataset=config.project_name,
+            failure_response_format=config.failure_response_format,
+            verbose=config.verbose,
+            metadata=metadata,
         )
 
 
@@ -342,7 +409,7 @@ class McpSessionsManager:
                 del self._session_locks[session_id]
 
     async def initialize_session(
-        self, session_id: str, sse_header_attributes: SseHeaderAttributes
+        self, session_id: str, attributes: McpAttributes
     ) -> None:
         """Initialize a new session"""
         # Get the lock for this specific session
@@ -354,9 +421,7 @@ class McpSessionsManager:
             if session_id not in self._sessions:
                 session = McpSession(
                     session_id=session_id,
-                    **sse_header_attributes.model_dump(
-                        exclude_unset=True,
-                    ),
+                    attributes=attributes,
                 )
                 self._sessions[session_id] = session
                 # Load guardrails for the session from the explorer
@@ -374,7 +439,7 @@ class McpSessionsManager:
         return self._sessions.get(session_id)
 
     async def add_message_to_session(
-        self, session_id: str, message: Dict[str, Any], guardrails_result: dict
+        self, session_id: str, message: dict[str, Any], guardrails_result: dict
     ) -> None:
         """
         Add a message to a session and push to explorer if enabled.

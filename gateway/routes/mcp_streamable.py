@@ -24,7 +24,7 @@ from gateway.common.constants import (
 )
 from gateway.common.mcp_sessions_manager import (
     McpSessionsManager,
-    SseHeaderAttributes,
+    McpAttributes,
 )
 from gateway.common.mcp_utils import (
     get_mcp_server_base_url,
@@ -61,7 +61,7 @@ async def mcp_post_streamable_gateway(request: Request) -> StreamingResponse:
     """
     request_body_bytes = await request.body()
     request_body = json.loads(request_body_bytes)
-    sse_header_attributes = SseHeaderAttributes.from_request_headers(request.headers)
+    sse_header_attributes = McpAttributes.from_request_headers(request.headers)
     session_id = request.headers.get(MCP_SESSION_ID_HEADER)
     is_initialization_request = _is_initialization_request(request_body)
 
@@ -308,7 +308,7 @@ def _update_mcp_client_info_in_session(session_id: str, request_body: dict) -> N
     if request_body.get(MCP_PARAMS) and request_body.get(MCP_PARAMS).get(
         MCP_CLIENT_INFO
     ):
-        session.metadata["mcp_client"] = (
+        session.attributes.metadata["mcp_client"] = (
             request_body.get(MCP_PARAMS).get(MCP_CLIENT_INFO).get("name", "")
         )
 
@@ -323,10 +323,10 @@ def _update_mcp_response_info_in_session(
     if response_json.get(MCP_RESULT) and response_json.get(MCP_RESULT).get(
         MCP_SERVER_INFO
     ):
-        session.metadata["mcp_server"] = (
+        session.attributes.metadata["mcp_server"] = (
             response_json.get(MCP_RESULT).get(MCP_SERVER_INFO).get("name", "")
         )
-    session.metadata["server_response_type"] = "json" if is_json_response else "sse"
+    session.attributes.metadata["server_response_type"] = "json" if is_json_response else "sse"
 
 
 def _is_initialization_request(request_body: dict) -> bool:
@@ -507,7 +507,7 @@ async def _intercept_response(
     # Intercept and potentially block list tool call response
     elif method == MCP_LIST_TOOLS:
         # store tools in metadata
-        session_store.get_session(session_id).metadata["tools"] = response_json.get(
+        session_store.get_session(session_id).attributes.metadata["tools"] = response_json.get(
             MCP_RESULT
         ).get("tools")
         # store tools/list tool call in trace
