@@ -23,7 +23,7 @@ from gateway.common.constants import (
 )
 from gateway.common.mcp_sessions_manager import (
     McpSessionsManager,
-    SseHeaderAttributes,
+    McpAttributes,
 )
 from gateway.common.mcp_utils import (
     get_mcp_server_base_url,
@@ -79,7 +79,7 @@ async def mcp_post_sse_gateway(
     if request_body.get(MCP_PARAMS) and request_body.get(MCP_PARAMS).get(
         MCP_CLIENT_INFO
     ):
-        session.metadata["mcp_client"] = (
+        session.attributes.metadata["mcp_client"] = (
             request_body.get(MCP_PARAMS).get(MCP_CLIENT_INFO).get("name", "")
         )
 
@@ -137,6 +137,8 @@ async def mcp_post_sse_gateway(
             print(f"[MCP POST] Request error: {str(e)}")
             raise HTTPException(status_code=500, detail="Request error") from e
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"[MCP POST] Unexpected error: {str(e)}")
             raise HTTPException(status_code=500, detail="Unexpected error") from e
 
@@ -153,7 +155,7 @@ async def mcp_get_sse_gateway(
     filtered_headers = {
         k: v for k, v in request.headers.items() if k.lower() in MCP_SERVER_SSE_HEADERS
     }
-    sse_header_attributes = SseHeaderAttributes.from_request_headers(request.headers)
+    sse_header_attributes = McpAttributes.from_request_headers(request.headers)
 
     async def event_generator():
         """
@@ -296,7 +298,7 @@ async def mcp_get_sse_gateway(
 
 
 async def _handle_endpoint_event(
-    sse: ServerSentEvent, sse_header_attributes: SseHeaderAttributes
+    sse: ServerSentEvent, sse_header_attributes: McpAttributes
 ) -> Tuple[bytes, str]:
     """
     Handle the endpoint event type and modify the data accordingly.
@@ -343,7 +345,7 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
         if response_json.get(MCP_RESULT) and response_json.get(MCP_RESULT).get(
             MCP_SERVER_INFO
         ):
-            session.metadata["mcp_server"] = (
+            session.attributes.metadata["mcp_server"] = (
                 response_json.get(MCP_RESULT).get(MCP_SERVER_INFO).get("name", "")
             )
 
@@ -364,7 +366,7 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
                 )
         elif method == MCP_LIST_TOOLS:
             # store tools in metadata
-            session_store.get_session(session_id).metadata["tools"] = response_json.get(
+            session_store.get_session(session_id).attributes.metadata["tools"] = response_json.get(
                 MCP_RESULT
             ).get("tools")
             # store tools/list tool call in trace
