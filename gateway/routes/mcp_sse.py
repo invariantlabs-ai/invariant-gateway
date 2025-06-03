@@ -15,10 +15,6 @@ from gateway.common.constants import (
     MCP_METHOD,
     MCP_TOOL_CALL,
     MCP_LIST_TOOLS,
-    MCP_PARAMS,
-    MCP_RESULT,
-    MCP_SERVER_INFO,
-    MCP_CLIENT_INFO,
     UTF_8,
 )
 from gateway.common.mcp_sessions_manager import (
@@ -28,7 +24,9 @@ from gateway.common.mcp_sessions_manager import (
 from gateway.common.mcp_utils import (
     get_mcp_server_base_url,
     hook_tool_call,
-    hook_tool_call_response,
+    intercept_response,
+    update_mcp_server_in_session_metadata,
+    update_session_from_request,
 )
 
 MCP_SERVER_POST_HEADERS = {
@@ -72,16 +70,7 @@ async def mcp_post_sse_gateway(
     request_body_bytes = await request.body()
     request_body = json.loads(request_body_bytes)
     session = session_store.get_session(session_id)
-    if request_body.get(MCP_METHOD) and request_body.get("id"):
-        session.id_to_method_mapping[request_body.get("id")] = request_body.get(
-            MCP_METHOD
-        )
-    if request_body.get(MCP_PARAMS) and request_body.get(MCP_PARAMS).get(
-        MCP_CLIENT_INFO
-    ):
-        session.attributes.metadata["mcp_client"] = (
-            request_body.get(MCP_PARAMS).get(MCP_CLIENT_INFO).get("name", "")
-        )
+    update_session_from_request(session, request_body)
 
     if request_body.get(MCP_METHOD) == MCP_TOOL_CALL:
         # Intercept and potentially block the request
@@ -137,8 +126,6 @@ async def mcp_post_sse_gateway(
             print(f"[MCP POST] Request error: {str(e)}")
             raise HTTPException(status_code=500, detail="Request error") from e
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             print(f"[MCP POST] Unexpected error: {str(e)}")
             raise HTTPException(status_code=500, detail="Unexpected error") from e
 
@@ -340,59 +327,18 @@ async def _handle_message_event(session_id: str, sse: ServerSentEvent) -> bytes:
     event_bytes = f"event: {sse.event}\ndata: {sse.data}\n\n".encode(UTF_8)
     session = session_store.get_session(session_id)
     try:
-        response_json = json.loads(sse.data)
+        response_body = json.loads(sse.data)
+        update_mcp_server_in_session_metadata(session, response_body)
 
-        if response_json.get(MCP_RESULT) and response_json.get(MCP_RESULT).get(
-            MCP_SERVER_INFO
-        ):
-            session.attributes.metadata["mcp_server"] = (
-                response_json.get(MCP_RESULT).get(MCP_SERVER_INFO).get("name", "")
+        intercept_response_result, is_blocked = await intercept_response(
+            session_id=session_id,
+            session_store=session_store,
+            response_body=response_body,
+        )
+        if is_blocked:
+            event_bytes = f"event: {sse.event}\ndata: {json.dumps(intercept_response_result)}\n\n".encode(
+                UTF_8
             )
-
-        method = session.id_to_method_mapping.get(response_json.get("id"))
-        if method == MCP_TOOL_CALL:
-            result, blocked = await hook_tool_call_response(
-                session_id=session_id,
-                session_store=session_store,
-                response_json=response_json,
-            )
-            # Update the event bytes with hook_tool_call_response.
-            # hook_tool_call_response is same as response_json if no guardrail is violated.
-            # If guardrail is violated, it contains the error message.
-            # pylint: disable=line-too-long
-            if blocked:
-                event_bytes = (
-                    f"event: {sse.event}\ndata: {json.dumps(result)}\n\n".encode(UTF_8)
-                )
-        elif method == MCP_LIST_TOOLS:
-            # store tools in metadata
-            session_store.get_session(session_id).attributes.metadata["tools"] = response_json.get(
-                MCP_RESULT
-            ).get("tools")
-            # store tools/list tool call in trace
-            result, blocked = await hook_tool_call_response(
-                session_id=session_id,
-                session_store=session_store,
-                response_json={
-                    "id": response_json.get("id"),
-                    "result": {
-                        "content": json.dumps(
-                            response_json.get(MCP_RESULT).get("tools")
-                        ),
-                        "tools": response_json.get(MCP_RESULT).get("tools"),
-                    },
-                },
-                is_tools_list=True,
-            )
-            # Update the event bytes with hook_tool_call_response.
-            # hook_tool_call_response is same as response_json if no guardrail is violated.
-            # If guardrail is violated, it contains the error message.
-            # pylint: disable=line-too-long
-            if blocked:
-                event_bytes = (
-                    f"event: {sse.event}\ndata: {json.dumps(result)}\n\n".encode(UTF_8)
-                )
-
     except json.JSONDecodeError as e:
         print(
             f"[MCP SSE] Error parsing message JSON: {e}",

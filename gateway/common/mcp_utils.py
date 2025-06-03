@@ -1,7 +1,9 @@
 """MCP utility functions."""
 
 import asyncio
+import json
 import re
+import uuid
 
 from typing import Tuple
 
@@ -9,16 +11,81 @@ from fastapi import Request, HTTPException
 from gateway.common.constants import (
     INVARIANT_GUARDRAILS_BLOCKED_MESSAGE,
     INVARIANT_GUARDRAILS_BLOCKED_TOOLS_MESSAGE,
+    INVARIANT_SESSION_ID_PREFIX,
+    MCP_CLIENT_INFO,
     MCP_SERVER_BASE_URL_HEADER,
+    MCP_LIST_TOOLS,
+    MCP_METHOD,
     MCP_PARAMS,
     MCP_RESULT,
+    MCP_SERVER_INFO,
+    MCP_TOOL_CALL,
 )
 from gateway.common.guardrails import GuardrailAction
 from gateway.common.mcp_sessions_manager import (
+    McpSession,
     McpSessionsManager,
 )
 from gateway.integrations.explorer import create_annotations_from_guardrails_errors
 from gateway.mcp.log import format_errors_in_response
+
+
+def _check_if_new_errors(
+    session_id: str, session_store: McpSessionsManager, guardrails_result: dict
+) -> bool:
+    """Checks if there are new errors in the guardrails result."""
+    session = session_store.get_session(session_id)
+    annotations = create_annotations_from_guardrails_errors(
+        guardrails_result.get("errors", [])
+    )
+    for annotation in annotations:
+        if annotation not in session.annotations:
+            return True
+    return False
+
+
+def generate_session_id() -> str:
+    """
+    Generate a new session ID.
+    If the MCP server is session less then we don't have a session ID from the MCP server.
+    """
+    return INVARIANT_SESSION_ID_PREFIX + uuid.uuid4().hex
+
+
+def update_mcp_server_in_session_metadata(
+    session: McpSession, response_body: dict
+) -> None:
+    """Update the MCP server information in the session metadata."""
+    if response_body.get(MCP_RESULT) and response_body.get(MCP_RESULT).get(
+        MCP_SERVER_INFO
+    ):
+        session.attributes.metadata["mcp_server"] = (
+            response_body.get(MCP_RESULT).get(MCP_SERVER_INFO).get("name", "")
+        )
+
+
+def update_tool_call_id_in_session(session: McpSession, request_body: dict) -> None:
+    """Updates the tool call ID in the session."""
+    if request_body.get(MCP_METHOD) and request_body.get("id"):
+        session.id_to_method_mapping[request_body.get("id")] = request_body.get(
+            MCP_METHOD
+        )
+
+
+def update_mcp_client_info_in_session(session: McpSession, request_body: dict) -> None:
+    """Update the MCP client info in the session metadata."""
+    if request_body.get(MCP_PARAMS) and request_body.get(MCP_PARAMS).get(
+        MCP_CLIENT_INFO
+    ):
+        session.attributes.metadata["mcp_client"] = (
+            request_body.get(MCP_PARAMS).get(MCP_CLIENT_INFO).get("name", "")
+        )
+
+
+def update_session_from_request(session: McpSession, request_body: dict) -> None:
+    """Update the MCP client information and request id in the session."""
+    update_mcp_client_info_in_session(session, request_body)
+    update_tool_call_id_in_session(session, request_body)
 
 
 def _convert_localhost_to_docker_host(mcp_server_base_url: str) -> str:
@@ -73,7 +140,13 @@ async def hook_tool_call(
 
     Args:
         session_id (str): The session ID associated with the request.
+        session_store (McpSessionsManager): The session store to manage sessions.
         request_body (dict): The request JSON to be processed.
+
+    Returns:
+        Tuple[dict, bool]: A tuple hook tool call response as a dict and a boolean
+        indicating whether the request was blocked. If the request is blocked, the
+        dict will contain an error message else it will contain the original request.
     """
     tool_call = {
         "id": f"call_{request_body.get('id')}",
@@ -89,14 +162,13 @@ async def hook_tool_call(
     guardrails_result = await session.get_guardrails_check_result(
         message, action=GuardrailAction.BLOCK
     )
-    print("[hook_tool_call] Guardrails result:", guardrails_result, flush=True)
     # If the request is blocked, return a message indicating the block reason.
     # If there are new errors, run append_and_push_trace in background.
     # If there are no new errors, just return the original request.
     if (
         guardrails_result
         and guardrails_result.get("errors", [])
-        and check_if_new_errors(session_id, session_store, guardrails_result)
+        and _check_if_new_errors(session_id, session_store, guardrails_result)
     ):
         # Add the trace to the explorer
         asyncio.create_task(
@@ -120,24 +192,10 @@ async def hook_tool_call(
     return request_body, False
 
 
-def check_if_new_errors(
-    session_id: str, session_store: McpSessionsManager, guardrails_result: dict
-) -> bool:
-    """Checks if there are new errors in the guardrails result."""
-    session = session_store.get_session(session_id)
-    annotations = create_annotations_from_guardrails_errors(
-        guardrails_result.get("errors", [])
-    )
-    for annotation in annotations:
-        if annotation not in session.annotations:
-            return True
-    return False
-
-
 async def hook_tool_call_response(
     session_id: str,
     session_store: McpSessionsManager,
-    response_json: dict,
+    response_body: dict,
     is_tools_list=False,
 ) -> dict:
     """
@@ -145,19 +203,21 @@ async def hook_tool_call_response(
     Hook to process the response JSON after receiving it from the MCP server.
     Args:
         session_id (str): The session ID associated with the request.
-        response_json (dict): The response JSON to be processed.
+        session_store (McpSessionsManager): The session store to manage sessions.
+        response_body (dict): The response JSON to be processed.
+        is_tools_list (bool): Flag to indicate if the response is from a tools/list call.
     Returns:
         dict: The response JSON is returned if no guardrail is violated
               else an error dict is returned.
     """
-    blocked = False
+    is_blocked = False
+    result = response_body
     message = {
         "role": "tool",
-        "tool_call_id": f"call_{response_json.get('id')}",
-        "content": response_json.get(MCP_RESULT).get("content"),
-        "error": response_json.get(MCP_RESULT).get("error"),
+        "tool_call_id": f"call_{result.get('id')}",
+        "content": result.get(MCP_RESULT).get("content"),
+        "error": result.get(MCP_RESULT).get("error"),
     }
-    result = response_json
     session = session_store.get_session(session_id)
     guardrails_result = await session.get_guardrails_check_result(
         message, action=GuardrailAction.BLOCK
@@ -166,14 +226,14 @@ async def hook_tool_call_response(
     if (
         guardrails_result
         and guardrails_result.get("errors", [])
-        and check_if_new_errors(session_id, session_store, guardrails_result)
+        and _check_if_new_errors(session_id, session_store, guardrails_result)
     ):
-        blocked = True
+        is_blocked = True
         # If the request is blocked, return a message indicating the block reason
         if not is_tools_list:
             result = {
                 "jsonrpc": "2.0",
-                "id": response_json.get("id"),
+                "id": response_body.get("id"),
                 "error": {
                     "code": -32600,
                     "message": INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
@@ -184,7 +244,7 @@ async def hook_tool_call_response(
             # special error response for tools/list tool call
             result = {
                 "jsonrpc": "2.0",
-                "id": response_json.get("id"),
+                "id": response_body.get("id"),
                 "result": {
                     "tools": [
                         {
@@ -201,13 +261,64 @@ async def hook_tool_call_response(
                                 "title": "This tool was blocked by security guardrails.",
                             },
                         }
-                        for tool in response_json["result"]["tools"]
+                        for tool in response_body["result"]["tools"]
                     ]
                 },
             }
 
-    # Push trace to the explorer - don't block on its response
-    asyncio.create_task(
-        session_store.add_message_to_session(session_id, message, guardrails_result)
-    )
-    return result, blocked
+    # Push trace to the explorer
+    await session_store.add_message_to_session(session_id, message, guardrails_result)
+    return result, is_blocked
+
+
+async def intercept_response(
+    session_id: str, session_store: McpSessionsManager, response_body: dict
+) -> Tuple[dict, bool]:
+    """
+    Intercept the response and check for guardrails.
+    This function is used to intercept responses and check for guardrails.
+    If the response is blocked, it returns a message indicating the block
+    reason with a boolean flag set to True. If the response is not blocked,
+    it returns the original response with a boolean flag set to False.
+
+    Args:
+        session_id (str): The session ID associated with the request.
+        session_store (McpSessionsManager): The session store to manage sessions.
+        response_body (dict): The response JSON to be processed.
+
+    Returns:
+        Tuple[dict, bool]: A tuple containing the processed response JSON
+        and a boolean indicating whether the response was blocked.
+    """
+    session = session_store.get_session(session_id)
+    method = session.id_to_method_mapping.get(response_body.get("id"))
+
+    intercept_response_result = response_body
+    is_blocked = False
+    # Intercept and potentially block tool call response
+    if method == MCP_TOOL_CALL:
+        intercept_response_result, is_blocked = await hook_tool_call_response(
+            session_id=session_id,
+            session_store=session_store,
+            response_body=response_body,
+        )
+    # Intercept and potentially block list tool call response
+    elif method == MCP_LIST_TOOLS:
+        # store tools in metadata
+        session_store.get_session(session_id).attributes.metadata["tools"] = (
+            response_body.get(MCP_RESULT).get("tools")
+        )
+        intercept_response_result, is_blocked = await hook_tool_call_response(
+            session_id=session_id,
+            session_store=session_store,
+            response_body={
+                "jsonrpc": "2.0",
+                "id": response_body.get("id"),
+                "result": {
+                    "content": json.dumps(response_body.get(MCP_RESULT).get("tools")),
+                    "tools": response_body.get(MCP_RESULT).get("tools"),
+                },
+            },
+            is_tools_list=True,
+        )
+    return intercept_response_result, is_blocked
