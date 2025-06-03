@@ -1,5 +1,7 @@
 """Common constants used in the gateway."""
 
+DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
+
 IGNORED_HEADERS = [
     "accept-encoding",
     "host",

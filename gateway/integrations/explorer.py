@@ -6,14 +6,13 @@ import json
 from typing import Any, Dict, List
 from fastapi import HTTPException
 
+from gateway.common.constants import DEFAULT_API_URL
 from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesResponse
 from invariant_sdk.types.annotations import AnnotationCreate
 
 import httpx
-
-DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
 def create_annotations_from_guardrails_errors(

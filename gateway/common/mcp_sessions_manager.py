@@ -16,7 +16,7 @@ from invariant_sdk.types.push_traces import PushTracesRequest
 from pydantic import BaseModel, Field, PrivateAttr
 from starlette.datastructures import Headers
 
-from gateway.common.constants import INVARIANT_SESSION_ID_PREFIX
+from gateway.common.constants import DEFAULT_API_URL, INVARIANT_SESSION_ID_PREFIX
 from gateway.common.guardrails import GuardrailRuleSet, GuardrailAction
 from gateway.common.request_context import RequestContext
 from gateway.integrations.explorer import (
@@ -24,8 +24,6 @@ from gateway.integrations.explorer import (
     fetch_guardrails_from_explorer,
 )
 from gateway.integrations.guardrails import check_guardrails
-
-DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
 def user_and_host() -> str:
@@ -61,30 +59,15 @@ class McpSession(BaseModel):
     # and other session-related operations
     _lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
-    def get_invariant_api_key(self) -> str:
+    def _get_invariant_api_key(self) -> str:
         """Get the Invariant API key for the session."""
         if self.attributes.invariant_api_key:
             return self.attributes.invariant_api_key
         return os.getenv("INVARIANT_API_KEY")
 
-    def get_invariant_authorization(self) -> str:
+    def _get_invariant_authorization(self) -> str:
         """Get the Invariant authorization header for the session."""
-        return "Bearer " + self.get_invariant_api_key()
-
-    async def load_guardrails(self) -> None:
-        """
-        Load guardrails for the session.
-
-        This method fetches guardrails from the Invariant Explorer and assigns them to the session.
-        """
-        print("Inside load_guardrails attributes: ", self.attributes, flush=True)
-        self.guardrails = await fetch_guardrails_from_explorer(
-            self.attributes.explorer_dataset,
-            self.get_invariant_authorization(),
-            # pylint: disable=no-member
-            self.attributes.metadata.get("mcp_client"),
-            self.attributes.metadata.get("mcp_server"),
-        )
+        return "Bearer " + self._get_invariant_api_key()
 
     def _deduplicate_annotations(self, new_annotations: list) -> list:
         """Deduplicate new_annotations using the annotations in the session."""
@@ -93,6 +76,20 @@ class McpSession(BaseModel):
             if annotation not in self.annotations:
                 deduped_annotations.append(annotation)
         return deduped_annotations
+
+    async def load_guardrails(self) -> None:
+        """
+        Load guardrails for the session.
+
+        This method fetches guardrails from the Invariant Explorer and assigns them to the session.
+        """
+        self.guardrails = await fetch_guardrails_from_explorer(
+            self.attributes.explorer_dataset,
+            self._get_invariant_authorization(),
+            # pylint: disable=no-member
+            self.attributes.metadata.get("mcp_client"),
+            self.attributes.metadata.get("mcp_server"),
+        )
 
     @contextlib.asynccontextmanager
     async def session_lock(self):
@@ -134,15 +131,10 @@ class McpSession(BaseModel):
             return {}
 
         # Prepare context and select appropriate guardrails
-        print(
-            "Inside get_guardrails_check_result attributes: ",
-            self.attributes,
-            flush=True,
-        )
         context = RequestContext.create(
             request_json={},
             dataset_name=self.attributes.explorer_dataset,
-            invariant_authorization=self.get_invariant_authorization(),
+            invariant_authorization=self._get_invariant_authorization(),
             guardrails=self.guardrails,
             guardrails_parameters={
                 "metadata": self.session_metadata(),
@@ -210,11 +202,10 @@ class McpSession(BaseModel):
 
         This is an internal method that should only be called within a lock.
         """
-        print("Inside _push_trace_update attributes: ", self.attributes, flush=True)
         try:
             client = AsyncClient(
                 api_url=os.getenv("INVARIANT_API_URL", DEFAULT_API_URL),
-                api_key=self.get_invariant_api_key(),
+                api_key=self._get_invariant_api_key(),
             )
 
             # If no trace exists, create a new one
@@ -247,7 +238,7 @@ class McpSession(BaseModel):
             self.annotations.extend(deduplicated_annotations)
             self.last_trace_length = len(self.messages)
         except Exception as e:  # pylint: disable=broad-except
-            print(f"[MCP SSE] Error pushing trace for session {self.session_id}: {e}")
+            print(f"[MCP] Error pushing trace for session {self.session_id}: {e}")
 
     async def add_pending_error_message(self, error_message: dict) -> None:
         """

@@ -9,13 +9,12 @@ from functools import wraps
 from fastapi import HTTPException
 import httpx
 
+from gateway.common.constants import DEFAULT_API_URL
 from gateway.common.guardrails import Guardrail
 from gateway.common.request_context import RequestContext
 from gateway.common.authorization import (
     INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER,
 )
-
-DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 
 # Timestamps of last API calls per guardrails string

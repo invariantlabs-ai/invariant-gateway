@@ -1,5 +1,6 @@
 """A MCP client implementation that interacts with MCP server to make tool calls."""
 
+import asyncio
 import os
 
 from datetime import timedelta
@@ -47,7 +48,6 @@ class MCPClient:
         if metadata_keys is not None:
             for key, value in metadata_keys.items():
                 args.append("--metadata-" + key + "=" + value)
-
 
         if push_to_explorer:
             args.append("--push-explorer")
@@ -133,7 +133,7 @@ async def run(
             project_name,
             server_script_path,
             push_to_explorer,
-            metadata_keys=metadata_keys
+            metadata_keys=metadata_keys,
         )
         listed_tools = await client.session.list_tools()
         if tool_name == "tools/list":
@@ -142,4 +142,6 @@ async def run(
         else:
             return await client.call_tool(tool_name, tool_args)
     finally:
+        if push_to_explorer:
+            await asyncio.sleep(2)
         await client.cleanup()

@@ -1,9 +1,6 @@
 """Gateway service to forward requests to the MCP Streamable HTTP servers"""
 
 import json
-import uuid
-
-from typing import Tuple
 
 import httpx
 
@@ -13,12 +10,8 @@ from fastapi.responses import StreamingResponse
 from gateway.common.constants import (
     CLIENT_TIMEOUT,
     INVARIANT_SESSION_ID_PREFIX,
-    MCP_CLIENT_INFO,
     MCP_LIST_TOOLS,
     MCP_METHOD,
-    MCP_PARAMS,
-    MCP_RESULT,
-    MCP_SERVER_INFO,
     MCP_TOOL_CALL,
     UTF_8,
 )
@@ -27,9 +20,13 @@ from gateway.common.mcp_sessions_manager import (
     McpAttributes,
 )
 from gateway.common.mcp_utils import (
+    generate_session_id,
     get_mcp_server_base_url,
     hook_tool_call,
-    hook_tool_call_response,
+    intercept_response,
+    update_mcp_client_info_in_session,
+    update_mcp_server_in_session_metadata,
+    update_tool_call_id_in_session,
 )
 
 gateway = APIRouter()
@@ -69,7 +66,9 @@ async def mcp_post_streamable_gateway(request: Request) -> StreamingResponse:
         # If a session ID is provided in the request headers, it was already initialized
         # in McpSessionsManager. This might be a session ID returned by the MCP server
         # or a session ID generated in the gateway.
-        _update_tool_call_id_in_session(session_id, request_body)
+        update_tool_call_id_in_session(
+            session_store.get_session(session_id), request_body
+        )
     elif is_initialization_request:
         # If this is an initialization request, we generate a session ID,
         # We don't call initialize_session here because we don't know
@@ -77,7 +76,7 @@ async def mcp_post_streamable_gateway(request: Request) -> StreamingResponse:
         # If later in the response from MCP server, we don't receive a session ID then this
         # will be initialized and returned back to the client else this will be
         # overwritten by the session ID returned by the MCP server.
-        session_id = _generate_session_id()
+        session_id = generate_session_id()
 
     # Intercept the request and check for guardrails.
     if not is_initialization_request:
@@ -115,9 +114,9 @@ async def mcp_post_streamable_gateway(request: Request) -> StreamingResponse:
 
             # Update client info if this is an initialization request
             if is_initialization_request:
-                _update_mcp_client_info_in_session(
-                    session_id=session_id,
-                    request_body=request_body,
+                update_mcp_client_info_in_session(
+                    session_store.get_session(session_id),
+                    request_body,
                 )
 
             # If the response is JSON type, handle it as a JSON response.
@@ -281,52 +280,17 @@ def _get_mcp_server_endpoint(request: Request) -> str:
     return get_mcp_server_base_url(request) + "/mcp/"
 
 
-def _generate_session_id() -> str:
-    """
-    Generate a new session ID.
-    If the MCP server is session less then we don't have a session ID from the MCP server.
-    """
-    return INVARIANT_SESSION_ID_PREFIX + uuid.uuid4().hex
-
-
-def _update_tool_call_id_in_session(session_id: str, request_body: dict) -> None:
-    """
-    Updates the tool call ID in the session.
-    """
-    session = session_store.get_session(session_id)
-    if request_body.get(MCP_METHOD) and request_body.get("id"):
-        session.id_to_method_mapping[request_body.get("id")] = request_body.get(
-            MCP_METHOD
-        )
-
-
-def _update_mcp_client_info_in_session(session_id: str, request_body: dict) -> None:
-    """
-    Update the MCP client info in the session metadata.
-    """
-    session = session_store.get_session(session_id)
-    if request_body.get(MCP_PARAMS) and request_body.get(MCP_PARAMS).get(
-        MCP_CLIENT_INFO
-    ):
-        session.attributes.metadata["mcp_client"] = (
-            request_body.get(MCP_PARAMS).get(MCP_CLIENT_INFO).get("name", "")
-        )
-
-
 def _update_mcp_response_info_in_session(
-    session_id: str, response_json: dict, is_json_response: bool
+    session_id: str, response_body: dict, is_json_response: bool
 ) -> None:
     """
     Update the MCP response info in the session metadata.
     """
     session = session_store.get_session(session_id)
-    if response_json.get(MCP_RESULT) and response_json.get(MCP_RESULT).get(
-        MCP_SERVER_INFO
-    ):
-        session.attributes.metadata["mcp_server"] = (
-            response_json.get(MCP_RESULT).get(MCP_SERVER_INFO).get("name", "")
-        )
-    session.attributes.metadata["server_response_type"] = "json" if is_json_response else "sse"
+    update_mcp_server_in_session_metadata(session, response_body)
+    session.attributes.metadata["server_response_type"] = (
+        "json" if is_json_response else "sse"
+    )
 
 
 def _is_initialization_request(request_body: dict) -> bool:
@@ -353,18 +317,20 @@ async def _handle_mcp_json_response(
     # return the error message else return the response as is
     response_content = response.content
     # The server response is empty string when client sends "notifications/initialized"
-    response_json = (
+    response_body = (
         json.loads(response_content.decode(UTF_8)) if response_content else {}
     )
-    if response_json:
+    if response_body:
         _update_mcp_response_info_in_session(
-            session_id=session_id, response_json=response_json, is_json_response=True
+            session_id=session_id, response_body=response_body, is_json_response=True
         )
     response_code = response.status_code
 
     if not is_initialization_request:
-        intercept_response_result, blocked = await _intercept_response(
-            session_id=session_id, response_json=response_json
+        intercept_response_result, blocked = await intercept_response(
+            session_id=session_id,
+            session_store=session_store,
+            response_body=response_body,
         )
         if blocked:
             response_content = json.dumps(intercept_response_result).encode(UTF_8)
@@ -405,14 +371,15 @@ async def _handle_mcp_streaming_response(
             if not stripped_line:
                 break  # End of stream
             if buffer:
-                response_json = json.loads(stripped_line.split("data: ")[1].strip())
+                response_body = json.loads(stripped_line.split("data: ")[1].strip())
                 if not is_initialization_request:
                     (
                         intercept_response_result,
                         blocked,
-                    ) = await _intercept_response(
+                    ) = await intercept_response(
                         session_id=session_id,
-                        response_json=response_json,
+                        session_store=session_store,
+                        response_body=response_body,
                     )
                     if blocked:
                         yield (
@@ -423,7 +390,7 @@ async def _handle_mcp_streaming_response(
                 else:
                     _update_mcp_response_info_in_session(
                         session_id=session_id,
-                        response_json=response_json,
+                        response_body=response_body,
                         is_json_response=False,
                     )
                 yield f"{buffer}\n{stripped_line}\n\n"
@@ -482,46 +449,3 @@ async def _intercept_request(session_id: str, request_body: dict) -> Response | 
                 media_type="application/json",
             )
     return None
-
-
-async def _intercept_response(
-    session_id: str, response_json: dict
-) -> Tuple[dict, bool]:
-    """
-    Intercept the response and check for guardrails.
-    This function is used to intercept responses and check for guardrails.
-    If the response is blocked, it returns a message indicating the block
-    reason with a boolean flag set to True. If the response is not blocked,
-    it returns the original response with a boolean flag set to False.
-    """
-    session = session_store.get_session(session_id)
-    method = session.id_to_method_mapping.get(response_json.get("id"))
-    # Intercept and potentially block tool call response
-    if method == MCP_TOOL_CALL:
-        result, blocked = await hook_tool_call_response(
-            session_id=session_id,
-            session_store=session_store,
-            response_json=response_json,
-        )
-        return result, blocked
-    # Intercept and potentially block list tool call response
-    elif method == MCP_LIST_TOOLS:
-        # store tools in metadata
-        session_store.get_session(session_id).attributes.metadata["tools"] = response_json.get(
-            MCP_RESULT
-        ).get("tools")
-        # store tools/list tool call in trace
-        result, blocked = await hook_tool_call_response(
-            session_id=session_id,
-            session_store=session_store,
-            response_json={
-                "id": response_json.get("id"),
-                "result": {
-                    "content": json.dumps(response_json.get(MCP_RESULT).get("tools")),
-                    "tools": response_json.get(MCP_RESULT).get("tools"),
-                },
-            },
-            is_tools_list=True,
-        )
-        return result, blocked
-    return response_json, False
