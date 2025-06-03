@@ -22,7 +22,7 @@ from gateway.common.constants import (
     MCP_TOOL_CALL,
 )
 from gateway.common.guardrails import GuardrailAction
-from gateway.common.mcp_sessions_manager import (
+from gateway.mcp.mcp_sessions_manager import (
     McpSession,
     McpSessionsManager,
 )

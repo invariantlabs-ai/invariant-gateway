@@ -15,11 +15,11 @@ from gateway.common.constants import (
     MCP_TOOL_CALL,
     UTF_8,
 )
-from gateway.common.mcp_sessions_manager import (
+from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
     McpAttributes,
 )
-from gateway.common.mcp_utils import (
+from gateway.mcp.utils import (
     generate_session_id,
     get_mcp_server_base_url,
     hook_tool_call,
