@@ -10,10 +10,8 @@ from httpx_sse import aconnect_sse, ServerSentEvent
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
-from gateway.common.constants import (
-    CLIENT_TIMEOUT,
-    UTF_8,
-)
+from gateway.common.constants import CLIENT_TIMEOUT
+from gateway.mcp.constants import UTF_8
 from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
     McpAttributes,

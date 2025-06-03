@@ -7,7 +7,7 @@ This module defines an abstract base class for MCP transports.
 from abc import ABC, abstractmethod
 from typing import Any, Tuple
 
-from gateway.common.constants import (
+from gateway.mcp.constants import (
     MCP_METHOD,
     MCP_TOOL_CALL,
     MCP_LIST_TOOLS,
@@ -99,13 +99,6 @@ class MCPTransportBase(ABC):
             )
 
         return interception_result, is_blocked
-
-    def _is_initialization_request(self, request_data: dict[str, Any]) -> bool:
-        """Check if request is an initialization request."""
-        return (
-            request_data.get("method") in ["initialize", "notifications/initialized"]
-            and "jsonrpc" in request_data
-        )
 
     @abstractmethod
     async def initialize_session(self, *args, **kwargs) -> str:

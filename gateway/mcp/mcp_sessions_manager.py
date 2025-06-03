@@ -7,7 +7,6 @@ import getpass
 import os
 import random
 import socket
-
 from typing import Any, Optional
 
 from invariant_sdk.async_client import AsyncClient
@@ -16,14 +15,15 @@ from invariant_sdk.types.push_traces import PushTracesRequest
 from pydantic import BaseModel, Field, PrivateAttr
 from starlette.datastructures import Headers
 
-from gateway.common.constants import DEFAULT_API_URL, INVARIANT_SESSION_ID_PREFIX
-from gateway.common.guardrails import GuardrailRuleSet, GuardrailAction
+from gateway.common.constants import DEFAULT_API_URL
+from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
 from gateway.common.request_context import RequestContext
 from gateway.integrations.explorer import (
     create_annotations_from_guardrails_errors,
     fetch_guardrails_from_explorer,
 )
 from gateway.integrations.guardrails import check_guardrails
+from gateway.mcp.constants import INVARIANT_SESSION_ID_PREFIX
 
 
 def user_and_host() -> str:
