@@ -9,7 +9,7 @@ import time
 
 from typing import Optional
 
-from gateway.mcp import mcp
+from gateway.mcp import stdio as mcp_stdio
 from gateway.mcp.log import mcp_log
 
 
@@ -235,7 +235,7 @@ def main():
         sys.exit(1)
 
     if verb == "mcp":
-        return asyncio.run(mcp.execute(sys.argv[2:]))
+        return asyncio.run(mcp_stdio.execute(sys.argv[2:]))
 
     if verb == "server":
         if len(sys.argv) < 3:
