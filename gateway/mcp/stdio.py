@@ -16,9 +16,6 @@ from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
 )
 from gateway.mcp.mcp_transport_base import MCPTransportBase
-from gateway.mcp.utils import (
-    generate_session_id,
-)
 
 STATUS_EOF = "eof"
 STATUS_DATA = "data"
@@ -39,7 +36,7 @@ class StdioTransport(MCPTransportBase):
     async def initialize_session(self, *args, **kwargs) -> str:
         """Initialize session for stdio transport."""
         session_attributes: McpAttributes = kwargs.get("session_attributes")
-        session_id = generate_session_id()
+        session_id = self.generate_session_id()
         await self.session_store.initialize_session(session_id, session_attributes)
         mcp_log(f"Created stdio session with ID: {session_id}")
         return session_id

@@ -17,9 +17,6 @@ from gateway.mcp.mcp_sessions_manager import (
     McpAttributes,
 )
 from gateway.mcp.mcp_transport_base import MCPTransportBase
-from gateway.mcp.utils import (
-    get_mcp_server_base_url,
-)
 
 MCP_SERVER_POST_HEADERS = {
     "connection",
@@ -122,7 +119,7 @@ class SSETransport(MCPTransportBase):
             return Response(content="Accepted", status_code=202)
 
         # Forward to MCP server
-        mcp_server_base_url = get_mcp_server_base_url(request)
+        mcp_server_base_url = self.get_mcp_server_base_url(request)
         mcp_server_messages_endpoint = f"{mcp_server_base_url}/messages/?{session_id}"
 
         # Filter headers for MCP server
@@ -151,7 +148,7 @@ class SSETransport(MCPTransportBase):
 
     async def handle_sse_stream(self, request: Request) -> StreamingResponse:
         """Handle SSE streaming connection."""
-        mcp_server_base_url = get_mcp_server_base_url(request)
+        mcp_server_base_url = self.get_mcp_server_base_url(request)
         mcp_server_sse_endpoint = f"{mcp_server_base_url}/sse"
 
         query_params = dict(request.query_params)

@@ -18,13 +18,7 @@ from gateway.mcp.mcp_sessions_manager import (
     McpAttributes,
 )
 from gateway.mcp.mcp_transport_base import MCPTransportBase
-from gateway.mcp.utils import (
-    generate_session_id,
-    get_mcp_server_base_url,
-    update_mcp_client_info_in_session,
-    update_mcp_server_in_session_metadata,
-    update_tool_call_id_in_session,
-)
+
 gateway = APIRouter()
 mcp_sessions_manager = McpSessionsManager()
 
@@ -103,7 +97,7 @@ class StreamableTransport(MCPTransportBase):
             return session_id
 
         if is_initialization_request and not session_id:
-            session_id = generate_session_id()
+            session_id = self.generate_session_id()
 
         if (
             session_id
@@ -124,7 +118,7 @@ class StreamableTransport(MCPTransportBase):
 
         # Handle session initialization
         if session_id:
-            update_tool_call_id_in_session(
+            self.update_tool_call_id_in_session(
                 self.session_store.get_session(session_id), request_body
             )
         elif is_initialization_request:
@@ -296,7 +290,7 @@ class StreamableTransport(MCPTransportBase):
 
                 # Update client info for initialization requests
                 if is_initialization_request:
-                    update_mcp_client_info_in_session(
+                    self.update_mcp_client_info_in_session(
                         self.session_store.get_session(session_id), request_body
                     )
 
@@ -398,7 +392,7 @@ class StreamableTransport(MCPTransportBase):
     ) -> None:
         """Update MCP response info in session metadata."""
         session = self.session_store.get_session(session_id)
-        update_mcp_server_in_session_metadata(session, response_body)
+        self.update_mcp_server_in_session_metadata(session, response_body)
         session.attributes.metadata["server_response_type"] = (
             "json" if is_json_response else "sse"
         )
@@ -426,7 +420,7 @@ class StreamableTransport(MCPTransportBase):
 
     def _get_mcp_server_endpoint(self, request: Request) -> str:
         """Get MCP server endpoint URL."""
-        return get_mcp_server_base_url(request) + "/mcp/"
+        return self.get_mcp_server_base_url(request) + "/mcp/"
 
     def _is_initialization_request(self, request_data: dict[str, Any]) -> bool:
         """Check if request is an initialization request."""
