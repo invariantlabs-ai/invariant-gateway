@@ -9,18 +9,16 @@ import subprocess
 import sys
 from typing import Optional, Tuple
 
-from gateway.common.constants import (
-    UTF_8,
-)
-from gateway.mcp.mcp_transport_base import MCPTransportBase
+from gateway.mcp.constants import UTF_8
+from gateway.mcp.log import mcp_log, MCP_LOG_FILE
 from gateway.mcp.mcp_sessions_manager import (
     McpAttributes,
     McpSessionsManager,
 )
+from gateway.mcp.mcp_transport_base import MCPTransportBase
 from gateway.mcp.utils import (
     generate_session_id,
 )
-from gateway.mcp.log import mcp_log, MCP_LOG_FILE
 
 STATUS_EOF = "eof"
 STATUS_DATA = "data"
