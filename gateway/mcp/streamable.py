@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from gateway.common.constants import CLIENT_TIMEOUT
 from gateway.mcp.constants import (
     INVARIANT_SESSION_ID_PREFIX,
+    MCP_CUSTOM_HEADER_PREFIX,
     UTF_8,
 )
 from gateway.mcp.mcp_sessions_manager import (
@@ -148,11 +149,12 @@ class StreamableTransport(MCPTransportBase):
         mcp_server_endpoint = self._get_mcp_server_endpoint(request)
         response_headers = {}
 
-        filtered_headers = {
-            k: v
-            for k, v in request.headers.items()
-            if k.lower() in MCP_SERVER_GET_HEADERS
-        }
+        filtered_headers = {}
+        for k, v in request.headers.items():
+            if k.startswith(MCP_CUSTOM_HEADER_PREFIX):
+                filtered_headers[k.removeprefix(MCP_CUSTOM_HEADER_PREFIX)] = v
+            if k.lower() in MCP_SERVER_GET_HEADERS:
+                filtered_headers[k] = v
 
         async def event_generator():
             async with httpx.AsyncClient(
@@ -399,17 +401,16 @@ class StreamableTransport(MCPTransportBase):
 
     def _get_headers_for_mcp_post_and_delete(self, request: Request) -> dict:
         """Get filtered headers for MCP server requests."""
-        return {
-            k: v
-            for k, v in request.headers.items()
-            if (
-                k.lower() in MCP_SERVER_POST_DELETE_HEADERS
-                and not (
-                    k.lower() == MCP_SESSION_ID_HEADER
-                    and v.startswith(INVARIANT_SESSION_ID_PREFIX)
-                )
-            )
-        }
+        filtered_headers = {}
+        for k, v in request.headers.items():
+            if k.startswith(MCP_CUSTOM_HEADER_PREFIX):
+                filtered_headers[k.removeprefix(MCP_CUSTOM_HEADER_PREFIX)] = v
+            if k.lower() in MCP_SERVER_POST_DELETE_HEADERS and not (
+                k.lower() == MCP_SESSION_ID_HEADER
+                and v.startswith(INVARIANT_SESSION_ID_PREFIX)
+            ):
+                filtered_headers[k] = v
+        return filtered_headers
 
     def _get_session_id(self, request: Request) -> str:
         """Extract session ID from request headers."""

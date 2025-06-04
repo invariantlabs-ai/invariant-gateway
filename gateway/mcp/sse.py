@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from gateway.common.constants import CLIENT_TIMEOUT
-from gateway.mcp.constants import UTF_8
+from gateway.mcp.constants import MCP_CUSTOM_HEADER_PREFIX, UTF_8
 from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
     McpAttributes,
@@ -123,17 +123,18 @@ class SSETransport(MCPTransportBase):
         mcp_server_messages_endpoint = f"{mcp_server_base_url}/messages/?{session_id}"
 
         # Filter headers for MCP server
-        mcp_headers = {
-            k: v
-            for k, v in request.headers.items()
-            if k.lower() in {"connection", "accept", "content-length", "content-type"}
-        }
+        filtered_headers = {}
+        for k, v in request.headers.items():
+            if k.startswith(MCP_CUSTOM_HEADER_PREFIX):
+                filtered_headers[k.removeprefix(MCP_CUSTOM_HEADER_PREFIX)] = v
+            if k.lower() in MCP_SERVER_POST_HEADERS:
+                filtered_headers[k] = v
 
         async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             try:
                 response = await client.post(
                     url=mcp_server_messages_endpoint,
-                    headers=mcp_headers,
+                    headers=filtered_headers,
                     json=request_body,
                     params=dict(request.query_params),
                 )
@@ -155,11 +156,12 @@ class SSETransport(MCPTransportBase):
         response_headers = {}
 
         # Filter headers for SSE
-        filtered_headers = {
-            k: v
-            for k, v in request.headers.items()
-            if k.lower() in {"connection", "accept", "cache-control"}
-        }
+        filtered_headers = {}
+        for k, v in request.headers.items():
+            if k.startswith(MCP_CUSTOM_HEADER_PREFIX):
+                filtered_headers[k.removeprefix(MCP_CUSTOM_HEADER_PREFIX)] = v
+            if k.lower() in MCP_SERVER_SSE_HEADERS:
+                filtered_headers[k] = v
 
         sse_header_attributes = McpAttributes.from_request_headers(request.headers)
 
