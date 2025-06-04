@@ -2,7 +2,6 @@
 
 import os
 import uuid
-
 from resources.mcp.sse.client.main import run as mcp_sse_client_run
 from resources.mcp.stdio.client.main import run as mcp_stdio_client_run
 from resources.mcp.streamable.client.main import run as mcp_streamable_client_run
@@ -11,8 +10,6 @@ from utils import create_dataset, add_guardrail_to_dataset
 import httpx
 import pytest
 import requests
-
-from mcp.shared.exceptions import McpError
 
 # Taken from docker-compose.test.yml
 MCP_SSE_SERVER_HOST = "mcp-messenger-sse-server"

@@ -52,7 +52,7 @@ class McpTransportBase(ABC):
         """
         # Update session with request information
         session = self.session_store.get_session(session_id)
-        McpTransportBase.update_session_from_request(session, request_data)
+        self.update_session_from_request(session, request_data)
 
         # Refresh guardrails
         await session.load_guardrails()
@@ -74,7 +74,7 @@ class McpTransportBase(ABC):
         """
         # Update session with server information
         session = self.session_store.get_session(session_id)
-        McpTransportBase.update_mcp_server_in_session_metadata(session, response_data)
+        self.update_mcp_server_in_session_metadata(session, response_data)
 
         # Intercept and apply guardrails to response
         return await McpTransportBase.intercept_response(
@@ -106,11 +106,11 @@ class McpTransportBase(ABC):
         interception_result = request_data
         is_blocked = False
         if method == MCP_TOOL_CALL:
-            interception_result, is_blocked = await McpTransportBase.hook_tool_call(
+            interception_result, is_blocked = await self.hook_tool_call(
                 session_id, self.session_store, request_data
             )
         elif method == MCP_LIST_TOOLS:
-            interception_result, is_blocked = await McpTransportBase.hook_tool_call(
+            interception_result, is_blocked = await self.hook_tool_call(
                 session_id=session_id,
                 session_store=self.session_store,
                 request_body={

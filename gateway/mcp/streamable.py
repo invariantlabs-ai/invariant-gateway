@@ -27,7 +27,7 @@ CONTENT_TYPE_JSON = "application/json"
 CONTENT_TYPE_SSE = "text/event-stream"
 CONTENT_TYPE_HEADER = "content-type"
 MCP_SESSION_ID_HEADER = "mcp-session-id"
-MCP_SERVER_POST_DELETE_HEADERS = {
+MCP_SERVER_POST_AND_DELETE_HEADERS = {
     "connection",
     "accept",
     CONTENT_TYPE_HEADER,
@@ -392,6 +392,9 @@ class StreamableTransport(McpTransportBase):
         """Update MCP response info in session metadata."""
         session = self.session_store.get_session(session_id)
         self.update_mcp_server_in_session_metadata(session, response_body)
+        session.attributes.metadata["is_stateless_http_server"] = session_id.startswith(
+            INVARIANT_SESSION_ID_PREFIX
+        )
         session.attributes.metadata["server_response_type"] = (
             "json" if is_json_response else "sse"
         )
@@ -402,7 +405,7 @@ class StreamableTransport(McpTransportBase):
         for k, v in request.headers.items():
             if k.startswith(MCP_CUSTOM_HEADER_PREFIX):
                 filtered_headers[k.removeprefix(MCP_CUSTOM_HEADER_PREFIX)] = v
-            if k.lower() in MCP_SERVER_POST_DELETE_HEADERS and not (
+            if k.lower() in MCP_SERVER_POST_AND_DELETE_HEADERS and not (
                 k.lower() == MCP_SESSION_ID_HEADER
                 and v.startswith(INVARIANT_SESSION_ID_PREFIX)
             ):

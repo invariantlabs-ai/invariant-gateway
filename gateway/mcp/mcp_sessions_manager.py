@@ -23,7 +23,6 @@ from gateway.integrations.explorer import (
     fetch_guardrails_from_explorer,
 )
 from gateway.integrations.guardrails import check_guardrails
-from gateway.mcp.constants import INVARIANT_SESSION_ID_PREFIX
 
 
 def user_and_host() -> str:
@@ -110,9 +109,6 @@ class McpSession(BaseModel):
             "system_user": user_and_host(),
             **(self.attributes.metadata or {}),
         }
-        metadata["is_stateless_http_server"] = self.session_id.startswith(
-            INVARIANT_SESSION_ID_PREFIX
-        )
         return metadata
 
     async def get_guardrails_check_result(
