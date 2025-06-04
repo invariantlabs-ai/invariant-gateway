@@ -364,11 +364,11 @@ async def check_guardrails(
                 json={
                     "messages": messages,
                     "policies": [g.content for g in guardrails],
-                    "parameters": context.guardrails_parameters or {}
+                    "parameters": context.guardrails_parameters or {},
                 },
                 headers={
                     "Authorization": context.get_guardrailing_authorization(),
-                    "Accept": "application/json"
+                    "Accept": "application/json",
                 },
                 timeout=5,
             )

@@ -58,8 +58,10 @@ async def gemini_generate_content_gateway(
     if endpoint not in ["generateContent", "streamGenerateContent"]:
         return Response(
             content="Invalid endpoint - the only endpoints supported are: \
-            /api/v1/gateway/gemini/<version>/models/<model-name>:generateContent or \
-            /api/v1/gateway/<dataset-name>/gemini/<version>models/<model-name>:generateContent",
+            /api/v1/gateway/gemini/<version>/models/<model-name>:generateContent \
+            /api/v1/gateway/<dataset-name>/gemini/<version>models/<model-name>:generateContent \
+            /api/v1/gateway/gemini/<version>/models/<model-name>:streamGenerateContent or \
+            /api/v1/gateway/<dataset-name>/gemini/<version>models/<model-name>:streamGenerateContent",
             status_code=400,
         )
     headers = {
