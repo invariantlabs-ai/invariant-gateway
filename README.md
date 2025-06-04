@@ -279,22 +279,44 @@ export ANTHROPIC_API_KEY={your-anthropic-api-key};invariant-auth={your-invariant
 This setup ensures that SWE-agent works seamlessly with Invariant Gateway, maintaining compatibility while enabling full functionality. 🚀
 
 ### **Using MCP with Invariant Gateway**
-Invariant Gateway supports MCP (both stdio and SSE transports) tool calling.
+Invariant Gateway supports MCP (stdio, SSE and Streamable http) tool calling.
 
 For stdio transport based MCP, follow steps [here](https://github.com/invariantlabs-ai/invariant-gateway/tree/main/gateway/mcp).
 
-For SSE transport based MCP, here are the steps to point your MCP client to a local instance of the Invariant Gateway which will then proxy all calls to the MCP server:
+For **SSE transport based MCP**, here are the steps to point your MCP client to a local instance of the Invariant Gateway which will then proxy all calls to the MCP server while guardrailing:
 
 * Run the Gateway locally by following the steps [here](https://github.com/invariantlabs-ai/invariant-gateway/tree/main?tab=readme-ov-file#run-the-gateway-locally).
 * Use the following configuration to connect to the local Gateway instance:
 ```python
-await client.connect_to_sse_server(
+from mcp.client.sse import sse_client
+
+await connect_to_sse_server(
             server_url="http://localhost:8005/api/v1/gateway/mcp/sse",
             headers={
                 "MCP-SERVER-BASE-URL": "<The base URL to your MCP server>",
                 "INVARIANT-PROJECT-NAME": "<The Invariant dataset name>",
                 "PUSH-INVARIANT-EXPLORER": "true",
                 "INVARIANT-API-KEY": "<your-invariant-api-key>"
+                "INVARIANT-X-MCP-SERVER-{CUSTOM-MCP-SERVER-HEADER-NAME}": "<custom-value-passed-to-mcp-server>"
+            },
+        )
+```
+
+For **Streamable HTTP transport based MCP**, here are the steps to point your MCP client to a local instance of the Invariant Gateway which will then proxy all calls to the MCP server while guardrailing:
+
+* Run the Gateway locally by following the steps [here](https://github.com/invariantlabs-ai/invariant-gateway/tree/main?tab=readme-ov-file#run-the-gateway-locally).
+* Use the following configuration to connect to the local Gateway instance:
+```python
+from mcp.client.streamable_http import streamablehttp_client
+
+await streamablehttp_client(
+            url="http://localhost:8005/api/v1/gateway/mcp/sse",
+            headers={
+                "MCP-SERVER-BASE-URL": "<The base URL to your MCP server>",
+                "INVARIANT-PROJECT-NAME": "<The Invariant dataset name>",
+                "PUSH-INVARIANT-EXPLORER": "true",
+                "INVARIANT-API-KEY": "<your-invariant-api-key>"
+                "INVARIANT-X-MCP-SERVER-{CUSTOM-MCP-SERVER-HEADER-NAME}": "<custom-value-passed-to-mcp-server>"
             },
         )
 ```
@@ -302,6 +324,8 @@ await client.connect_to_sse_server(
 The `INVARIANT-API-KEY` header is used both for pushing the traces to explorer and for guardrailing.
 
 If no `INVARIANT-PROJECT-NAME` header is specified but `PUSH-INVARIANT-EXPLORER` is set to "true", a new Invariant project will be created and the MCP traces will be pushed there.
+
+If you pass a header called `INVARIANT-X-MCP-SERVER-CUSTOM-API-KEY`, it will be passed as the `CUSTOM-API-KEY` header to the underlying MCP server.
 
 You can also specify blocking or logging guardrails for the project name by visiting the Explorer.
 

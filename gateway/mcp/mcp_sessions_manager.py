@@ -274,7 +274,6 @@ class McpAttributes(BaseModel):
     push_explorer: bool
     explorer_dataset: str
     invariant_api_key: Optional[str] = None
-    failure_response_format: Optional[str] = None
     verbose: Optional[bool] = False
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -360,7 +359,6 @@ class McpAttributes(BaseModel):
         return cls(
             push_explorer=config.push_explorer,
             explorer_dataset=config.project_name,
-            failure_response_format=config.failure_response_format,
             verbose=config.verbose,
             metadata=metadata,
         )
