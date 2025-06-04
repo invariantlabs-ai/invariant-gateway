@@ -16,7 +16,7 @@ from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
     McpAttributes,
 )
-from gateway.mcp.mcp_transport_base import MCPTransportBase
+from gateway.mcp.mcp_transport_base import McpTransportBase
 
 MCP_SERVER_POST_HEADERS = {
     "connection",
@@ -62,7 +62,7 @@ async def create_sse_transport_and_handle_post(
         raise HTTPException(status_code=400, detail="Session does not exist")
 
     request_body = json.loads(await request.body())
-    return await SSETransport(session_store).handle_post_request(
+    return await SseTransport(session_store).handle_post_request(
         request, session_id, request_body
     )
 
@@ -71,10 +71,10 @@ async def create_sse_transport_and_handle_stream(
     request: Request, session_store: McpSessionsManager
 ) -> StreamingResponse:
     """Integration function for SSE GET route."""
-    return await SSETransport(session_store).handle_sse_stream(request)
+    return await SseTransport(session_store).handle_sse_stream(request)
 
 
-class SSETransport(MCPTransportBase):
+class SseTransport(McpTransportBase):
     """
     Server-Sent Events transport implementation for MCP communication.
     Handles HTTP-based SSE communication with message queuing.
@@ -82,7 +82,6 @@ class SSETransport(MCPTransportBase):
 
     async def initialize_session(
         self,
-        *args,
         **kwargs,
     ) -> str:
         """Initialize or get existing SSE session."""
@@ -298,7 +297,7 @@ class SSETransport(MCPTransportBase):
             headers={"X-Proxied-By": "mcp-gateway", **response_headers},
         )
 
-    async def handle_communication(self, *args, **kwargs) -> StreamingResponse:
+    async def handle_communication(self, **kwargs) -> StreamingResponse:
         """Main communication handler for SSE transport."""
         return await self.handle_sse_stream(kwargs.get("request"))
 

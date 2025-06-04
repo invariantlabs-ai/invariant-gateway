@@ -4,7 +4,6 @@ MCP Transport Strategy Pattern Implementation
 This module defines an abstract base class for MCP transports.
 """
 
-import asyncio
 import json
 import re
 import uuid
@@ -31,7 +30,7 @@ from gateway.mcp.log import format_errors_in_response
 from gateway.mcp.mcp_sessions_manager import McpSession, McpSessionsManager
 
 
-class MCPTransportBase(ABC):
+class McpTransportBase(ABC):
     """
     Abstract base class for MCP transport strategies.
 
@@ -53,7 +52,7 @@ class MCPTransportBase(ABC):
         """
         # Update session with request information
         session = self.session_store.get_session(session_id)
-        MCPTransportBase.update_session_from_request(session, request_data)
+        McpTransportBase.update_session_from_request(session, request_data)
 
         # Refresh guardrails
         await session.load_guardrails()
@@ -75,10 +74,10 @@ class MCPTransportBase(ABC):
         """
         # Update session with server information
         session = self.session_store.get_session(session_id)
-        MCPTransportBase.update_mcp_server_in_session_metadata(session, response_data)
+        McpTransportBase.update_mcp_server_in_session_metadata(session, response_data)
 
         # Intercept and apply guardrails to response
-        return await MCPTransportBase.intercept_response(
+        return await McpTransportBase.intercept_response(
             session_id, self.session_store, response_data
         )
 
@@ -86,6 +85,17 @@ class MCPTransportBase(ABC):
         """Check if request should be intercepted for guardrails."""
         method = request_data.get(MCP_METHOD)
         return method in [MCP_TOOL_CALL, MCP_LIST_TOOLS]
+
+    @staticmethod
+    def _create_jsonrpc_error_response(request_body: dict, message: str) -> dict:
+        return {
+            "jsonrpc": "2.0",
+            "id": request_body.get("id"),
+            "error": {
+                "code": -32600,
+                "message": message,
+            },
+        }
 
     async def _intercept_outgoing_request(
         self, session_id: str, request_data: dict[str, Any]
@@ -96,11 +106,11 @@ class MCPTransportBase(ABC):
         interception_result = request_data
         is_blocked = False
         if method == MCP_TOOL_CALL:
-            interception_result, is_blocked = await MCPTransportBase.hook_tool_call(
+            interception_result, is_blocked = await McpTransportBase.hook_tool_call(
                 session_id, self.session_store, request_data
             )
         elif method == MCP_LIST_TOOLS:
-            interception_result, is_blocked = await MCPTransportBase.hook_tool_call(
+            interception_result, is_blocked = await McpTransportBase.hook_tool_call(
                 session_id=session_id,
                 session_store=self.session_store,
                 request_body={
@@ -152,8 +162,8 @@ class MCPTransportBase(ABC):
     @staticmethod
     def update_session_from_request(session: McpSession, request_body: dict) -> None:
         """Update the MCP client information and request id in the session."""
-        MCPTransportBase.update_mcp_client_info_in_session(session, request_body)
-        MCPTransportBase.update_tool_call_id_in_session(session, request_body)
+        McpTransportBase.update_mcp_client_info_in_session(session, request_body)
+        McpTransportBase.update_tool_call_id_in_session(session, request_body)
 
     @staticmethod
     def get_mcp_server_base_url(request: Request) -> str:
@@ -164,7 +174,7 @@ class MCPTransportBase(ABC):
                 status_code=400,
                 detail=f"Missing {MCP_SERVER_BASE_URL_HEADER} header",
             )
-        return MCPTransportBase.convert_localhost_to_docker_host(
+        return McpTransportBase.convert_localhost_to_docker_host(
             mcp_server_base_url
         ).rstrip("/")
 
@@ -233,7 +243,7 @@ class MCPTransportBase(ABC):
         if (
             guardrails_result
             and guardrails_result.get("errors", [])
-            and MCPTransportBase.check_if_new_errors(
+            and McpTransportBase.check_if_new_errors(
                 session_id, session_store, guardrails_result
             )
         ):
@@ -243,15 +253,10 @@ class MCPTransportBase(ABC):
                 message=message,
                 guardrails_result=guardrails_result,
             )
-            return {
-                "jsonrpc": "2.0",
-                "id": request_body.get("id"),
-                "error": {
-                    "code": -32600,
-                    "message": INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
-                    % guardrails_result["errors"],
-                },
-            }, True
+            return McpTransportBase._create_jsonrpc_error_response(
+                request_body,
+                INVARIANT_GUARDRAILS_BLOCKED_MESSAGE % guardrails_result["errors"],
+            ), True
 
         # Push trace to the explorer
         await session_store.add_message_to_session(
@@ -298,22 +303,17 @@ class MCPTransportBase(ABC):
         if (
             guardrails_result
             and guardrails_result.get("errors", [])
-            and MCPTransportBase.check_if_new_errors(
+            and McpTransportBase.check_if_new_errors(
                 session_id, session_store, guardrails_result
             )
         ):
             is_blocked = True
 
             if not is_tools_list:
-                result = {
-                    "jsonrpc": "2.0",
-                    "id": response_body.get("id"),
-                    "error": {
-                        "code": -32600,
-                        "message": INVARIANT_GUARDRAILS_BLOCKED_MESSAGE
-                        % guardrails_result["errors"],
-                    },
-                }
+                result = McpTransportBase._create_jsonrpc_error_response(
+                    response_body,
+                    INVARIANT_GUARDRAILS_BLOCKED_MESSAGE % guardrails_result["errors"],
+                )
             else:
                 # Special error response for tools/list
                 result = {
@@ -379,7 +379,7 @@ class MCPTransportBase(ABC):
             (
                 intercept_response_result,
                 is_blocked,
-            ) = await MCPTransportBase.hook_tool_call_response(
+            ) = await McpTransportBase.hook_tool_call_response(
                 session_id=session_id,
                 session_store=session_store,
                 response_body=response_body,
@@ -393,7 +393,7 @@ class MCPTransportBase(ABC):
             (
                 intercept_response_result,
                 is_blocked,
-            ) = await MCPTransportBase.hook_tool_call_response(
+            ) = await McpTransportBase.hook_tool_call_response(
                 session_id=session_id,
                 session_store=session_store,
                 response_body={
@@ -410,9 +410,9 @@ class MCPTransportBase(ABC):
         return intercept_response_result, is_blocked
 
     @abstractmethod
-    async def initialize_session(self, *args, **kwargs) -> str:
+    async def initialize_session(self, **kwargs) -> str:
         """Initialize a session for this transport type."""
 
     @abstractmethod
-    async def handle_communication(self, *args, **kwargs) -> Any:
+    async def handle_communication(self, **kwargs) -> Any:
         """Handle the main communication for this transport."""

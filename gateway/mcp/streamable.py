@@ -1,7 +1,7 @@
 """Gateway service to forward requests to the MCP Streamable HTTP servers"""
 
 import json
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import httpx
 from httpx_sse import aconnect_sse
@@ -18,7 +18,7 @@ from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
     McpAttributes,
 )
-from gateway.mcp.mcp_transport_base import MCPTransportBase
+from gateway.mcp.mcp_transport_base import McpTransportBase
 
 gateway = APIRouter()
 mcp_sessions_manager = McpSessionsManager()
@@ -69,7 +69,7 @@ async def mcp_delete_streamable_gateway(request: Request) -> Response:
 
 async def create_streamable_transport_and_handle_request(
     request: Request, method: str, session_store: McpSessionsManager
-) -> Union[Response, StreamingResponse]:
+) -> Response | StreamingResponse:
     """Integration function for streamable routes."""
     streamable_transport = StreamableTransport(session_store)
     return await streamable_transport.handle_communication(
@@ -77,7 +77,7 @@ async def create_streamable_transport_and_handle_request(
     )
 
 
-class StreamableTransport(MCPTransportBase):
+class StreamableTransport(McpTransportBase):
     """
     Streamable HTTP transport implementation for MCP communication.
     Handles HTTP POST/GET/DELETE requests with JSON and streaming responses.
@@ -85,7 +85,6 @@ class StreamableTransport(MCPTransportBase):
 
     async def initialize_session(
         self,
-        *args,
         **kwargs,
     ) -> str:
         """Initialize streamable HTTP session."""
@@ -111,7 +110,7 @@ class StreamableTransport(MCPTransportBase):
 
     async def handle_post_request(
         self, request: Request, request_body: dict[str, Any]
-    ) -> Union[Response, StreamingResponse]:
+    ) -> Response | StreamingResponse:
         """Handle POST request to streamable endpoint."""
         session_attributes = McpAttributes.from_request_headers(request.headers)
         session_id = request.headers.get(MCP_SESSION_ID_HEADER)
@@ -222,9 +221,7 @@ class StreamableTransport(MCPTransportBase):
                 print(f"[MCP DELETE] Request error: {str(e)}")
                 raise HTTPException(status_code=500, detail="Request error") from e
 
-    async def handle_communication(
-        self, *args, **kwargs
-    ) -> Union[Response, StreamingResponse]:
+    async def handle_communication(self, **kwargs) -> Response | StreamingResponse:
         """Main communication handler for streamable transport."""
         request = kwargs.get("request")
         method = kwargs.get("method", "POST")
@@ -262,7 +259,7 @@ class StreamableTransport(MCPTransportBase):
         session_id: str,
         session_attributes: McpAttributes,
         is_initialization_request: bool,
-    ) -> Union[Response, StreamingResponse]:
+    ) -> Response | StreamingResponse:
         """Forward request to MCP server and handle response."""
         async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             try:

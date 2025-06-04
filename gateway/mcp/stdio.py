@@ -15,7 +15,7 @@ from gateway.mcp.mcp_sessions_manager import (
     McpAttributes,
     McpSessionsManager,
 )
-from gateway.mcp.mcp_transport_base import MCPTransportBase
+from gateway.mcp.mcp_transport_base import McpTransportBase
 
 STATUS_EOF = "eof"
 STATUS_DATA = "data"
@@ -23,7 +23,7 @@ STATUS_WAIT = "wait"
 mcp_sessions_manager = McpSessionsManager()
 
 
-class StdioTransport(MCPTransportBase):
+class StdioTransport(McpTransportBase):
     """
     STDIO transport implementation for MCP communication.
     Handles subprocess-based communication with stdin/stdout/stderr.
@@ -33,7 +33,7 @@ class StdioTransport(MCPTransportBase):
         super().__init__(session_store)
         self.mcp_process: subprocess.Popen = None
 
-    async def initialize_session(self, *args, **kwargs) -> str:
+    async def initialize_session(self, **kwargs) -> str:
         """Initialize session for stdio transport."""
         session_attributes: McpAttributes = kwargs.get("session_attributes")
         session_id = self.generate_session_id()
@@ -53,7 +53,7 @@ class StdioTransport(MCPTransportBase):
         mcp_log(f"Started MCP process with PID: {self.mcp_process.pid}")
         return self.mcp_process
 
-    async def handle_communication(self, *args, **kwargs) -> None:
+    async def handle_communication(self, **kwargs) -> None:
         """Handle stdio communication loop."""
         session_id: str = kwargs.get("session_id")
         mcp_process: subprocess.Popen = kwargs.get("mcp_process")
