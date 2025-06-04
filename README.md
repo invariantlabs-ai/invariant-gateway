@@ -24,7 +24,7 @@ This allows you to _observe and debug_ your agents in [Invariant Explorer](https
 - [x] **Single Line Setup**: Just change the base URL of your LLM provider to the Invariant Gateway.
 - [x] **Intercepts agents on an LLM-level** for better debugging and analysis.
 - [x] **Tool Calling and Computer Use Support** to capture all forms of agentic interactions.
-- [x] **MCP Protocol Support** for both standard I/O and Server-Sent Events (SSE) transports.
+- [x] **MCP Protocol Support** for both standard I/O, Server-Sent Events (SSE) and Streamable HTTP transports.
 - [x] **Seamless forwarding and LLM streaming** to OpenAI, Anthropic, and other LLM providers.
 - [x] **Store and organize runtime traces** in the [Invariant Explorer](https://explorer.invariantlabs.ai/).
 
@@ -279,7 +279,7 @@ export ANTHROPIC_API_KEY={your-anthropic-api-key};invariant-auth={your-invariant
 This setup ensures that SWE-agent works seamlessly with Invariant Gateway, maintaining compatibility while enabling full functionality. 🚀
 
 ### **Using MCP with Invariant Gateway**
-Invariant Gateway supports MCP (stdio, SSE and Streamable http) tool calling.
+Invariant Gateway supports MCP (stdio, SSE and Streamable HTTP) tool calling.
 
 For stdio transport based MCP, follow steps [here](https://github.com/invariantlabs-ai/invariant-gateway/tree/main/gateway/mcp).
 
