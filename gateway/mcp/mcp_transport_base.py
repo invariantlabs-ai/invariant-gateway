@@ -238,12 +238,10 @@ class MCPTransportBase(ABC):
             )
         ):
             # Add the trace to the explorer
-            asyncio.create_task(
-                session_store.add_message_to_session(
-                    session_id=session_id,
-                    message=message,
-                    guardrails_result=guardrails_result,
-                )
+            await session_store.add_message_to_session(
+                session_id=session_id,
+                message=message,
+                guardrails_result=guardrails_result,
             )
             return {
                 "jsonrpc": "2.0",

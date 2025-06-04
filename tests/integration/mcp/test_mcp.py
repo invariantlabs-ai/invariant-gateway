@@ -82,14 +82,12 @@ async def _invoke_mcp_tool(
     elif transport == "sse":
         return await mcp_sse_client_run(
             f"{gateway_url}/api/v1/gateway/mcp/sse",
-            push,
             tool_name,
             tool_args,
             headers=_get_headers(_get_server_base_url(transport), project_name, push),
         )
     return await mcp_streamable_client_run(
         f"{gateway_url}/api/v1/gateway/mcp/streamable",
-        push,
         tool_name,
         tool_args,
         headers=_get_headers(_get_server_base_url(transport), project_name, push),
@@ -97,7 +95,7 @@ async def _invoke_mcp_tool(
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(20)
 @pytest.mark.parametrize(
     "transport",
     [
@@ -182,7 +180,7 @@ async def test_mcp_with_gateway(
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(20)
 @pytest.mark.parametrize(
     "transport",
     [
@@ -313,7 +311,7 @@ async def test_mcp_with_gateway_and_logging_guardrails(
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(20)
 @pytest.mark.parametrize(
     "transport",
     [
@@ -345,12 +343,10 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
         invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
     )
 
-    # Run the MCP client and make the tool call.
-    try:
+    with pytest.raises(ExceptionGroup) as exc_group:
         if transport == "sse":
             _ = await mcp_sse_client_run(
                 gateway_url + "/api/v1/gateway/mcp/sse",
-                push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
                 headers=_get_headers(
@@ -366,30 +362,16 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
             )
-        if not transport.startswith("streamable-"):
-            # If we get here, the tool call was not blocked
-            pytest.fail("Expected McpError to be raised")
-    # The tool call should be blocked by the guardrail
-    # and an error should be raised.
-    except McpError as e:
-        assert (
-            "[Invariant Guardrails] The MCP tool call was blocked for security reasons"
-            in e.error.message
-        )
-        assert "get_last_message_from_user is called" in e.error.message
-        assert e.error.code == -32600
-
-    if transport.startswith("streamable-"):
-        with pytest.raises(ExceptionGroup) as exc_group:
+        else:
             _ = await mcp_streamable_client_run(
                 gateway_url + "/api/v1/gateway/mcp/streamable",
-                push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
                 headers=_get_headers(
                     _get_streamable_server_base_url(transport), project_name, True
                 ),
             )
+    if transport.startswith("streamable-"):
         # Extract the actual HTTPStatusError
         http_errors = [
             e
@@ -397,6 +379,14 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
             if isinstance(e, httpx.HTTPStatusError)
         ]
         assert http_errors[0].response.status_code == 400
+    else:
+        mcp_error = [e for e in exc_group.value.exceptions][0].exceptions[0]
+        assert (
+            "[Invariant Guardrails] The MCP tool call was blocked for security reasons"
+            in mcp_error.error.message
+        )
+        assert "get_last_message_from_user is called" in mcp_error.error.message
+        assert -32600 == mcp_error.error.code
 
     # Fetch the trace ids for the dataset
     traces_response = requests.get(
@@ -439,7 +429,7 @@ async def test_mcp_with_gateway_and_blocking_guardrails(
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(20)
 @pytest.mark.parametrize(
     "transport",
     [
@@ -479,12 +469,10 @@ async def test_mcp_with_gateway_hybrid_guardrails(
         invariant_authorization="Bearer " + os.getenv("INVARIANT_API_KEY"),
     )
 
-    # Run the MCP client and make the tool call.
-    try:
+    with pytest.raises(ExceptionGroup) as exc_group:
         if transport == "sse":
             _ = await mcp_sse_client_run(
                 gateway_url + "/api/v1/gateway/mcp/sse",
-                push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
                 headers=_get_headers(
@@ -500,46 +488,31 @@ async def test_mcp_with_gateway_hybrid_guardrails(
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
             )
-        if not transport.startswith("streamable-"):
-            # If we get here, the tool call was not blocked
-            pytest.fail("Expected McpError to be raised")
-    # The tool call output should be blocked by the guardrail
-    # and an error should be raised.
-    except McpError as e:
-        assert (
-            "[Invariant Guardrails] The MCP tool call was blocked for security reasons"
-            in e.error.message
-        )
-        assert "food in ToolOutput" in e.error.message
-        assert e.error.code == -32600
-
-    if transport.startswith("streamable-"):
-        with pytest.raises(ExceptionGroup) as exc_group:
+        else:
             _ = await mcp_streamable_client_run(
                 gateway_url + "/api/v1/gateway/mcp/streamable",
-                push_to_explorer=True,
                 tool_name="get_last_message_from_user",
                 tool_args={"username": "Alice"},
                 headers=_get_headers(
                     _get_streamable_server_base_url(transport), project_name, True
                 ),
             )
-        if transport.startswith("streamable-json"):
-            # Extract the actual HTTPStatusError
-            http_errors = [
-                e
-                for e in exc_group.value.exceptions
-                if isinstance(e, httpx.HTTPStatusError)
-            ]
-            assert http_errors[0].response.status_code == 400
-        else:
-            mcp_error = [e for e in exc_group.value.exceptions][0].exceptions[0]
-            assert (
-                "[Invariant Guardrails] The MCP tool call was blocked for security reasons"
-                in mcp_error.error.message
-            )
-            assert "food in ToolOutput" in mcp_error.error.message
-            assert -32600 == mcp_error.error.code
+    if transport.startswith("streamable-json"):
+        # Extract the actual HTTPStatusError
+        http_errors = [
+            e
+            for e in exc_group.value.exceptions
+            if isinstance(e, httpx.HTTPStatusError)
+        ]
+        assert http_errors[0].response.status_code == 400
+    else:
+        mcp_error = [e for e in exc_group.value.exceptions][0].exceptions[0]
+        assert (
+            "[Invariant Guardrails] The MCP tool call was blocked for security reasons"
+            in mcp_error.error.message
+        )
+        assert "food in ToolOutput" in mcp_error.error.message
+        assert -32600 == mcp_error.error.code
 
     # Fetch the trace ids for the dataset
     traces_response = requests.get(
@@ -602,7 +575,7 @@ async def test_mcp_with_gateway_hybrid_guardrails(
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(30)
+@pytest.mark.timeout(20)
 @pytest.mark.parametrize(
     "transport",
     [
@@ -642,7 +615,6 @@ async def test_mcp_tool_list_blocking(
         with pytest.raises(ExceptionGroup) as exc_group:
             _ = await mcp_streamable_client_run(
                 gateway_url + "/api/v1/gateway/mcp/streamable",
-                push_to_explorer=True,
                 tool_name="tools/list",
                 tool_args={},
                 headers=_get_headers(
@@ -700,7 +672,6 @@ async def test_mcp_sse_post_endpoint_exceptions(gateway_url):
     with pytest.raises(ExceptionGroup) as exc_group:
         await mcp_sse_client_run(
             gateway_url + "/api/v1/gateway/mcp/sse",
-            push_to_explorer=True,
             tool_name="get_last_message_from_user",
             tool_args={"username": "Alice"},
             headers={
