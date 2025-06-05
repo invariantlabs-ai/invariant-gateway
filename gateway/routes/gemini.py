@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -49,7 +49,7 @@ async def gemini_generate_content_gateway(
     api_version: str,
     model: str,
     endpoint: str,
-    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
+    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
     alt: str = Query(
         None, title="Response Format", description="Set to 'sse' for streaming"
     ),
@@ -147,7 +147,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
         }
 
         # guardrailing execution result (if any)
-        self.guardrails_execution_result: Optional[dict[str, Any]] = None
+        self.guardrails_execution_result: dict[str, Any] | None = None
 
     def make_refusal(
         self,
@@ -415,7 +415,7 @@ async def get_guardrails_check_result(
 async def push_to_explorer(
     context: RequestContext,
     response_json: dict[str, Any],
-    guardrails_execution_result: Optional[dict] = None,
+    guardrails_execution_result: dict | None = None,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     guardrails_execution_result = guardrails_execution_result or {}
@@ -464,11 +464,11 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         self.gemini_request: httpx.Request = gemini_request
 
         # response data
-        self.response: Optional[httpx.Response] = None
-        self.response_json: Optional[dict[str, Any]] = None
+        self.response: httpx.Response | None = None
+        self.response_json: dict[str, Any] | None = None
 
         # guardrails execution result (if any)
-        self.guardrails_execution_result: Optional[dict[str, Any]] = None
+        self.guardrails_execution_result: dict[str, Any] | None = None
 
     async def on_start(self):
         """

@@ -8,7 +8,7 @@ import json
 import re
 import uuid
 from abc import ABC, abstractmethod
-from typing import Any, Tuple
+from typing import Any
 
 from fastapi import Request, HTTPException
 from gateway.common.guardrails import GuardrailAction
@@ -43,12 +43,12 @@ class McpTransportBase(ABC):
 
     async def process_outgoing_request(
         self, session_id: str, request_data: dict[str, Any]
-    ) -> Tuple[dict[str, Any], bool]:
+    ) -> tuple[dict[str, Any], bool]:
         """
         Template method for processing outgoing requests to MCP server.
 
         Returns:
-            Tuple[processed_request_data, is_blocked]
+            tuple[processed_request_data, is_blocked]
         """
         # Update session with request information
         session = self.session_store.get_session(session_id)
@@ -65,12 +65,12 @@ class McpTransportBase(ABC):
 
     async def process_incoming_response(
         self, session_id: str, response_data: dict[str, Any]
-    ) -> Tuple[dict[str, Any], bool]:
+    ) -> tuple[dict[str, Any], bool]:
         """
         Template method for processing incoming responses from MCP server.
 
         Returns:
-            Tuple[processed_response, is_blocked]
+            tuple[processed_response, is_blocked]
         """
         # Update session with server information
         session = self.session_store.get_session(session_id)
@@ -99,7 +99,7 @@ class McpTransportBase(ABC):
 
     async def _intercept_outgoing_request(
         self, session_id: str, request_data: dict[str, Any]
-    ) -> Tuple[dict[str, Any], bool]:
+    ) -> tuple[dict[str, Any], bool]:
         """Common request interception logic for guardrails."""
         method = request_data.get(MCP_METHOD)
 
@@ -209,7 +209,7 @@ class McpTransportBase(ABC):
     @staticmethod
     async def hook_tool_call(
         session_id: str, session_store: McpSessionsManager, request_body: dict
-    ) -> Tuple[dict, bool]:
+    ) -> tuple[dict, bool]:
         """
         Hook to process the request JSON before sending it to the MCP server.
 
@@ -219,7 +219,7 @@ class McpTransportBase(ABC):
             request_body (dict): The request JSON to be processed.
 
         Returns:
-            Tuple[dict, bool]: A tuple hook tool call response as a dict and a boolean
+            tuple[dict, bool]: A tuple hook tool call response as a dict and a boolean
             indicating whether the request was blocked. If the request is blocked, the
             dict will contain an error message else it will contain the original request.
         """
@@ -270,7 +270,7 @@ class McpTransportBase(ABC):
         session_store: McpSessionsManager,
         response_body: dict,
         is_tools_list=False,
-    ) -> Tuple[dict, bool]:
+    ) -> tuple[dict, bool]:
         """
 
         Hook to process the response JSON after receiving it from the MCP server.
@@ -280,7 +280,7 @@ class McpTransportBase(ABC):
             response_body (dict): The response JSON to be processed.
             is_tools_list (bool): Flag to indicate if the response is from a tools/list call.
         Returns:
-            Tuple[dict, bool]: A tuple containing the processed response JSON
+            tuple[dict, bool]: A tuple containing the processed response JSON
             and a boolean indicating whether the response was blocked. If the response
             is blocked, the dict will contain an error message else it will contain the
             original response.
@@ -351,7 +351,7 @@ class McpTransportBase(ABC):
     @staticmethod
     async def intercept_response(
         session_id: str, session_store: McpSessionsManager, response_body: dict
-    ) -> Tuple[dict, bool]:
+    ) -> tuple[dict, bool]:
         """
         Intercept the response and check for guardrails.
         This function is used to intercept responses and check for guardrails.
@@ -365,7 +365,7 @@ class McpTransportBase(ABC):
             response_body (dict): The response JSON to be processed.
 
         Returns:
-            Tuple[dict, bool]: A tuple containing the processed response JSON
+            tuple[dict, bool]: A tuple containing the processed response JSON
             and a boolean indicating whether the response was blocked.
         """
         session = session_store.get_session(session_id)

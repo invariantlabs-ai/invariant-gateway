@@ -3,14 +3,14 @@
 import asyncio
 import os
 import threading
-from typing import Optional
 
 import fastapi
 from httpx import HTTPStatusError
 
 from gateway.common.guardrails import Guardrail, GuardrailAction, GuardrailRuleSet
 
-def extract_policy_from_headers(request: Optional[fastapi.Request]) -> Optional[str]:
+
+def extract_policy_from_headers(request: fastapi.Request | None) -> str | None:
     """
     Extracts the guardrailing policy from the request headers if present.
 
@@ -78,7 +78,7 @@ class GatewayConfigManager:
     _lock = threading.Lock()
 
     @classmethod
-    def get_config(cls, request: fastapi.Request = None) -> GatewayConfig:
+    def get_config(cls) -> GatewayConfig:
         """Initializes and returns the gateway configuration using double-checked locking."""
         local_config = cls._config_instance
 
@@ -94,7 +94,7 @@ class GatewayConfigManager:
 
 async def extract_guardrails_from_header(
     request: fastapi.Request,
-) -> Optional[GuardrailRuleSet]:
+) -> GuardrailRuleSet | None:
     """
     Extracts Invariant-Guardrails from the request header if provided, and returns a corresponding
     GuardrailRuleSet. If no guardrails are provided, returns None.
@@ -114,3 +114,4 @@ async def extract_guardrails_from_header(
             blocking_guardrails=guardrails,
             logging_guardrails=[],
         )
+    return None

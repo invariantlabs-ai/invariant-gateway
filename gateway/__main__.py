@@ -7,8 +7,6 @@ import subprocess
 import sys
 import time
 
-from typing import Optional
-
 from gateway.mcp import stdio as mcp_stdio
 from gateway.mcp.log import mcp_log
 
@@ -64,7 +62,7 @@ def ensure_network_exists(network_name: str = "invariant-explorer-web") -> bool:
         return False
 
 
-def setup_guardrails(guardrails_file_path: Optional[str] = None) -> bool:
+def setup_guardrails(guardrails_file_path: str | None = None) -> bool:
     """Configure guardrails if specified."""
     if not guardrails_file_path:
         return True
@@ -105,7 +103,7 @@ def build():
         return False
 
 
-def up(guardrails_file_path: Optional[str] = None):
+def up(guardrails_file_path: str | None = None):
     """Set up the local server for the Invariant Gateway."""
     # Ensure network exists
     if not ensure_network_exists():

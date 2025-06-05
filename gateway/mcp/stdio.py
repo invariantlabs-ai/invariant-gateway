@@ -7,7 +7,6 @@ import platform
 import select
 import subprocess
 import sys
-from typing import Optional, Tuple
 
 from gateway.mcp.constants import UTF_8
 from gateway.mcp.log import mcp_log, MCP_LOG_FILE
@@ -210,7 +209,7 @@ class StdioTransport(McpTransportBase):
 
     async def _wait_for_stdin_input(
         self, loop: asyncio.AbstractEventLoop, stdin_fd: int
-    ) -> Tuple[Optional[bytes], str]:
+    ) -> tuple[bytes | None, str]:
         """Platform-specific implementation to wait for and read input from stdin."""
         if platform.system() == "Windows":
             await asyncio.sleep(0.01)
@@ -261,7 +260,7 @@ async def create_stdio_transport_and_execute(
     )
 
 
-def split_args(args: list[str] = None) -> tuple[list[str], list[str]]:
+def split_args(args: list[str] | None = None) -> tuple[list[str], list[str]]:
     """
     Splits CLI arguments into two parts:
     1. Arguments intended for the MCP gateway (everything before `--exec`)

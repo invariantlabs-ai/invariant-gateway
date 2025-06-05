@@ -2,7 +2,7 @@
 
 import os
 import json
-from typing import Any, Dict, List
+from typing import Any
 
 import httpx
 from fastapi import HTTPException
@@ -15,8 +15,8 @@ from invariant_sdk.types.annotations import AnnotationCreate
 
 
 def create_annotations_from_guardrails_errors(
-    guardrails_errors: List[dict],
-) -> List[AnnotationCreate]:
+    guardrails_errors: list[dict],
+) -> list[AnnotationCreate]:
     """Create Explorer annotations from the guardrails errors."""
     annotations = []
 
@@ -67,7 +67,7 @@ def create_annotations_from_guardrails_errors(
     return remove_duplicates(annotations)
 
 
-def remove_duplicates(annotations: List[AnnotationCreate]) -> List[AnnotationCreate]:
+def remove_duplicates(annotations: list[AnnotationCreate]) -> list[AnnotationCreate]:
     """
     Remove duplicate annotations based on content, address, and extra_metadata.
 
@@ -98,18 +98,18 @@ def get_explorer_api_url() -> str:
 
 
 async def push_trace(
-    messages: List[List[Dict[str, Any]]],
+    messages: list[list[dict[str, Any]]],
     dataset_name: str,
     invariant_authorization: str,
-    annotations: List[List[AnnotationCreate]] = None,
-    metadata: List[Dict[str, Any]] = None,
+    annotations: list[list[AnnotationCreate]] | None = None,
+    metadata: list[dict[str, Any]] | None = None,
 ) -> PushTracesResponse:
     """Pushes traces to the dataset on the Invariant Explorer.
 
     If a dataset with the given name does not exist, it will be created.
 
     Args:
-        messages (List[List[Dict[str, Any]]]): List of messages to push.
+        messages (listlistdict[str, Any]]]): List of messages to push.
         dataset_name (str): Name of the dataset.
         invariant_authorization (str): Value of the
                                        invariant-authorization header.
@@ -134,7 +134,7 @@ async def push_trace(
     )
     try:
         return await client.push_trace(request)
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         print(f"Failed to push trace: {e}")
         return {"error": str(e)}
 

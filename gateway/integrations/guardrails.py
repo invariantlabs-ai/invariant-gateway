@@ -3,7 +3,7 @@
 import asyncio
 import os
 import time
-from typing import Any, Dict, List
+from typing import Any
 from functools import wraps
 
 from fastapi import HTTPException
@@ -339,22 +339,22 @@ class InstrumentedResponse(InstrumentedStreamingResponse):
 
 
 async def check_guardrails(
-    messages: List[Dict[str, Any]],
-    guardrails: List[Guardrail],
+    messages: list[dict[str, Any]],
+    guardrails: list[Guardrail],
     context: RequestContext,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Checks guardrails on the list of messages.
     This calls the batch check API of the Guardrails service.
 
     Args:
-        messages (List[Dict[str, Any]]): List of messages to verify the guardrails against.
-        guardrails (List[Guardrail]): The guardrails to check against.
+        messages (list[dict[str, Any]]): List of messages to verify the guardrails against.
+        guardrails (list[Guardrail]): The guardrails to check against.
         invariant_authorization (str): Value of the
                                        invariant-authorization header.
 
     Returns:
-        Dict: Response containing guardrail check results.
+        dict: Response containing guardrail check results.
     """
     async with httpx.AsyncClient() as client:
         url = os.getenv("GUARDRAILS_API_URL", DEFAULT_API_URL).rstrip("/")

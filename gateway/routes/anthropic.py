@@ -69,7 +69,7 @@ def validate_headers(x_api_key: str = Header(None)):
 )
 async def anthropic_v1_messages_gateway(
     request: Request,
-    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
+    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
     header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ):
@@ -167,7 +167,7 @@ async def get_guardrails_check_result(
 async def push_to_explorer(
     context: RequestContext,
     merged_response: dict[str, Any],
-    guardrails_execution_result: Optional[dict] = None,
+    guardrails_execution_result: dict | None = None,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     guardrails_execution_result = guardrails_execution_result or {}
@@ -215,9 +215,9 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         self.anthropic_request: httpx.Request = anthropic_request
 
         # response data
-        self.response: Optional[httpx.Response] = None
-        self.response_string: Optional[str] = None
-        self.response_json: Optional[dict[str, Any]] = None
+        self.response: httpx.Response | None = None
+        self.response_string: str | None = None
+        self.response_json: dict[str, Any] | None = None
 
         # guardrailing response (if any)
         self.guardrails_execution_result = {}
@@ -553,7 +553,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
         """Process the buffer and extract complete SSE events.
 
         Returns:
-            Tuple[List[str], str]: A tuple containing a list of
+            tuple[list[str], str]: A tuple containing a list of
             complete events and the remaining buffer with incomplete events.
         """
         # Split on double newlines which separate SSE events

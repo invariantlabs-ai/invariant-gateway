@@ -1,7 +1,7 @@
 """Common Request context data class."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 import fastapi
 
@@ -16,18 +16,18 @@ from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailActi
 class RequestContext:
     """Structured context for a request. Must be created via `RequestContext.create()`."""
 
-    request_json: Dict[str, Any]
-    dataset_name: Optional[str] = None
+    request_json: dict[str, Any]
+    dataset_name: str | None = None
     # authorization to use for invariant service like explorer
-    invariant_authorization: Optional[str] = None
+    invariant_authorization: str | None = None
     # authorization to use for invariant guardrailing specifically
-    guardrail_authorization: Optional[str] = None
+    guardrail_authorization: str | None = None
     # the set of guardrails to enforce for this request
-    guardrails: Optional[GuardrailRuleSet] = None
-    config: Dict[str, Any] = None
+    guardrails: GuardrailRuleSet | None = None
+    config: dict[str, Any] | None = None
 
     # extra parameters available as input.<key> during guardrail evaluation
-    guardrails_parameters: Optional[Dict[str, Any]] = None
+    guardrails_parameters: dict[str, Any] | None = None
 
     _created_via_factory: bool = field(
         default=False, init=True, repr=False, compare=False
@@ -42,13 +42,13 @@ class RequestContext:
     @classmethod
     def create(
         cls,
-        request_json: Dict[str, Any],
-        dataset_name: Optional[str] = None,
-        invariant_authorization: Optional[str] = None,
-        guardrails: Optional[GuardrailRuleSet] = None,
-        config: Optional[GatewayConfig] = None,
-        request: fastapi.Request = None,
-        guardrails_parameters: Optional[Dict[str, Any]] = None,
+        request_json: dict[str, Any],
+        dataset_name: str | None = None,
+        invariant_authorization: str | None = None,
+        guardrails: GuardrailRuleSet | None = None,
+        config: GatewayConfig | None = None,
+        request: fastapi.Request | None = None,
+        guardrails_parameters: dict[str, Any] | None = None,
     ) -> "RequestContext":
         """Creates a new RequestContext instance, applying default guardrails if needed."""
 
@@ -103,7 +103,7 @@ class RequestContext:
             guardrails_parameters=guardrails_parameters,
         )
 
-    def get_guardrailing_authorization(self) -> Optional[str]:
+    def get_guardrailing_authorization(self) -> str | None:
         """
         Returns the authorization to use for the guardrailing service.
 
