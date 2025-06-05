@@ -10,7 +10,7 @@ from httpx_sse import aconnect_sse, ServerSentEvent
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
-from gateway.common.constants import CLIENT_TIMEOUT
+from gateway.common.constants import CLIENT_TIMEOUT, CONTENT_TYPE_EVENT_STREAM
 from gateway.mcp.constants import MCP_CUSTOM_HEADER_PREFIX, UTF_8
 from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
@@ -293,7 +293,7 @@ class SseTransport(McpTransportBase):
 
         return StreamingResponse(
             event_generator(),
-            media_type="text/event-stream",
+            media_type=CONTENT_TYPE_EVENT_STREAM,
             headers={"X-Proxied-By": "mcp-gateway", **response_headers},
         )
 

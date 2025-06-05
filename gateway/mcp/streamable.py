@@ -8,7 +8,12 @@ from httpx_sse import aconnect_sse
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
-from gateway.common.constants import CLIENT_TIMEOUT
+from gateway.common.constants import (
+    CLIENT_TIMEOUT,
+    CONTENT_TYPE_HEADER,
+    CONTENT_TYPE_JSON,
+    CONTENT_TYPE_EVENT_STREAM,
+)
 from gateway.mcp.constants import (
     INVARIANT_SESSION_ID_PREFIX,
     MCP_CUSTOM_HEADER_PREFIX,
@@ -23,9 +28,6 @@ from gateway.mcp.mcp_transport_base import McpTransportBase
 gateway = APIRouter()
 mcp_sessions_manager = McpSessionsManager()
 
-CONTENT_TYPE_JSON = "application/json"
-CONTENT_TYPE_SSE = "text/event-stream"
-CONTENT_TYPE_HEADER = "content-type"
 MCP_SESSION_ID_HEADER = "mcp-session-id"
 MCP_SERVER_POST_AND_DELETE_HEADERS = {
     "connection",
@@ -187,7 +189,7 @@ class StreamableTransport(McpTransportBase):
 
         return StreamingResponse(
             event_generator(),
-            media_type=CONTENT_TYPE_SSE,
+            media_type=CONTENT_TYPE_EVENT_STREAM,
             headers={"X-Proxied-By": "mcp-gateway", **response_headers},
         )
 
@@ -382,7 +384,7 @@ class StreamableTransport(McpTransportBase):
 
         return StreamingResponse(
             event_generator(),
-            media_type=CONTENT_TYPE_SSE,
+            media_type=CONTENT_TYPE_EVENT_STREAM,
             headers=response_headers,
         )
 

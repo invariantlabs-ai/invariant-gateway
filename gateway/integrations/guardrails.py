@@ -376,11 +376,14 @@ async def check_guardrails(
                 if result.status_code == 401:
                     raise HTTPException(
                         status_code=401,
-                        detail="The provided Invariant API key is not valid for guardrail checking. Please ensure you are using the correct API key or pass an alternative API key for guardrail checking specifically via the '{}' header.".format(
-                            INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER
+                        detail=(
+                            "The provided Invariant API key is not valid for guardrail checking. "
+                            "Please ensure you are using the correct API key or pass an "
+                            "alternative API key for guardrail checking specifically via the "
+                            f"'{INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER}' header."
                         ),
                     )
-                raise Exception(
+                raise Exception(  # pylint: disable=broad-exception-raised
                     f"Guardrails check failed: {result.status_code} - {result.text}"
                 )
             guardrails_result = result.json()
@@ -412,7 +415,7 @@ async def check_guardrails(
             return aggregated_errors
         except HTTPException as e:
             raise e
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             print(f"Failed to verify guardrails: {e}")
             # make sure runtime errors are also visible in e.g. Explorer
             return {

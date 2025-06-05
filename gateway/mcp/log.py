@@ -2,7 +2,6 @@
 
 import os
 import sys
-
 from builtins import print as builtins_print
 
 os.makedirs(os.path.join(os.path.expanduser("~"), ".invariant"), exist_ok=True)

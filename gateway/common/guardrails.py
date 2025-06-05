@@ -1,10 +1,8 @@
 """Common guardrails data class."""
 
+from dataclasses import dataclass
 from enum import Enum
 from typing import List
-
-from dataclasses import dataclass
-
 
 class GuardrailAction(str, Enum):
     """Enum representing the action to be taken for guardrail rules."""

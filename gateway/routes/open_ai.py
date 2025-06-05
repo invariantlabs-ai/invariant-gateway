@@ -16,6 +16,8 @@ from gateway.common.config_manager import (
 )
 from gateway.common.constants import (
     CLIENT_TIMEOUT,
+    CONTENT_TYPE_JSON,
+    CONTENT_TYPE_EVENT_STREAM,
     IGNORED_HEADERS,
 )
 from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
@@ -273,7 +275,8 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
                     }
                 )
 
-                # yield an extra error chunk (without preventing the original chunk to go through after)
+                # yield an extra error chunk (without preventing the original
+                # chunk to go through after)
                 return ExtraItem(f"data: {error_chunk}\n\n".encode())
 
                 # push will happen in on_end
@@ -324,7 +327,7 @@ async def handle_stream_response(
     )
 
     return StreamingResponse(
-        response.instrumented_event_generator(), media_type="text/event-stream"
+        response.instrumented_event_generator(), media_type=CONTENT_TYPE_EVENT_STREAM
     )
 
 
@@ -606,7 +609,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
                             }
                         ),
                         status_code=400,
-                        media_type="application/json",
+                        media_type=CONTENT_TYPE_JSON,
                     ),
                     end_of_stream=True,
                 )
@@ -634,7 +637,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
         return Response(
             content=response_string,
             status_code=response_code,
-            media_type="application/json",
+            media_type=CONTENT_TYPE_JSON,
             headers=dict(self.response.headers),
         )
 
@@ -686,7 +689,7 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
                     Response(
                         content=response_string,
                         status_code=response_code,
-                        media_type="application/json",
+                        media_type=CONTENT_TYPE_JSON,
                     ),
                 )
 

@@ -2,8 +2,9 @@
 
 import os
 import json
-
 from typing import Any, Dict, List
+
+import httpx
 from fastapi import HTTPException
 
 from gateway.common.constants import DEFAULT_API_URL
@@ -11,8 +12,6 @@ from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailActi
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.push_traces import PushTracesRequest, PushTracesResponse
 from invariant_sdk.types.annotations import AnnotationCreate
-
-import httpx
 
 
 def create_annotations_from_guardrails_errors(
