@@ -7,7 +7,6 @@ import platform
 import select
 import subprocess
 import sys
-from typing import Optional, Tuple
 
 from gateway.mcp.constants import UTF_8
 from gateway.mcp.log import mcp_log, MCP_LOG_FILE
@@ -15,7 +14,7 @@ from gateway.mcp.mcp_sessions_manager import (
     McpAttributes,
     McpSessionsManager,
 )
-from gateway.mcp.mcp_transport_base import MCPTransportBase
+from gateway.mcp.mcp_transport_base import McpTransportBase
 
 STATUS_EOF = "eof"
 STATUS_DATA = "data"
@@ -23,7 +22,7 @@ STATUS_WAIT = "wait"
 mcp_sessions_manager = McpSessionsManager()
 
 
-class StdioTransport(MCPTransportBase):
+class StdioTransport(McpTransportBase):
     """
     STDIO transport implementation for MCP communication.
     Handles subprocess-based communication with stdin/stdout/stderr.
@@ -33,7 +32,7 @@ class StdioTransport(MCPTransportBase):
         super().__init__(session_store)
         self.mcp_process: subprocess.Popen = None
 
-    async def initialize_session(self, *args, **kwargs) -> str:
+    async def initialize_session(self, **kwargs) -> str:
         """Initialize session for stdio transport."""
         session_attributes: McpAttributes = kwargs.get("session_attributes")
         session_id = self.generate_session_id()
@@ -53,7 +52,7 @@ class StdioTransport(MCPTransportBase):
         mcp_log(f"Started MCP process with PID: {self.mcp_process.pid}")
         return self.mcp_process
 
-    async def handle_communication(self, *args, **kwargs) -> None:
+    async def handle_communication(self, **kwargs) -> None:
         """Handle stdio communication loop."""
         session_id: str = kwargs.get("session_id")
         mcp_process: subprocess.Popen = kwargs.get("mcp_process")
@@ -210,7 +209,7 @@ class StdioTransport(MCPTransportBase):
 
     async def _wait_for_stdin_input(
         self, loop: asyncio.AbstractEventLoop, stdin_fd: int
-    ) -> Tuple[Optional[bytes], str]:
+    ) -> tuple[bytes | None, str]:
         """Platform-specific implementation to wait for and read input from stdin."""
         if platform.system() == "Windows":
             await asyncio.sleep(0.01)
@@ -261,7 +260,7 @@ async def create_stdio_transport_and_execute(
     )
 
 
-def split_args(args: list[str] = None) -> tuple[list[str], list[str]]:
+def split_args(args: list[str] | None = None) -> tuple[list[str], list[str]]:
     """
     Splits CLI arguments into two parts:
     1. Arguments intended for the MCP gateway (everything before `--exec`)

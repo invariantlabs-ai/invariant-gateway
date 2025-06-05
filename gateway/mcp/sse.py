@@ -3,20 +3,20 @@
 import asyncio
 import json
 import re
-from typing import Any, AsyncGenerator, Optional, Tuple
+from typing import Any, AsyncGenerator
 
 import httpx
 from httpx_sse import aconnect_sse, ServerSentEvent
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
-from gateway.common.constants import CLIENT_TIMEOUT
+from gateway.common.constants import CLIENT_TIMEOUT, CONTENT_TYPE_EVENT_STREAM
 from gateway.mcp.constants import MCP_CUSTOM_HEADER_PREFIX, UTF_8
 from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
     McpAttributes,
 )
-from gateway.mcp.mcp_transport_base import MCPTransportBase
+from gateway.mcp.mcp_transport_base import McpTransportBase
 
 MCP_SERVER_POST_HEADERS = {
     "connection",
@@ -62,7 +62,7 @@ async def create_sse_transport_and_handle_post(
         raise HTTPException(status_code=400, detail="Session does not exist")
 
     request_body = json.loads(await request.body())
-    return await SSETransport(session_store).handle_post_request(
+    return await SseTransport(session_store).handle_post_request(
         request, session_id, request_body
     )
 
@@ -71,10 +71,10 @@ async def create_sse_transport_and_handle_stream(
     request: Request, session_store: McpSessionsManager
 ) -> StreamingResponse:
     """Integration function for SSE GET route."""
-    return await SSETransport(session_store).handle_sse_stream(request)
+    return await SseTransport(session_store).handle_sse_stream(request)
 
 
-class SSETransport(MCPTransportBase):
+class SseTransport(McpTransportBase):
     """
     Server-Sent Events transport implementation for MCP communication.
     Handles HTTP-based SSE communication with message queuing.
@@ -82,12 +82,11 @@ class SSETransport(MCPTransportBase):
 
     async def initialize_session(
         self,
-        *args,
         **kwargs,
     ) -> str:
         """Initialize or get existing SSE session."""
-        session_id: Optional[str] = kwargs.get("session_id", None)
-        session_attributes: Optional[McpAttributes] = kwargs.get(
+        session_id: str | None = kwargs.get("session_id", None)
+        session_attributes: McpAttributes | None = kwargs.get(
             "session_attributes", None
         )
         if session_id and self.session_store.session_exists(session_id):
@@ -294,17 +293,17 @@ class SSETransport(MCPTransportBase):
 
         return StreamingResponse(
             event_generator(),
-            media_type="text/event-stream",
+            media_type=CONTENT_TYPE_EVENT_STREAM,
             headers={"X-Proxied-By": "mcp-gateway", **response_headers},
         )
 
-    async def handle_communication(self, *args, **kwargs) -> StreamingResponse:
+    async def handle_communication(self, **kwargs) -> StreamingResponse:
         """Main communication handler for SSE transport."""
         return await self.handle_sse_stream(kwargs.get("request"))
 
     async def _handle_endpoint_event(
         self, sse: ServerSentEvent, sse_header_attributes: McpAttributes
-    ) -> Tuple[bytes, str]:
+    ) -> tuple[bytes, str]:
         """Handle endpoint event and initialize session if needed."""
         match = re.search(r"session_id=([^&\s]+)", sse.data)
         session_id = match.group(1) if match else None

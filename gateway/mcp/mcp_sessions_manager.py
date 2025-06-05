@@ -7,7 +7,7 @@ import getpass
 import os
 import random
 import socket
-from typing import Any, Optional
+from typing import Any
 
 from invariant_sdk.async_client import AsyncClient
 from invariant_sdk.types.append_messages import AppendMessagesRequest
@@ -23,7 +23,6 @@ from gateway.integrations.explorer import (
     fetch_guardrails_from_explorer,
 )
 from gateway.integrations.guardrails import check_guardrails
-from gateway.mcp.constants import INVARIANT_SESSION_ID_PREFIX
 
 
 def user_and_host() -> str:
@@ -33,6 +32,105 @@ def user_and_host() -> str:
 
     return f"{username}@{hostname}"
 
+class McpAttributes(BaseModel):
+    """
+    A Pydantic model to represent MCP attributes.
+    This can be initialized using HTTP headers for SSE and Streamable transports.
+    This can also be initialized using CLI arguments for the Stdio transport.
+    """
+
+    push_explorer: bool
+    explorer_dataset: str
+    invariant_api_key: str | None = None
+    verbose: bool | None = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def from_request_headers(cls, headers: Headers) -> "McpAttributes":
+        """
+        Create an instance from FastAPI request headers.
+
+        Args:
+            headers: FastAPI Request headers
+
+        Returns:
+            McpAttributes: An instance with values extracted from headers
+        """
+        # Extract and process header values
+        project_name = headers.get("INVARIANT-PROJECT-NAME")
+        push_explorer_header = headers.get("PUSH-INVARIANT-EXPLORER", "false").lower()
+        invariant_api_key = headers.get("INVARIANT-API-KEY")
+
+        # Determine explorer_dataset
+        if project_name:
+            explorer_dataset = project_name
+        else:
+            explorer_dataset = f"mcp-capture-{random.randint(1, 100)}"
+
+        # Determine push_explorer
+        push_explorer = push_explorer_header == "true"
+
+        # Create and return instance
+        return cls(
+            push_explorer=push_explorer,
+            explorer_dataset=explorer_dataset,
+            invariant_api_key=invariant_api_key,
+        )
+
+    @classmethod
+    def from_cli_args(cls, cli_args: list) -> "McpAttributes":
+        """
+        Create an instance from command line arguments.
+
+        Args:
+            cli_args: List of command line arguments
+
+        Returns:
+            McpAttributes: An instance with values extracted from CLI arguments
+        """
+        parser = argparse.ArgumentParser(description="MCP Gateway")
+        parser.add_argument(
+            "--project-name",
+            help="Name of the Project from Invariant Explorer where we want to push the MCP traces. The guardrails are pulled from this project.",
+            type=str,
+            default=f"mcp-capture-{random.randint(1, 100)}",
+        )
+        parser.add_argument(
+            "--push-explorer",
+            help="Enable pushing traces to Invariant Explorer",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--verbose",
+            help="Enable verbose logging",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--failure-response-format",
+            help="The response format to use to communicate guardrail failures to the client (error: JSON-RPC error response; potentially invisible to the agent, content: JSON-RPC content response, visible to the agent)",
+            type=str,
+            default="error",
+        )
+
+        config, extra_args = parser.parse_known_args(cli_args)
+
+        metadata: dict[str, Any] = {}
+        for arg in extra_args:
+            assert "=" in arg, f"Invalid extra metadata argument: {arg}"
+            key, value = arg.split("=")
+            assert key.startswith(
+                "--metadata-"
+            ), f"Invalid extra metadata argument: {arg}, must start with --metadata-"
+            key = key[len("--metadata-") :]
+            metadata[key] = value
+
+        return cls(
+            push_explorer=config.push_explorer,
+            explorer_dataset=config.project_name,
+            verbose=config.verbose,
+            metadata=metadata,
+        )
+
 
 class McpSession(BaseModel):
     """
@@ -41,9 +139,9 @@ class McpSession(BaseModel):
 
     session_id: str
     messages: list[dict[str, Any]] = Field(default_factory=list)
-    attributes: Optional["McpAttributes"] = None
+    attributes: McpAttributes | None = None
     id_to_method_mapping: dict[int, str] = Field(default_factory=dict)
-    trace_id: Optional[str] = None
+    trace_id: str | None = None
     last_trace_length: int = 0
     annotations: list[dict[str, Any]] = Field(default_factory=list)
     guardrails: GuardrailRuleSet = Field(
@@ -110,9 +208,6 @@ class McpSession(BaseModel):
             "system_user": user_and_host(),
             **(self.attributes.metadata or {}),
         }
-        metadata["is_stateless_http_server"] = self.session_id.startswith(
-            INVARIANT_SESSION_ID_PREFIX
-        )
         return metadata
 
     async def get_guardrails_check_result(
@@ -262,106 +357,6 @@ class McpSession(BaseModel):
             messages = list(self.pending_error_messages)
             self.pending_error_messages = []
             return messages
-
-
-class McpAttributes(BaseModel):
-    """
-    A Pydantic model to represent MCP attributes.
-    This can be initialized using HTTP headers for SSE and Streamable transports.
-    This can also be initialized using CLI arguments for the Stdio transport.
-    """
-
-    push_explorer: bool
-    explorer_dataset: str
-    invariant_api_key: Optional[str] = None
-    verbose: Optional[bool] = False
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @classmethod
-    def from_request_headers(cls, headers: Headers) -> "McpAttributes":
-        """
-        Create an instance from FastAPI request headers.
-
-        Args:
-            headers: FastAPI Request headers
-
-        Returns:
-            McpAttributes: An instance with values extracted from headers
-        """
-        # Extract and process header values
-        project_name = headers.get("INVARIANT-PROJECT-NAME")
-        push_explorer_header = headers.get("PUSH-INVARIANT-EXPLORER", "false").lower()
-        invariant_api_key = headers.get("INVARIANT-API-KEY")
-
-        # Determine explorer_dataset
-        if project_name:
-            explorer_dataset = project_name
-        else:
-            explorer_dataset = f"mcp-capture-{random.randint(1, 100)}"
-
-        # Determine push_explorer
-        push_explorer = push_explorer_header == "true"
-
-        # Create and return instance
-        return cls(
-            push_explorer=push_explorer,
-            explorer_dataset=explorer_dataset,
-            invariant_api_key=invariant_api_key,
-        )
-
-    @classmethod
-    def from_cli_args(cls, cli_args: list) -> "McpAttributes":
-        """
-        Create an instance from command line arguments.
-
-        Args:
-            cli_args: List of command line arguments
-
-        Returns:
-            McpAttributes: An instance with values extracted from CLI arguments
-        """
-        parser = argparse.ArgumentParser(description="MCP Gateway")
-        parser.add_argument(
-            "--project-name",
-            help="Name of the Project from Invariant Explorer where we want to push the MCP traces. The guardrails are pulled from this project.",
-            type=str,
-            default=f"mcp-capture-{random.randint(1, 100)}",
-        )
-        parser.add_argument(
-            "--push-explorer",
-            help="Enable pushing traces to Invariant Explorer",
-            action="store_true",
-        )
-        parser.add_argument(
-            "--verbose",
-            help="Enable verbose logging",
-            action="store_true",
-        )
-        parser.add_argument(
-            "--failure-response-format",
-            help="The response format to use to communicate guardrail failures to the client (error: JSON-RPC error response; potentially invisible to the agent, content: JSON-RPC content response, visible to the agent)",
-            type=str,
-            default="error",
-        )
-
-        config, extra_args = parser.parse_known_args(cli_args)
-
-        metadata: dict[str, Any] = {}
-        for arg in extra_args:
-            assert "=" in arg, f"Invalid extra metadata argument: {arg}"
-            key, value = arg.split("=")
-            assert key.startswith(
-                "--metadata-"
-            ), f"Invalid extra metadata argument: {arg}, must start with --metadata-"
-            key = key[len("--metadata-") :]
-            metadata[key] = value
-
-        return cls(
-            push_explorer=config.push_explorer,
-            explorer_dataset=config.project_name,
-            verbose=config.verbose,
-            metadata=metadata,
-        )
 
 
 class McpSessionsManager:

@@ -2,7 +2,6 @@
 
 import os
 import uuid
-
 from resources.mcp.sse.client.main import run as mcp_sse_client_run
 from resources.mcp.stdio.client.main import run as mcp_stdio_client_run
 from resources.mcp.streamable.client.main import run as mcp_streamable_client_run
@@ -12,7 +11,6 @@ import httpx
 import pytest
 import requests
 from datetime import datetime
-from mcp.shared.exceptions import McpError
 
 # Taken from docker-compose.test.yml
 MCP_SSE_SERVER_HOST = "mcp-messenger-sse-server"
@@ -706,7 +704,7 @@ async def test_mcp_message_timestamps(
     """Test that MCP messages include timestamps"""
     project_name = "test-mcp-" + str(uuid.uuid4())
 
-    # Run the MCP client and make the tool call
+
     result = await _invoke_mcp_tool(
         transport,
         gateway_url,

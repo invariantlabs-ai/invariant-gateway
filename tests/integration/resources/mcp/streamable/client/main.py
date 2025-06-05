@@ -12,7 +12,7 @@ async def run(
     gateway_url: str,
     tool_name: str,
     tool_args: dict[str, Any],
-    headers: dict[str, str] = None,
+    headers: dict[str, str] | None = None,
 ) -> types.CallToolResult | types.ListToolsResult:
     """
     Run the MCP client with the given parameters.

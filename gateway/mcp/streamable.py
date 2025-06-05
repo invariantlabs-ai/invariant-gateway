@@ -1,14 +1,19 @@
 """Gateway service to forward requests to the MCP Streamable HTTP servers"""
 
 import json
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 from httpx_sse import aconnect_sse
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
-from gateway.common.constants import CLIENT_TIMEOUT
+from gateway.common.constants import (
+    CLIENT_TIMEOUT,
+    CONTENT_TYPE_HEADER,
+    CONTENT_TYPE_JSON,
+    CONTENT_TYPE_EVENT_STREAM,
+)
 from gateway.mcp.constants import (
     INVARIANT_SESSION_ID_PREFIX,
     MCP_CUSTOM_HEADER_PREFIX,
@@ -18,16 +23,13 @@ from gateway.mcp.mcp_sessions_manager import (
     McpSessionsManager,
     McpAttributes,
 )
-from gateway.mcp.mcp_transport_base import MCPTransportBase
+from gateway.mcp.mcp_transport_base import McpTransportBase
 
 gateway = APIRouter()
 mcp_sessions_manager = McpSessionsManager()
 
-CONTENT_TYPE_JSON = "application/json"
-CONTENT_TYPE_SSE = "text/event-stream"
-CONTENT_TYPE_HEADER = "content-type"
 MCP_SESSION_ID_HEADER = "mcp-session-id"
-MCP_SERVER_POST_DELETE_HEADERS = {
+MCP_SERVER_POST_AND_DELETE_HEADERS = {
     "connection",
     "accept",
     CONTENT_TYPE_HEADER,
@@ -69,7 +71,7 @@ async def mcp_delete_streamable_gateway(request: Request) -> Response:
 
 async def create_streamable_transport_and_handle_request(
     request: Request, method: str, session_store: McpSessionsManager
-) -> Union[Response, StreamingResponse]:
+) -> Response | StreamingResponse:
     """Integration function for streamable routes."""
     streamable_transport = StreamableTransport(session_store)
     return await streamable_transport.handle_communication(
@@ -77,7 +79,7 @@ async def create_streamable_transport_and_handle_request(
     )
 
 
-class StreamableTransport(MCPTransportBase):
+class StreamableTransport(McpTransportBase):
     """
     Streamable HTTP transport implementation for MCP communication.
     Handles HTTP POST/GET/DELETE requests with JSON and streaming responses.
@@ -85,12 +87,11 @@ class StreamableTransport(MCPTransportBase):
 
     async def initialize_session(
         self,
-        *args,
         **kwargs,
     ) -> str:
         """Initialize streamable HTTP session."""
-        session_id: Optional[str] = kwargs.get("session_id", None)
-        session_attributes: Optional[McpAttributes] = kwargs.get(
+        session_id: str | None = kwargs.get("session_id", None)
+        session_attributes: McpAttributes | None = kwargs.get(
             "session_attributes", None
         )
         is_initialization_request: bool = kwargs.get("is_initialization_request", False)
@@ -111,7 +112,7 @@ class StreamableTransport(MCPTransportBase):
 
     async def handle_post_request(
         self, request: Request, request_body: dict[str, Any]
-    ) -> Union[Response, StreamingResponse]:
+    ) -> Response | StreamingResponse:
         """Handle POST request to streamable endpoint."""
         session_attributes = McpAttributes.from_request_headers(request.headers)
         session_id = request.headers.get(MCP_SESSION_ID_HEADER)
@@ -188,7 +189,7 @@ class StreamableTransport(MCPTransportBase):
 
         return StreamingResponse(
             event_generator(),
-            media_type=CONTENT_TYPE_SSE,
+            media_type=CONTENT_TYPE_EVENT_STREAM,
             headers={"X-Proxied-By": "mcp-gateway", **response_headers},
         )
 
@@ -222,9 +223,7 @@ class StreamableTransport(MCPTransportBase):
                 print(f"[MCP DELETE] Request error: {str(e)}")
                 raise HTTPException(status_code=500, detail="Request error") from e
 
-    async def handle_communication(
-        self, *args, **kwargs
-    ) -> Union[Response, StreamingResponse]:
+    async def handle_communication(self, **kwargs) -> Response | StreamingResponse:
         """Main communication handler for streamable transport."""
         request = kwargs.get("request")
         method = kwargs.get("method", "POST")
@@ -241,7 +240,7 @@ class StreamableTransport(MCPTransportBase):
 
     async def _process_non_init_request(
         self, session_id: str, request_body: dict[str, Any]
-    ) -> Optional[Response]:
+    ) -> Response | None:
         """Process non-initialization requests for guardrails."""
         processed_request, is_blocked = await self.process_outgoing_request(
             session_id, request_body
@@ -262,7 +261,7 @@ class StreamableTransport(MCPTransportBase):
         session_id: str,
         session_attributes: McpAttributes,
         is_initialization_request: bool,
-    ) -> Union[Response, StreamingResponse]:
+    ) -> Response | StreamingResponse:
         """Forward request to MCP server and handle response."""
         async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             try:
@@ -385,7 +384,7 @@ class StreamableTransport(MCPTransportBase):
 
         return StreamingResponse(
             event_generator(),
-            media_type=CONTENT_TYPE_SSE,
+            media_type=CONTENT_TYPE_EVENT_STREAM,
             headers=response_headers,
         )
 
@@ -395,6 +394,9 @@ class StreamableTransport(MCPTransportBase):
         """Update MCP response info in session metadata."""
         session = self.session_store.get_session(session_id)
         self.update_mcp_server_in_session_metadata(session, response_body)
+        session.attributes.metadata["is_stateless_http_server"] = session_id.startswith(
+            INVARIANT_SESSION_ID_PREFIX
+        )
         session.attributes.metadata["server_response_type"] = (
             "json" if is_json_response else "sse"
         )
@@ -405,7 +407,7 @@ class StreamableTransport(MCPTransportBase):
         for k, v in request.headers.items():
             if k.startswith(MCP_CUSTOM_HEADER_PREFIX):
                 filtered_headers[k.removeprefix(MCP_CUSTOM_HEADER_PREFIX)] = v
-            if k.lower() in MCP_SERVER_POST_DELETE_HEADERS and not (
+            if k.lower() in MCP_SERVER_POST_AND_DELETE_HEADERS and not (
                 k.lower() == MCP_SESSION_ID_HEADER
                 and v.startswith(INVARIANT_SESSION_ID_PREFIX)
             ):

@@ -2,7 +2,7 @@
 
 import os
 import uuid
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from httpx import Client
 from openai import OpenAI
@@ -62,8 +62,8 @@ def get_gemini_client(
 async def create_dataset(
     explorer_api_url: str,
     invariant_authorization: str,
-    dataset_name: Optional[str] = None,
-) -> Dict[str, Any]:
+    dataset_name: str | None = None,
+) -> dict[str, Any]:
     """Create a dataset in the Explorer API."""
     client = Client(base_url=explorer_api_url)
     response = client.post(
@@ -85,7 +85,7 @@ async def add_guardrail_to_dataset(
     policy: str,
     action: Literal["block", "log"],
     invariant_authorization: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Add a guardrail to a dataset."""
     client = Client(base_url=explorer_api_url)
     response = client.post(

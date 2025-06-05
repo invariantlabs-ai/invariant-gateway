@@ -14,7 +14,12 @@ from gateway.common.config_manager import (
     GatewayConfigManager,
     extract_guardrails_from_header,
 )
-from gateway.common.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
+from gateway.common.constants import (
+    CLIENT_TIMEOUT,
+    CONTENT_TYPE_JSON,
+    CONTENT_TYPE_EVENT_STREAM,
+    IGNORED_HEADERS,
+)
 from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
 from gateway.common.request_context import RequestContext
 from gateway.converters.anthropic_to_invariant import (
@@ -64,7 +69,7 @@ def validate_headers(x_api_key: str = Header(None)):
 )
 async def anthropic_v1_messages_gateway(
     request: Request,
-    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
+    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
     header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ):
@@ -162,7 +167,7 @@ async def get_guardrails_check_result(
 async def push_to_explorer(
     context: RequestContext,
     merged_response: dict[str, Any],
-    guardrails_execution_result: Optional[dict] = None,
+    guardrails_execution_result: dict | None = None,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     guardrails_execution_result = guardrails_execution_result or {}
@@ -210,15 +215,18 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         self.anthropic_request: httpx.Request = anthropic_request
 
         # response data
-        self.response: Optional[httpx.Response] = None
-        self.response_string: Optional[str] = None
-        self.response_json: Optional[dict[str, Any]] = None
+        self.response: httpx.Response | None = None
+        self.response_string: str | None = None
+        self.response_json: dict[str, Any] | None = None
 
         # guardrailing response (if any)
         self.guardrails_execution_result = {}
 
     async def on_start(self):
-        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        """
+        Check guardrails in a pipelined fashion, before processing the first
+        chunk (for input guardrailing).
+        """
         if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context, action=GuardrailAction.BLOCK, response_json={}
@@ -249,8 +257,8 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
                     Response(
                         content=error_chunk,
                         status_code=400,
-                        media_type="application/json",
-                        headers={"content-type": "application/json"},
+                        media_type=CONTENT_TYPE_JSON,
+                        headers={"content-type": CONTENT_TYPE_JSON},
                     )
                 )
 
@@ -263,7 +271,10 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         except json.JSONDecodeError as e:
             raise HTTPException(
                 status_code=self.response.status_code,
-                detail=f"Invalid JSON response received from Anthropic: {self.response.text}, got error{e}",
+                detail=(
+                    "Invalid JSON response received from Anthropic: "
+                    f"{self.response.text}, got error: {e}"
+                ),
             ) from e
         if self.response.status_code != 200:
             raise HTTPException(
@@ -289,12 +300,15 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         return Response(
             content=content,
             status_code=status_code,
-            media_type="application/json",
+            media_type=CONTENT_TYPE_JSON,
             headers=dict(updated_headers),
         )
 
     async def on_end(self):
-        """Checks guardrails after the response is received, and asynchronously pushes to Explorer."""
+        """
+        Checks guardrails after the response is received, and asynchronously
+        pushes to Explorer.
+        """
         # ensure the response data is available
         assert self.response is not None, "response is None"
         assert self.response_json is not None, "response_json is None"
@@ -383,7 +397,10 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
         self.sse_buffer = ""  # Buffer for incomplete events
 
     async def on_start(self):
-        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        """
+        Check guardrails in a pipelined fashion, before processing the
+        first chunk (for input guardrailing).
+        """
         if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
@@ -503,7 +520,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
                             f"JSON parsing error in event: {e}. Event data: {event_data[:100]}...",
                             flush=True,
                         )
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 print(f"Error processing event: {e}", flush=True)
 
         # on last stream chunk, run output guardrails
@@ -536,7 +553,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
         """Process the buffer and extract complete SSE events.
 
         Returns:
-            Tuple[List[str], str]: A tuple containing a list of
+            tuple[list[str], str]: A tuple containing a list of
             complete events and the remaining buffer with incomplete events.
         """
         # Split on double newlines which separate SSE events
@@ -582,7 +599,7 @@ async def handle_streaming_response(
     )
 
     return StreamingResponse(
-        response.instrumented_event_generator(), media_type="text/event-stream"
+        response.instrumented_event_generator(), media_type=CONTENT_TYPE_EVENT_STREAM
     )
 
 

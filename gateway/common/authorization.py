@@ -1,6 +1,5 @@
 """Common Authorization functions used in the gateway."""
 
-from typing import Tuple, Optional
 from fastapi import HTTPException, Request
 
 INVARIANT_AUTHORIZATION_HEADER = "invariant-authorization"
@@ -10,7 +9,7 @@ API_KEYS_SEPARATOR = ";invariant-auth="
 
 def extract_guardrail_service_authorization_from_headers(
     request: Request,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """
     Extracts the optional Invariant-Guardrails-Authorization authorization header from the request.
 
@@ -22,10 +21,10 @@ def extract_guardrail_service_authorization_from_headers(
 
 def extract_authorization_from_headers(
     request: Request,
-    dataset_name: Optional[str] = None,
-    llm_provider_api_key_header: Optional[str] = None,
-    llm_provider_fallback_api_key_headers: Optional[list[str]] = None,
-) -> Tuple[Optional[str], Optional[str]]:
+    dataset_name: str | None = None,
+    llm_provider_api_key_header: str | None = None,
+    llm_provider_fallback_api_key_headers: list[str] | None = None,
+) -> tuple[str | None, str | None]:
     """
     Extracts the Invariant authorization and LLM Provider API key from the request headers.
 

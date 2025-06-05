@@ -3,7 +3,7 @@
 import asyncio
 import os
 import time
-from typing import Any, Dict, List
+from typing import Any
 from functools import wraps
 
 from fastapi import HTTPException
@@ -339,22 +339,22 @@ class InstrumentedResponse(InstrumentedStreamingResponse):
 
 
 async def check_guardrails(
-    messages: List[Dict[str, Any]],
-    guardrails: List[Guardrail],
+    messages: list[dict[str, Any]],
+    guardrails: list[Guardrail],
     context: RequestContext,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Checks guardrails on the list of messages.
     This calls the batch check API of the Guardrails service.
 
     Args:
-        messages (List[Dict[str, Any]]): List of messages to verify the guardrails against.
-        guardrails (List[Guardrail]): The guardrails to check against.
+        messages (list[dict[str, Any]]): List of messages to verify the guardrails against.
+        guardrails (list[Guardrail]): The guardrails to check against.
         invariant_authorization (str): Value of the
                                        invariant-authorization header.
 
     Returns:
-        Dict: Response containing guardrail check results.
+        dict: Response containing guardrail check results.
     """
     async with httpx.AsyncClient() as client:
         url = os.getenv("GUARDRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
@@ -364,11 +364,11 @@ async def check_guardrails(
                 json={
                     "messages": messages,
                     "policies": [g.content for g in guardrails],
-                    "parameters": context.guardrails_parameters or {}
+                    "parameters": context.guardrails_parameters or {},
                 },
                 headers={
                     "Authorization": context.get_guardrailing_authorization(),
-                    "Accept": "application/json"
+                    "Accept": "application/json",
                 },
                 timeout=5,
             )
@@ -376,11 +376,14 @@ async def check_guardrails(
                 if result.status_code == 401:
                     raise HTTPException(
                         status_code=401,
-                        detail="The provided Invariant API key is not valid for guardrail checking. Please ensure you are using the correct API key or pass an alternative API key for guardrail checking specifically via the '{}' header.".format(
-                            INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER
+                        detail=(
+                            "The provided Invariant API key is not valid for guardrail checking. "
+                            "Please ensure you are using the correct API key or pass an "
+                            "alternative API key for guardrail checking specifically via the "
+                            f"'{INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER}' header."
                         ),
                     )
-                raise Exception(
+                raise Exception(  # pylint: disable=broad-exception-raised
                     f"Guardrails check failed: {result.status_code} - {result.text}"
                 )
             guardrails_result = result.json()
@@ -412,7 +415,7 @@ async def check_guardrails(
             return aggregated_errors
         except HTTPException as e:
             raise e
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             print(f"Failed to verify guardrails: {e}")
             # make sure runtime errors are also visible in e.g. Explorer
             return {

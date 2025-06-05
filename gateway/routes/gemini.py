@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -16,6 +16,8 @@ from gateway.common.config_manager import (
 )
 from gateway.common.constants import (
     CLIENT_TIMEOUT,
+    CONTENT_TYPE_JSON,
+    CONTENT_TYPE_EVENT_STREAM,
     IGNORED_HEADERS,
 )
 from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
@@ -47,7 +49,7 @@ async def gemini_generate_content_gateway(
     api_version: str,
     model: str,
     endpoint: str,
-    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
+    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
     alt: str = Query(
         None, title="Response Format", description="Set to 'sse' for streaming"
     ),
@@ -58,8 +60,10 @@ async def gemini_generate_content_gateway(
     if endpoint not in ["generateContent", "streamGenerateContent"]:
         return Response(
             content="Invalid endpoint - the only endpoints supported are: \
-            /api/v1/gateway/gemini/<version>/models/<model-name>:generateContent or \
-            /api/v1/gateway/<dataset-name>/gemini/<version>models/<model-name>:generateContent",
+            /api/v1/gateway/gemini/<version>/models/<model-name>:generateContent \
+            /api/v1/gateway/<dataset-name>/gemini/<version>models/<model-name>:generateContent \
+            /api/v1/gateway/gemini/<version>/models/<model-name>:streamGenerateContent or \
+            /api/v1/gateway/<dataset-name>/gemini/<version>models/<model-name>:streamGenerateContent",
             status_code=400,
         )
     headers = {
@@ -80,7 +84,11 @@ async def gemini_generate_content_gateway(
     request_json = json.loads(request_body_bytes)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
-    gemini_api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:{endpoint}"
+    gemini_api_url = (
+        f"https://generativelanguage.googleapis.com/"
+        f"{api_version}/models/"
+        f"{model}:{endpoint}"
+    )
     if alt == "sse":
         gemini_api_url += "?alt=sse"
     gemini_request = client.build_request(
@@ -139,7 +147,7 @@ class InstrumentedStreamingGeminiResponse(InstrumentedStreamingResponse):
         }
 
         # guardrailing execution result (if any)
-        self.guardrails_execution_result: Optional[dict[str, Any]] = None
+        self.guardrails_execution_result: dict[str, Any] | None = None
 
     def make_refusal(
         self,
@@ -301,7 +309,7 @@ async def stream_response(
 
     return StreamingResponse(
         event_generator(),
-        media_type="text/event-stream",
+        media_type=CONTENT_TYPE_EVENT_STREAM,
     )
 
 
@@ -407,7 +415,7 @@ async def get_guardrails_check_result(
 async def push_to_explorer(
     context: RequestContext,
     response_json: dict[str, Any],
-    guardrails_execution_result: Optional[dict] = None,
+    guardrails_execution_result: dict | None = None,
 ) -> None:
     """Pushes the full trace to the Invariant Explorer"""
     guardrails_execution_result = guardrails_execution_result or {}
@@ -456,11 +464,11 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         self.gemini_request: httpx.Request = gemini_request
 
         # response data
-        self.response: Optional[httpx.Response] = None
-        self.response_json: Optional[dict[str, Any]] = None
+        self.response: httpx.Response | None = None
+        self.response_json: dict[str, Any] | None = None
 
         # guardrails execution result (if any)
-        self.guardrails_execution_result: Optional[dict[str, Any]] = None
+        self.guardrails_execution_result: dict[str, Any] | None = None
 
     async def on_start(self):
         """
@@ -509,9 +517,9 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
                     Response(
                         content=error_chunk,
                         status_code=400,
-                        media_type="application/json",
+                        media_type=CONTENT_TYPE_JSON,
                         headers={
-                            "Content-Type": "application/json",
+                            "Content-Type": CONTENT_TYPE_JSON,
                         },
                     )
                 )
@@ -539,7 +547,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         return Response(
             content=response_string,
             status_code=response_code,
-            media_type="application/json",
+            media_type=CONTENT_TYPE_JSON,
             headers=dict(self.response.headers),
         )
 
@@ -582,7 +590,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
                     Response(
                         content=response_string,
                         status_code=response_code,
-                        media_type="application/json",
+                        media_type=CONTENT_TYPE_JSON,
                         headers=dict(self.response.headers),
                     )
                 )
