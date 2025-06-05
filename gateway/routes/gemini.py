@@ -16,6 +16,8 @@ from gateway.common.config_manager import (
 )
 from gateway.common.constants import (
     CLIENT_TIMEOUT,
+    CONTENT_TYPE_JSON,
+    CONTENT_TYPE_EVENT_STREAM,
     IGNORED_HEADERS,
 )
 from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
@@ -82,7 +84,11 @@ async def gemini_generate_content_gateway(
     request_json = json.loads(request_body_bytes)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT))
-    gemini_api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:{endpoint}"
+    gemini_api_url = (
+        f"https://generativelanguage.googleapis.com/"
+        f"{api_version}/models/"
+        f"{model}:{endpoint}"
+    )
     if alt == "sse":
         gemini_api_url += "?alt=sse"
     gemini_request = client.build_request(
@@ -303,7 +309,7 @@ async def stream_response(
 
     return StreamingResponse(
         event_generator(),
-        media_type="text/event-stream",
+        media_type=CONTENT_TYPE_EVENT_STREAM,
     )
 
 
@@ -511,9 +517,9 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
                     Response(
                         content=error_chunk,
                         status_code=400,
-                        media_type="application/json",
+                        media_type=CONTENT_TYPE_JSON,
                         headers={
-                            "Content-Type": "application/json",
+                            "Content-Type": CONTENT_TYPE_JSON,
                         },
                     )
                 )
@@ -541,7 +547,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
         return Response(
             content=response_string,
             status_code=response_code,
-            media_type="application/json",
+            media_type=CONTENT_TYPE_JSON,
             headers=dict(self.response.headers),
         )
 
@@ -584,7 +590,7 @@ class InstrumentedGeminiResponse(InstrumentedResponse):
                     Response(
                         content=response_string,
                         status_code=response_code,
-                        media_type="application/json",
+                        media_type=CONTENT_TYPE_JSON,
                         headers=dict(self.response.headers),
                     )
                 )

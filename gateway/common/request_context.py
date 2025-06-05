@@ -5,11 +5,11 @@ from typing import Any, Dict, Optional
 
 import fastapi
 
-from gateway.common.config_manager import GatewayConfig
-from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 from gateway.common.authorization import (
     extract_guardrail_service_authorization_from_headers,
 )
+from gateway.common.config_manager import GatewayConfig
+from gateway.common.guardrails import GuardrailRuleSet, Guardrail, GuardrailAction
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class RequestContext:
     # the set of guardrails to enforce for this request
     guardrails: Optional[GuardrailRuleSet] = None
     config: Dict[str, Any] = None
-    
+
     # extra parameters available as input.<key> during guardrail evaluation
     guardrails_parameters: Optional[Dict[str, Any]] = None
 
@@ -100,7 +100,7 @@ class RequestContext:
             guardrails=guardrails,
             config=context_config,
             _created_via_factory=True,
-            guardrails_parameters=guardrails_parameters
+            guardrails_parameters=guardrails_parameters,
         )
 
     def get_guardrailing_authorization(self) -> Optional[str]:

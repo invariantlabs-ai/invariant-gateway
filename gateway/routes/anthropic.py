@@ -14,7 +14,12 @@ from gateway.common.config_manager import (
     GatewayConfigManager,
     extract_guardrails_from_header,
 )
-from gateway.common.constants import CLIENT_TIMEOUT, IGNORED_HEADERS
+from gateway.common.constants import (
+    CLIENT_TIMEOUT,
+    CONTENT_TYPE_JSON,
+    CONTENT_TYPE_EVENT_STREAM,
+    IGNORED_HEADERS,
+)
 from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
 from gateway.common.request_context import RequestContext
 from gateway.converters.anthropic_to_invariant import (
@@ -218,7 +223,10 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         self.guardrails_execution_result = {}
 
     async def on_start(self):
-        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        """
+        Check guardrails in a pipelined fashion, before processing the first
+        chunk (for input guardrailing).
+        """
         if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context, action=GuardrailAction.BLOCK, response_json={}
@@ -249,8 +257,8 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
                     Response(
                         content=error_chunk,
                         status_code=400,
-                        media_type="application/json",
-                        headers={"content-type": "application/json"},
+                        media_type=CONTENT_TYPE_JSON,
+                        headers={"content-type": CONTENT_TYPE_JSON},
                     )
                 )
 
@@ -263,7 +271,10 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         except json.JSONDecodeError as e:
             raise HTTPException(
                 status_code=self.response.status_code,
-                detail=f"Invalid JSON response received from Anthropic: {self.response.text}, got error{e}",
+                detail=(
+                    "Invalid JSON response received from Anthropic: "
+                    f"{self.response.text}, got error: {e}"
+                ),
             ) from e
         if self.response.status_code != 200:
             raise HTTPException(
@@ -289,12 +300,15 @@ class InstrumentedAnthropicResponse(InstrumentedResponse):
         return Response(
             content=content,
             status_code=status_code,
-            media_type="application/json",
+            media_type=CONTENT_TYPE_JSON,
             headers=dict(updated_headers),
         )
 
     async def on_end(self):
-        """Checks guardrails after the response is received, and asynchronously pushes to Explorer."""
+        """
+        Checks guardrails after the response is received, and asynchronously
+        pushes to Explorer.
+        """
         # ensure the response data is available
         assert self.response is not None, "response is None"
         assert self.response_json is not None, "response_json is None"
@@ -383,7 +397,10 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
         self.sse_buffer = ""  # Buffer for incomplete events
 
     async def on_start(self):
-        """Check guardrails in a pipelined fashion, before processing the first chunk (for input guardrailing)."""
+        """
+        Check guardrails in a pipelined fashion, before processing the
+        first chunk (for input guardrailing).
+        """
         if self.context.guardrails:
             self.guardrails_execution_result = await get_guardrails_check_result(
                 self.context,
@@ -503,7 +520,7 @@ class InstrumentedAnthropicStreamingResponse(InstrumentedStreamingResponse):
                             f"JSON parsing error in event: {e}. Event data: {event_data[:100]}...",
                             flush=True,
                         )
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 print(f"Error processing event: {e}", flush=True)
 
         # on last stream chunk, run output guardrails
@@ -582,7 +599,7 @@ async def handle_streaming_response(
     )
 
     return StreamingResponse(
-        response.instrumented_event_generator(), media_type="text/event-stream"
+        response.instrumented_event_generator(), media_type=CONTENT_TYPE_EVENT_STREAM
     )
 
 

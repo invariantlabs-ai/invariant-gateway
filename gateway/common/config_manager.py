@@ -10,7 +10,6 @@ from httpx import HTTPStatusError
 
 from gateway.common.guardrails import Guardrail, GuardrailAction, GuardrailRuleSet
 
-
 def extract_policy_from_headers(request: Optional[fastapi.Request]) -> Optional[str]:
     """
     Extracts the guardrailing policy from the request headers if present.
