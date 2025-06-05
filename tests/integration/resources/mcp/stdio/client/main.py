@@ -3,7 +3,7 @@
 import os
 
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
@@ -14,7 +14,7 @@ def _get_server_params(
     project_name: str,
     server_script_path: str,
     push_to_explorer: bool,
-    metadata_keys: Optional[dict[str, str]] = None,
+    metadata_keys: dict[str, str] | None = None,
 ) -> StdioServerParameters:
     args = [
         "--from",
@@ -59,7 +59,7 @@ async def run(
     push_to_explorer: bool,
     tool_name: str,
     tool_args: dict[str, Any],
-    metadata_keys: Optional[dict[str, str]] = None,
+    metadata_keys: dict[str, str] | None = None,
 ) -> types.CallToolResult | types.ListToolsResult:
     """
     Main function to setup the MCP client and server.

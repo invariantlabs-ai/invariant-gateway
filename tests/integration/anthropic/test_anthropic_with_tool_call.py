@@ -7,7 +7,6 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, List
 
 # Add integration folder (parent) to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -49,7 +48,7 @@ class WeatherAgent:
             },
         }
 
-    def get_response(self, messages: List[Dict]) -> List[Dict]:
+    def get_response(self, messages: list[dict]) -> list[dict]:
         """
         Get the response from the agent for a given user query for weather.
         """
@@ -83,7 +82,7 @@ class WeatherAgent:
             else:
                 return response_list
 
-    def get_streaming_response(self, messages: List[Dict]) -> List[Dict]:
+    def get_streaming_response(self, messages: list[dict]) -> list[dict]:
         """Get streaming response from the agent for a given user query for weather."""
         response_list = []
 

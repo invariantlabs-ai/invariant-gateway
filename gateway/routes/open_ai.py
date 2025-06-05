@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -62,14 +62,14 @@ def make_cors_response(request: Request, allow_methods: str) -> Response:
 
 @gateway.options("/{dataset_name}/openai/chat/completions")
 @gateway.options("/openai/chat/completions")
-async def openai_chat_completions_options(request: Request, dataset_name: str = None):
+async def openai_chat_completions_options(request: Request):
     """Enables CORS for the OpenAI chat completions endpoint"""
     return make_cors_response(request, allow_methods="POST")
 
 
 @gateway.options("/{dataset_name}/openai/models")
 @gateway.options("/openai/models")
-async def openai_models_options(request: Request, dataset_name: str = None):
+async def openai_models_options(request: Request):
     """Enables CORS for the OpenAI models endpoint"""
     return make_cors_response(request, allow_methods="GET")
 
@@ -78,7 +78,7 @@ async def openai_models_options(request: Request, dataset_name: str = None):
 @gateway.get("/openai/models")
 async def openai_models_gateway(
     request: Request,
-    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
+    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
 ):
     """Proxy request to OpenAI /models endpoint"""
     headers = {
@@ -112,7 +112,7 @@ async def openai_models_gateway(
 )
 async def openai_chat_completions_gateway(
     request: Request,
-    dataset_name: str = None,  # This is None if the client doesn't want to push to Explorer
+    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
     header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ) -> Response:
@@ -182,7 +182,7 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
         self.open_ai_request: httpx.Request = open_ai_request
 
         # guardrailing output (if any)
-        self.guardrails_execution_result: Optional[dict] = None
+        self.guardrails_execution_result: dict | None = None
 
         # merged_response will be updated with the data from the chunks in the stream
         # At the end of the stream, this will be sent to the explorer
@@ -486,7 +486,7 @@ def create_metadata(
 async def push_to_explorer(
     context: RequestContext,
     merged_response: dict[str, Any],
-    guardrails_execution_result: Optional[dict] = None,
+    guardrails_execution_result: dict | None = None,
 ) -> None:
     """Pushes the merged response to the Invariant Explorer"""
     # Only push the trace to explorer if the message is an end turn message
@@ -572,11 +572,11 @@ class InstrumentedOpenAIResponse(InstrumentedResponse):
         self.open_ai_request: httpx.Request = open_ai_request
 
         # request outputs
-        self.response: Optional[httpx.Response] = None
-        self.response_json: Optional[dict[str, Any]] = None
+        self.response: httpx.Response | None = None
+        self.response_json: dict[str, Any] | None = None
 
         # guardrailing output (if any)
-        self.guardrails_execution_result: Optional[dict] = None
+        self.guardrails_execution_result: dict | None = None
 
     async def on_start(self):
         """

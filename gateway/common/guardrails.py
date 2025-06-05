@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
 
 class GuardrailAction(str, Enum):
     """Enum representing the action to be taken for guardrail rules."""
@@ -25,5 +24,5 @@ class Guardrail:
 class GuardrailRuleSet:
     """Grouped guardrail rules separated by their action."""
 
-    blocking_guardrails: List[Guardrail]
-    logging_guardrails: List[Guardrail]
+    blocking_guardrails: list[Guardrail]
+    logging_guardrails: list[Guardrail]

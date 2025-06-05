@@ -1,7 +1,7 @@
 """Gateway service to forward requests to the MCP Streamable HTTP servers"""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from httpx_sse import aconnect_sse
@@ -90,8 +90,8 @@ class StreamableTransport(McpTransportBase):
         **kwargs,
     ) -> str:
         """Initialize streamable HTTP session."""
-        session_id: Optional[str] = kwargs.get("session_id", None)
-        session_attributes: Optional[McpAttributes] = kwargs.get(
+        session_id: str | None = kwargs.get("session_id", None)
+        session_attributes: McpAttributes | None = kwargs.get(
             "session_attributes", None
         )
         is_initialization_request: bool = kwargs.get("is_initialization_request", False)
@@ -240,7 +240,7 @@ class StreamableTransport(McpTransportBase):
 
     async def _process_non_init_request(
         self, session_id: str, request_body: dict[str, Any]
-    ) -> Optional[Response]:
+    ) -> Response | None:
         """Process non-initialization requests for guardrails."""
         processed_request, is_blocked = await self.process_outgoing_request(
             session_id, request_body

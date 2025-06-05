@@ -3,7 +3,7 @@
 import asyncio
 import json
 import re
-from typing import Any, AsyncGenerator, Optional, Tuple
+from typing import Any, AsyncGenerator
 
 import httpx
 from httpx_sse import aconnect_sse, ServerSentEvent
@@ -85,8 +85,8 @@ class SseTransport(McpTransportBase):
         **kwargs,
     ) -> str:
         """Initialize or get existing SSE session."""
-        session_id: Optional[str] = kwargs.get("session_id", None)
-        session_attributes: Optional[McpAttributes] = kwargs.get(
+        session_id: str | None = kwargs.get("session_id", None)
+        session_attributes: McpAttributes | None = kwargs.get(
             "session_attributes", None
         )
         if session_id and self.session_store.session_exists(session_id):
@@ -303,7 +303,7 @@ class SseTransport(McpTransportBase):
 
     async def _handle_endpoint_event(
         self, sse: ServerSentEvent, sse_header_attributes: McpAttributes
-    ) -> Tuple[bytes, str]:
+    ) -> tuple[bytes, str]:
         """Handle endpoint event and initialize session if needed."""
         match = re.search(r"session_id=([^&\s]+)", sse.data)
         session_id = match.group(1) if match else None
