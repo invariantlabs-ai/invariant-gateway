@@ -171,12 +171,11 @@ raise "Users must not mention the magic phrase 'Abracadabra'" if:
 
     if not do_stream:
         with pytest.raises(BadRequestError) as exc_info:
-            chat_response = client.chat.completions.create(
+            _ = client.chat.completions.create(
                 **request,
                 stream=False,
             )
 
-        print(exc_info.value.message, flush=True)
         assert "Failed to create policy from policy source." in str(
             exc_info.value
         ), "guardrails check fails because of an invalid guardrailing rule"
