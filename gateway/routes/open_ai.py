@@ -26,7 +26,7 @@ from gateway.routes.instrumentation import (
     InstrumentedResponse,
     InstrumentedStreamingResponse,
 )
-from gateway.routes.base_provider import BaseProvider, ExtraItem
+from gateway.routes.base_provider import BaseProvider, ExtraItem, Replacement
 
 gateway = APIRouter()
 
@@ -222,9 +222,9 @@ class OpenAIProvider(BaseProvider):
         guardrails_execution_result: dict[str, Any],
         location: Literal["request", "response"] = "response",
         status_code: int = 400,
-    ) -> ExtraItem:
-        """OpenAI non-streaming error format"""
-        return ExtraItem(
+    ) -> Replacement:
+        """OpenAI non-streaming error format, replace the response with the error message"""
+        return Replacement(
             Response(
                 content=json.dumps(
                     {
@@ -235,14 +235,13 @@ class OpenAIProvider(BaseProvider):
                 status_code=status_code,
                 media_type=CONTENT_TYPE_JSON,
             ),
-            end_of_stream=True,
         )
 
     def create_error_chunk(
         self,
         guardrails_execution_result: dict[str, Any],
         location: Literal["request", "response"] = "response",
-    ) -> bytes:
+    ) -> ExtraItem:
         """OpenAI streaming error format"""
         error_chunk = error_chunk = json.dumps(
             {
@@ -252,7 +251,9 @@ class OpenAIProvider(BaseProvider):
                 }
             }
         )
-        return f"data: {error_chunk}\n\n".encode()
+        # return an extra error chunk (without preventing the original
+        # chunk to go through after)
+        return ExtraItem(f"data: {error_chunk}\n\n".encode(), end_of_stream=True)
 
     def should_push_trace(
         self, merged_response: dict[str, Any], has_errors: bool
@@ -298,10 +299,6 @@ class OpenAIProvider(BaseProvider):
     def initialize_streaming_state(self) -> dict[str, Any]:
         """OpenAI streaming state"""
         return {"choice_mapping_by_index": {}, "tool_call_mapping_by_index": {}}
-
-    def streaming_error_should_end_stream(self) -> bool:
-        """OpenAI continues stream on error"""
-        return True
 
 
 def process_chunk_text(

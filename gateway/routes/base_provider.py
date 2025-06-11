@@ -65,7 +65,7 @@ class BaseProvider(ABC):
         guardrails_execution_result: dict[str, Any],
         location: Literal["request", "response"] = "response",
         status_code: int = 400,
-    ) -> ExtraItem:
+    ) -> Replacement:
         """Create provider-specific error response for non-streaming"""
 
     @abstractmethod
@@ -73,7 +73,7 @@ class BaseProvider(ABC):
         self,
         guardrails_execution_result: dict[str, Any],
         location: Literal["request", "response"] = "response",
-    ) -> bytes:
+    ) -> ExtraItem:
         """Create provider-specific error chunk for streaming"""
 
     @abstractmethod
@@ -104,10 +104,6 @@ class BaseProvider(ABC):
     @abstractmethod
     def initialize_streaming_state(self) -> dict[str, Any]:
         """Initialize provider-specific state for streaming (e.g., OpenAI's mappings)"""
-
-    @abstractmethod
-    def streaming_error_should_end_stream(self) -> bool:
-        """Whether streaming errors should end the stream"""
 
     def check_error_in_non_streaming_response(self, response: httpx.Response) -> None:
         """Check response status and parse JSON for non-streaming requests"""

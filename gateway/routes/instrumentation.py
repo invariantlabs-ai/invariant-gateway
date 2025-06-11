@@ -10,6 +10,7 @@ import httpx
 from fastapi import Response
 
 from gateway.routes.base_provider import BaseProvider, ExtraItem
+from gateway.common.constants import CONTENT_TYPE_JSON
 from gateway.common.guardrails import GuardrailAction
 from gateway.common.request_context import RequestContext
 from gateway.integrations.explorer import (
@@ -157,7 +158,10 @@ class BaseInstrumentedResponse(ABC):
 
         if self.guardrails_execution_result.get("errors", []):
             if self.context.dataset_name:
-                print("Pushing to explorer from inside handle_input_guardrails", flush=True)
+                print(
+                    "Pushing to explorer from inside handle_input_guardrails",
+                    flush=True,
+                )
                 asyncio.create_task(
                     self.push_to_explorer(
                         response_data, self.guardrails_execution_result
@@ -165,12 +169,9 @@ class BaseInstrumentedResponse(ABC):
                 )
 
             if self.is_streaming:
-                return ExtraItem(
-                    self.provider.create_error_chunk(
+                return self.provider.create_error_chunk(
                         self.guardrails_execution_result, location="request"
-                    ),
-                    end_of_stream=True,
-                )
+                    )
             return self.provider.create_non_streaming_error_response(
                 self.guardrails_execution_result, location="request"
             )
@@ -190,7 +191,11 @@ class BaseInstrumentedResponse(ABC):
         if self.guardrails_execution_result.get("errors", []):
             # Push to explorer
             if self.context.dataset_name:
-                print("Pushing to explorer from inside handle_output_guardrails", self.guardrails_execution_result.get("errors", []), flush=True)
+                print(
+                    "Pushing to explorer from inside handle_output_guardrails",
+                    self.guardrails_execution_result.get("errors", []),
+                    flush=True,
+                )
                 asyncio.create_task(
                     self.push_to_explorer(
                         response_data, self.guardrails_execution_result
@@ -198,13 +203,9 @@ class BaseInstrumentedResponse(ABC):
                 )
 
             if self.is_streaming:
-                error_chunk = self.provider.create_error_chunk(
+                return self.provider.create_error_chunk(
                     self.guardrails_execution_result,
                     location="response",
-                )
-                return ExtraItem(
-                    error_chunk,
-                    end_of_stream=self.provider.streaming_error_should_end_stream(),
                 )
             return self.provider.create_non_streaming_error_response(
                 self.guardrails_execution_result,
@@ -452,7 +453,7 @@ class InstrumentedResponse(BaseInstrumentedResponse):
         yield Response(
             content=response_string,
             status_code=self.response.status_code,
-            media_type="application/json",
+            media_type=CONTENT_TYPE_JSON,
             headers=updated_headers,
         )
 

@@ -25,7 +25,7 @@ from gateway.converters.anthropic_to_invariant import (
     convert_anthropic_to_invariant_message_format,
 )
 from gateway.integrations.explorer import fetch_guardrails_from_explorer
-from gateway.routes.base_provider import BaseProvider, Replacement
+from gateway.routes.base_provider import BaseProvider, ExtraItem, Replacement
 from gateway.routes.instrumentation import (
     InstrumentedResponse,
     InstrumentedStreamingResponse,
@@ -241,7 +241,7 @@ class AnthropicProvider(BaseProvider):
         self,
         guardrails_execution_result: dict[str, Any],
         location: Literal["request", "response"] = "response",
-    ) -> bytes:
+    ) -> ExtraItem:
         """Anthropic streaming error format (SSE)"""
         error_chunk = json.dumps(
             {
@@ -251,7 +251,7 @@ class AnthropicProvider(BaseProvider):
                 }
             }
         )
-        return f"event: error\ndata: {error_chunk}\n\n".encode()
+        return ExtraItem(f"event: error\ndata: {error_chunk}\n\n".encode(), end_of_stream=True)
 
     def should_push_trace(self, _1: dict[str, Any], _2: bool) -> bool:
         """Anthropic always pushes traces"""
@@ -260,7 +260,34 @@ class AnthropicProvider(BaseProvider):
     def process_streaming_chunk(
         self, chunk: bytes, merged_response: dict[str, Any], chunk_state: dict[str, Any]
     ) -> None:
-        """Anthropic streaming chunk processing"""
+        """
+        Process the chunk and update the merged_response.
+        Each chunk may contain multiple events, separated by double newlines.
+        Each event has type and data fields, separated by a newline.
+        It is possible that a chunk contains some incomplete events.
+
+        Example:
+
+        b'event: message_start\ndata: {"type":"message_start","message":
+        {"id":"msg_01LkayzAaw7b7QkUAw91psyx","type":"message","role":"assistant"
+        ,"model":"claude-3-5-sonnet-20241022","content":[],"stop_reason":null,
+        "stop_sequence":null,"usage":{"input_tokens":20,"cache_creation_input_to'
+
+        and
+
+        b'kens":0,"cache_read_input_tokens":0,"output_tokens":1}}}\n\nevent: content_block_start
+        \ndata: {"type":"content_block_start","index":0,"content_block"
+        :{"type":"text","text":""} }\n\nevent: ping
+        \ndata: {"type": "ping"}\n\nevent: content_block_delta
+        \ndata: {"type":"content_block_delta","index":0,"delta":{"type":
+        "text_delta","text":"Originally"} }\n\n'
+
+        In this case the first chunk ends with 'cache_creation_input_to' which is
+        continued in the next chunk.
+
+        in this case we need to maintain a buffer of the incomplete events.
+        We filter out the ping events and update a merged_response.
+        """
         decoded_chunk = chunk.decode("utf-8", errors="replace")
         chunk_state["sse_buffer"] = chunk_state.get("sse_buffer", "") + decoded_chunk
 
@@ -282,7 +309,7 @@ class AnthropicProvider(BaseProvider):
                     elif line.startswith("data:"):
                         event_data = line[5:].strip()
 
-                if event_data and event_type != "ping":
+                if event_data and event_type != "ping": # Ignore ping events
                     try:
                         event_json = json.loads(event_data)
                         update_merged_response(event_json, merged_response)
@@ -320,7 +347,3 @@ class AnthropicProvider(BaseProvider):
     def initialize_streaming_state(self) -> dict[str, Any]:
         """Anthropic streaming state"""
         return {"sse_buffer": ""}
-
-    def streaming_error_should_end_stream(self) -> bool:
-        """Anthropic continues stream on error"""
-        return True
