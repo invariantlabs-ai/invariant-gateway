@@ -158,10 +158,6 @@ class BaseInstrumentedResponse(ABC):
 
         if self.guardrails_execution_result.get("errors", []):
             if self.context.dataset_name:
-                print(
-                    "Pushing to explorer from inside handle_input_guardrails",
-                    flush=True,
-                )
                 asyncio.create_task(
                     self.push_to_explorer(
                         response_data, self.guardrails_execution_result
@@ -222,7 +218,6 @@ class BaseInstrumentedResponse(ABC):
             if not should_push:
                 return
 
-            print("Pushing to explorer from push_successful_trace", flush=True)
             asyncio.create_task(
                 self.push_to_explorer(response_data, self.guardrails_execution_result)
             )
@@ -387,7 +382,6 @@ class InstrumentedStreamingResponse(BaseInstrumentedResponse):
 
     async def on_end(self) -> ExtraItem | None:
         """Run post-processing after the streaming response ends."""
-        print("Reached on_end: ", self.merged_response, flush=True)
         await self.push_successful_trace(self.merged_response)
 
     async def event_generator(self):
