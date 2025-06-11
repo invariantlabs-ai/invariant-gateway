@@ -72,17 +72,17 @@ class BaseInstrumentedResponse(ABC):
         """
 
     @abstractmethod
-    async def on_end(self):
-        """
-        Post-processing hook.
-        This can be used for output guardrails or other post-processing tasks.
-        """
-
-    @abstractmethod
     async def on_chunk(self, chunk: Any):
         """
         Process a chunk of data.
         This can be used for streaming responses to handle each chunk as it arrives.
+        """
+
+    @abstractmethod
+    async def on_end(self):
+        """
+        Post-processing hook.
+        This can be used for output guardrails or other post-processing tasks.
         """
 
     async def check_guardrails_common(
@@ -208,8 +208,8 @@ class BaseInstrumentedResponse(ABC):
                 location="response",
             )
 
-    async def push_successful_trace(self, response_data: dict[str, Any]) -> None:
-        """Push successful trace"""
+    async def push_trace_to_explorer(self, response_data: dict[str, Any]) -> None:
+        """Push trace to explorer if dataset is configured"""
         if self.context.dataset_name:
             should_push = self.provider.should_push_trace(
                 response_data,
@@ -382,7 +382,7 @@ class InstrumentedStreamingResponse(BaseInstrumentedResponse):
 
     async def on_end(self) -> ExtraItem | None:
         """Run post-processing after the streaming response ends."""
-        await self.push_successful_trace(self.merged_response)
+        await self.push_trace_to_explorer(self.merged_response)
 
     async def event_generator(self):
         """Generic event generator using provider protocol"""
@@ -428,8 +428,7 @@ class InstrumentedResponse(BaseInstrumentedResponse):
             if result:  # If guardrails failed
                 return result
 
-            # Push successful trace
-            await self.push_successful_trace(self.response_json)
+            await self.push_trace_to_explorer(self.response_json)
 
     async def event_generator(self):
         """

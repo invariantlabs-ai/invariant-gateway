@@ -52,11 +52,7 @@ async def gemini_generate_content_gateway(
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),
     header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ) -> Response:
-    """
-    Proxy calls to the Gemini APIs
-
-    All Gemini-specific cases (message conversion, end_of_stream behavior) handled by provider
-    """
+    """Proxy calls to the Gemini APIs"""
 
     # Gemini endpoint validation
     if endpoint not in ["generateContent", "streamGenerateContent"]:
@@ -117,12 +113,10 @@ async def gemini_generate_content_gateway(
         request=request,
     )
 
-    # Create Gemini provider
     provider = GeminiProvider()
 
     # Handle streaming and non-streaming
     if alt == "sse" or endpoint == "streamGenerateContent":
-        # Use the base class directly - it handles Gemini streaming via the provider
         response = InstrumentedStreamingResponse(
             context=context,
             client=client,
@@ -214,7 +208,7 @@ def make_refusal(
 
 
 class GeminiProvider(BaseProvider):
-    """Complete Gemini provider covering all cases"""
+    """Concrete implementation of BaseProvider for Gemini"""
 
     def get_provider_name(self) -> str:
         return "gemini"
@@ -222,7 +216,7 @@ class GeminiProvider(BaseProvider):
     def combine_messages(
         self, request_json: dict[str, Any], response_json: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """Gemini message combination with format conversion"""
+        """Gemini messages combination with format conversion"""
         converted_requests = convert_request(request_json)
         converted_responses = convert_response(response_json) if response_json else []
 
@@ -298,7 +292,7 @@ class GeminiProvider(BaseProvider):
     def should_push_trace(
         self, merged_response: dict[str, Any], has_errors: bool
     ) -> bool:
-        """Gemini push criteria"""
+        """Gemini push trace criteria"""
         return has_errors or (
             merged_response.get("candidates", [])
             and merged_response["candidates"][0].get("finishReason") is not None
@@ -307,7 +301,7 @@ class GeminiProvider(BaseProvider):
     def process_streaming_chunk(
         self, chunk: bytes, merged_response: dict[str, Any], _: dict[str, Any]
     ) -> None:
-        """Gemini streaming hunk processing"""
+        """Gemini streaming chunk processing"""
         chunk_text = chunk.decode().strip()
         if not chunk_text:
             return
