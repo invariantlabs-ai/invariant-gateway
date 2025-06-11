@@ -290,7 +290,10 @@ class GeminiProvider(BaseProvider):
         location: Literal["request", "response"] = "response",
     ) -> ExtraItem:
         """Gemini streaming error format"""
-        return ExtraItem(json.dumps(make_refusal(location, guardrails_execution_result)), end_of_stream=True)
+        return ExtraItem(
+            json.dumps(make_refusal(location, guardrails_execution_result)),
+            end_of_stream=True,
+        )
 
     def should_push_trace(
         self, merged_response: dict[str, Any], has_errors: bool
