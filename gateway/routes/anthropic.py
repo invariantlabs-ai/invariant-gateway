@@ -251,7 +251,9 @@ class AnthropicProvider(BaseProvider):
                 }
             }
         )
-        return ExtraItem(f"event: error\ndata: {error_chunk}\n\n".encode(), end_of_stream=True)
+        return ExtraItem(
+            f"event: error\ndata: {error_chunk}\n\n".encode(), end_of_stream=True
+        )
 
     def should_push_trace(self, _1: dict[str, Any], _2: bool) -> bool:
         """Anthropic always pushes traces"""
@@ -309,7 +311,7 @@ class AnthropicProvider(BaseProvider):
                     elif line.startswith("data:"):
                         event_data = line[5:].strip()
 
-                if event_data and event_type != "ping": # Ignore ping events
+                if event_data and event_type != "ping":  # Ignore ping events
                     try:
                         event_json = json.loads(event_data)
                         update_merged_response(event_json, merged_response)

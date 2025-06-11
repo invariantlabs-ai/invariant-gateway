@@ -170,8 +170,8 @@ class BaseInstrumentedResponse(ABC):
 
             if self.is_streaming:
                 return self.provider.create_error_chunk(
-                        self.guardrails_execution_result, location="request"
-                    )
+                    self.guardrails_execution_result, location="request"
+                )
             return self.provider.create_non_streaming_error_response(
                 self.guardrails_execution_result, location="request"
             )
