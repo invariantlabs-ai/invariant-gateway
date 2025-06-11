@@ -259,7 +259,7 @@ async def test_streaming_response_with_tool_call(
     elif len(response) == 1:
         # expected output in this case is something like this:
         # [[TextBlock(text="I'll help you check the weather in New York using the get_weather function.", type='text', citations=None), ToolUseBlock(id='toolu_019VZsmxuUhShou2EpPBxvpe', input={'location': 'New York, NY', 'unit': 'celsius'}, name='get_weather', type='tool_use')]]
-        
+
         assert response is not None
         assert response[0][0].type == "text"
         assert response[0][1].type == "tool_use"

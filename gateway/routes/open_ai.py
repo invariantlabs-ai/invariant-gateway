@@ -1,8 +1,7 @@
 """Gateway service to forward requests to the OpenAI APIs"""
 
-import asyncio
 import json
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -16,23 +15,18 @@ from gateway.common.config_manager import (
 )
 from gateway.common.constants import (
     CLIENT_TIMEOUT,
-    CONTENT_TYPE_JSON,
     CONTENT_TYPE_EVENT_STREAM,
+    CONTENT_TYPE_JSON,
     IGNORED_HEADERS,
 )
-from gateway.common.guardrails import GuardrailAction, GuardrailRuleSet
+from gateway.common.guardrails import GuardrailRuleSet
 from gateway.common.request_context import RequestContext
-from gateway.integrations.explorer import (
-    create_annotations_from_guardrails_errors,
-    fetch_guardrails_from_explorer,
-    push_trace,
-)
-from gateway.integrations.guardrails import (
-    ExtraItem,
+from gateway.integrations.explorer import fetch_guardrails_from_explorer
+from gateway.routes.instrumentation import (
     InstrumentedResponse,
     InstrumentedStreamingResponse,
-    check_guardrails,
 )
+from gateway.routes.base_provider import BaseProvider, ExtraItem
 
 gateway = APIRouter()
 
@@ -78,7 +72,7 @@ async def openai_models_options(request: Request):
 @gateway.get("/openai/models")
 async def openai_models_gateway(
     request: Request,
-    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
+    dataset_name: str | None = None,
 ):
     """Proxy request to OpenAI /models endpoint"""
     headers = {
@@ -88,6 +82,7 @@ async def openai_models_gateway(
         request, dataset_name, OPENAI_AUTHORIZATION_HEADER
     )
     headers[OPENAI_AUTHORIZATION_HEADER] = "Bearer " + openai_api_key
+
     async with httpx.AsyncClient(timeout=httpx.Timeout(CLIENT_TIMEOUT)) as client:
         open_ai_request = client.build_request(
             "GET",
@@ -112,11 +107,17 @@ async def openai_models_gateway(
 )
 async def openai_chat_completions_gateway(
     request: Request,
-    dataset_name: str | None = None,  # This is None if the client doesn't want to push to Explorer
-    config: GatewayConfig = Depends(GatewayConfigManager.get_config),  # pylint: disable=unused-argument
+    dataset_name: str | None = None,
+    config: GatewayConfig = Depends(GatewayConfigManager.get_config),
     header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ) -> Response:
-    """Proxy calls to the OpenAI APIs"""
+    """
+    Proxy calls to the OpenAI APIs
+
+    All OpenAI-specific cases handled by the provider and base classes
+    """
+
+    # Standard OpenAI request setup
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
@@ -138,12 +139,14 @@ async def openai_chat_completions_gateway(
         headers=headers,
     )
 
+    # Fetch dataset guardrails
     dataset_guardrails = None
     if dataset_name:
-        # Get the guardrails for the dataset
         dataset_guardrails = await fetch_guardrails_from_explorer(
             dataset_name, invariant_authorization
         )
+
+    # Create request context
     context = RequestContext.create(
         request_json=request_json,
         dataset_name=dataset_name,
@@ -152,41 +155,138 @@ async def openai_chat_completions_gateway(
         config=config,
         request=request,
     )
+
+    # Create OpenAI provider
+    provider = OpenAIProvider()
+
+    # Handle streaming vs non-streaming
     if request_json.get("stream", False):
-        return await handle_stream_response(
-            context,
-            client,
-            open_ai_request,
+        # Use the base class directly - it handles everything via the provider
+        response = InstrumentedStreamingResponse(
+            context=context,
+            client=client,
+            provider_request=open_ai_request,
+            provider=provider,
+        )
+        return StreamingResponse(
+            response.instrumented_event_generator(),
+            media_type=CONTENT_TYPE_EVENT_STREAM,
+        )
+    response = InstrumentedResponse(
+        context=context,
+        client=client,
+        provider_request=open_ai_request,
+        provider=provider,
+    )
+    return await response.instrumented_request()
+
+
+class OpenAIProvider(BaseProvider):
+    """Complete OpenAI provider covering all cases"""
+
+    def get_provider_name(self) -> str:
+        return "openai"
+
+    def combine_messages(
+        self, request_json: dict[str, Any], response_json: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Combine request and response messages in OpenAI format"""
+        messages = list(request_json.get("messages", []))
+        if response_json:
+            messages += [
+                choice["message"] for choice in response_json.get("choices", [])
+            ]
+        return messages
+
+    def create_metadata(
+        self, request_json: dict[str, Any], response_json: dict[str, Any]
+    ) -> dict[str, Any]:
+        """OpenAI metadata creation"""
+        metadata = {
+            k: v for k, v in request_json.items() if k != "messages" and v is not None
+        }
+        metadata["via_gateway"] = True
+
+        if response_json:
+            metadata.update(
+                {
+                    key: value
+                    for key, value in response_json.items()
+                    if key in ("usage", "model") and value is not None
+                }
+            )
+        return metadata
+
+    def create_non_streaming_error_response(
+        self,
+        guardrails_execution_result: dict[str, Any],
+        location: Literal["request", "response"] = "response",
+        status_code: int = 400,
+    ) -> ExtraItem:
+        """OpenAI non-streaming error format"""
+        return ExtraItem(
+            Response(
+                content=json.dumps(
+                    {
+                        "error": f"[Invariant] The {location} did not pass the guardrails",
+                        "details": guardrails_execution_result,
+                    }
+                ),
+                status_code=status_code,
+                media_type=CONTENT_TYPE_JSON,
+            ),
+            end_of_stream=True,
         )
 
-    return await handle_non_stream_response(context, client, open_ai_request)
-
-
-class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
-    """
-    Does a streaming OpenAI completion request at the core, but also checks guardrails
-    before (concurrent) and after the request.
-    """
-
-    def __init__(
+    def create_error_chunk(
         self,
-        context: RequestContext,
-        client: httpx.AsyncClient,
-        open_ai_request: httpx.Request,
-    ):
-        super().__init__()
+        guardrails_execution_result: dict[str, Any],
+        location: Literal["request", "response"] = "response",
+    ) -> bytes:
+        """OpenAI streaming error format"""
+        error_chunk = error_chunk = json.dumps(
+            {
+                "error": {
+                    "message": f"[Invariant] The {location} did not pass the guardrails",
+                    "details": guardrails_execution_result,
+                }
+            }
+        )
+        return f"data: {error_chunk}\n\n".encode()
 
-        # request parameters
-        self.context: RequestContext = context
-        self.client: httpx.AsyncClient = client
-        self.open_ai_request: httpx.Request = open_ai_request
+    def should_push_trace(
+        self, merged_response: dict[str, Any], has_errors: bool
+    ) -> bool:
+        """OpenAI-specific push criteria"""
 
-        # guardrailing output (if any)
-        self.guardrails_execution_result: dict | None = None
+        return has_errors or not (
+            merged_response.get("choices")
+            and merged_response["choices"][0].get("finish_reason")
+            not in FINISH_REASON_TO_PUSH_TRACE
+        )
 
-        # merged_response will be updated with the data from the chunks in the stream
-        # At the end of the stream, this will be sent to the explorer
-        self.merged_response = {
+    def process_streaming_chunk(
+        self, chunk: bytes, merged_response: dict[str, Any], chunk_state: dict[str, Any]
+    ) -> None:
+        """OpenAI streaming chunk processing"""
+        chunk_text = chunk.decode().strip()
+        if not chunk_text:
+            return
+
+        process_chunk_text(
+            chunk_text,
+            merged_response,
+            chunk_state.get("choice_mapping_by_index", {}),
+            chunk_state.get("tool_call_mapping_by_index", {}),
+        )
+
+    def is_streaming_complete(self, _: dict[str, Any], chunk_text: str = "") -> bool:
+        """OpenAI completion detection"""
+        return "data: [DONE]" in chunk_text
+
+    def initialize_streaming_response(self) -> dict[str, Any]:
+        """OpenAI streaming response structure"""
+        return {
             "id": None,
             "object": "chat.completion",
             "created": None,
@@ -195,152 +295,13 @@ class InstrumentedOpenAIStreamResponse(InstrumentedStreamingResponse):
             "usage": None,
         }
 
-        # Each chunk in the stream contains a list called "choices" each entry in the list
-        # has an index.
-        # A choice has a field called "delta" which may contain a list called "tool_calls".
-        # Maps the choice index in the stream to the index in the merged_response["choices"] list
-        self.choice_mapping_by_index = {}
-        # Combines the choice index and tool call index to uniquely identify a tool call
-        self.tool_call_mapping_by_index = {}
+    def initialize_streaming_state(self) -> dict[str, Any]:
+        """OpenAI streaming state"""
+        return {"choice_mapping_by_index": {}, "tool_call_mapping_by_index": {}}
 
-    async def on_start(self):
-        """
-        Check guardrails in a pipelined fashion, before processing the first chunk
-        (for input guardrailing).
-        """
-        if self.context.guardrails:
-            self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context,
-                action=GuardrailAction.BLOCK,
-                response_json=self.merged_response,
-            )
-            if self.guardrails_execution_result.get("errors", []):
-                error_chunk = json.dumps(
-                    {
-                        "error": {
-                            "message": "[Invariant] The request did not pass the guardrails",
-                            "details": self.guardrails_execution_result,
-                        }
-                    }
-                )
-
-                # Push annotated trace to the explorer - don't block on its response
-                if self.context.dataset_name:
-                    asyncio.create_task(
-                        push_to_explorer(
-                            self.context,
-                            self.merged_response,
-                            self.guardrails_execution_result,
-                        )
-                    )
-
-                # if we find something, we end the stream prematurely (end_of_stream=True)
-                # and yield an error chunk instead of actually beginning the stream
-                return ExtraItem(
-                    f"data: {error_chunk}\n\n".encode(),
-                    end_of_stream=True,
-                )
-
-    async def on_chunk(self, chunk):
-        """Processes each chunk of the stream and checks guardrails at the end of the stream"""
-        # process and check each chunk
-        chunk_text = chunk.decode().strip()
-        if not chunk_text:
-            return
-
-        # Process the chunk
-        # This will update merged_response with the data from the chunk
-        process_chunk_text(
-            chunk_text,
-            self.merged_response,
-            self.choice_mapping_by_index,
-            self.tool_call_mapping_by_index,
-        )
-
-        # check guardrails at the end of the stream (on the '[DONE]' SSE chunk.)
-        if "data: [DONE]" in chunk_text and self.context.guardrails:
-            # Block on the guardrails check
-            self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context,
-                action=GuardrailAction.BLOCK,
-                response_json=self.merged_response,
-            )
-            if self.guardrails_execution_result.get("errors", []):
-                error_chunk = json.dumps(
-                    {
-                        "error": {
-                            "message": "[Invariant] The response did not pass the guardrails",
-                            "details": self.guardrails_execution_result,
-                        }
-                    }
-                )
-
-                # yield an extra error chunk (without preventing the original
-                # chunk to go through after)
-                return ExtraItem(f"data: {error_chunk}\n\n".encode())
-
-                # push will happen in on_end
-
-    async def on_end(self):
-        """Sends full merged response to the explorer."""
-        # don't block on the response from explorer (.create_task)
-        if self.context.dataset_name:
-            asyncio.create_task(
-                push_to_explorer(
-                    self.context, self.merged_response, self.guardrails_execution_result
-                )
-            )
-
-    async def event_generator(self):
-        """Actual OpenAI stream response."""
-        response = await self.client.send(self.open_ai_request, stream=True)
-        if response.status_code != 200:
-            error_content = await response.aread()
-            try:
-                error_json = json.loads(error_content.decode("utf-8"))
-                error_detail = error_json.get("error", "Unknown error from OpenAI API")
-            except json.JSONDecodeError:
-                error_detail = {"error": "Failed to parse OpenAI error response"}
-            raise HTTPException(status_code=response.status_code, detail=error_detail)
-
-        # stream out chunks
-        async for chunk in response.aiter_bytes():
-            yield chunk
-
-
-async def handle_stream_response(
-    context: RequestContext,
-    client: httpx.AsyncClient,
-    open_ai_request: httpx.Request,
-) -> Response:
-    """
-    Handles streaming the OpenAI response to the client while building a merged_response
-    The chunks are returned to the caller immediately
-    The merged_response is built from the chunks as they are received
-    It is sent to the Invariant Explorer at the end of the stream
-    """
-
-    response = InstrumentedOpenAIStreamResponse(
-        context,
-        client,
-        open_ai_request,
-    )
-
-    return StreamingResponse(
-        response.instrumented_event_generator(), media_type=CONTENT_TYPE_EVENT_STREAM
-    )
-
-
-def initialize_merged_response() -> dict[str, Any]:
-    """Initializes the full response dictionary"""
-    return {
-        "id": None,
-        "object": "chat.completion",
-        "created": None,
-        "model": None,
-        "choices": [],
-        "usage": None,
-    }
+    def streaming_error_should_end_stream(self) -> bool:
+        """OpenAI continues stream on error"""
+        return True
 
 
 def process_chunk_text(
@@ -461,261 +422,3 @@ def update_existing_choice_with_delta(
     finish_reason = delta.get("finish_reason")
     if finish_reason is not None:
         existing_choice["finish_reason"] = finish_reason
-
-
-def create_metadata(
-    context: RequestContext, merged_response: dict[str, Any]
-) -> dict[str, Any]:
-    """Creates metadata for the trace"""
-    metadata = {
-        k: v
-        for k, v in context.request_json.items()
-        if k != "messages" and v is not None
-    }
-    metadata["via_gateway"] = True
-    metadata.update(
-        {
-            key: value
-            for key, value in merged_response.items()
-            if key in ("usage", "model") and merged_response.get(key) is not None
-        }
-    )
-    return metadata
-
-
-async def push_to_explorer(
-    context: RequestContext,
-    merged_response: dict[str, Any],
-    guardrails_execution_result: dict | None = None,
-) -> None:
-    """Pushes the merged response to the Invariant Explorer"""
-    # Only push the trace to explorer if the message is an end turn message
-    # or if the guardrails check returned errors.
-    guardrails_execution_result = guardrails_execution_result or {}
-    guardrails_errors = guardrails_execution_result.get("errors", [])
-    annotations = create_annotations_from_guardrails_errors(guardrails_errors)
-    # Execute the logging guardrails before pushing to Explorer
-    logging_guardrails_execution_result = await get_guardrails_check_result(
-        context,
-        action=GuardrailAction.LOG,
-        response_json=merged_response,
-    )
-    logging_annotations = create_annotations_from_guardrails_errors(
-        logging_guardrails_execution_result.get("errors", [])
-    )
-    # Update the annotations with the logging guardrails
-    annotations.extend(logging_annotations)
-
-    if annotations or not (
-        merged_response.get("choices")
-        and merged_response["choices"][0].get("finish_reason")
-        not in FINISH_REASON_TO_PUSH_TRACE
-    ):
-        # Combine the messages from the request body and the choices from the OpenAI response
-        messages = list(context.request_json.get("messages", []))
-        messages += [choice["message"] for choice in merged_response.get("choices", [])]
-        _ = await push_trace(
-            dataset_name=context.dataset_name,
-            invariant_authorization=context.invariant_authorization,
-            messages=[messages],
-            annotations=[annotations],
-            metadata=[create_metadata(context, merged_response)],
-        )
-
-
-async def get_guardrails_check_result(
-    context: RequestContext,
-    action: GuardrailAction,
-    response_json: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Get the guardrails check result"""
-    # Determine which guardrails to apply based on the action
-    guardrails = (
-        context.guardrails.logging_guardrails
-        if action == GuardrailAction.LOG
-        else context.guardrails.blocking_guardrails
-    )
-
-    if not guardrails:
-        return {}
-
-    messages = list(context.request_json.get("messages", []))
-    if response_json is not None:
-        messages += [choice["message"] for choice in response_json.get("choices", [])]
-
-    # Block on the guardrails check
-    guardrails_execution_result = await check_guardrails(
-        messages=messages,
-        guardrails=guardrails,
-        context=context,
-    )
-    return guardrails_execution_result
-
-
-class InstrumentedOpenAIResponse(InstrumentedResponse):
-    """
-    Does an OpenAI completion request at the core, but also checks guardrails
-    before (concurrent) and after the request.
-    """
-
-    def __init__(
-        self,
-        context: RequestContext,
-        client: httpx.AsyncClient,
-        open_ai_request: httpx.Request,
-    ):
-        super().__init__()
-
-        # request parameters
-        self.context: RequestContext = context
-        self.client: httpx.AsyncClient = client
-        self.open_ai_request: httpx.Request = open_ai_request
-
-        # request outputs
-        self.response: httpx.Response | None = None
-        self.response_json: dict[str, Any] | None = None
-
-        # guardrailing output (if any)
-        self.guardrails_execution_result: dict | None = None
-
-    async def on_start(self):
-        """
-        Checks guardrails in a pipelined fashion, before processing
-        the first chunk (for input guardrailing)
-        """
-        if self.context.guardrails:
-            # block on the guardrails check
-            self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context, action=GuardrailAction.BLOCK
-            )
-            if self.guardrails_execution_result.get("errors", []):
-                # Push annotated trace to the explorer - don't block on its response
-                if self.context.dataset_name:
-                    asyncio.create_task(
-                        push_to_explorer(
-                            self.context,
-                            {},
-                            self.guardrails_execution_result,
-                        )
-                    )
-
-                # replace the response with the error message
-                return ExtraItem(
-                    Response(
-                        content=json.dumps(
-                            {
-                                "error": "[Invariant] The request did not pass the guardrails",
-                                "details": self.guardrails_execution_result,
-                            }
-                        ),
-                        status_code=400,
-                        media_type=CONTENT_TYPE_JSON,
-                    ),
-                    end_of_stream=True,
-                )
-
-    async def request(self):
-        """Actual OpenAI request."""
-        self.response = await self.client.send(self.open_ai_request)
-
-        try:
-            self.response_json = self.response.json()
-        except json.JSONDecodeError as e:
-            raise HTTPException(
-                status_code=self.response.status_code,
-                detail="Invalid JSON response received from OpenAI API",
-            ) from e
-        if self.response.status_code != 200:
-            raise HTTPException(
-                status_code=self.response.status_code,
-                detail=self.response_json.get("error", "Unknown error from OpenAI API"),
-            )
-
-        response_string = json.dumps(self.response_json)
-        response_code = self.response.status_code
-
-        return Response(
-            content=response_string,
-            status_code=response_code,
-            media_type=CONTENT_TYPE_JSON,
-            headers=dict(self.response.headers),
-        )
-
-    async def on_end(self):
-        """Postprocesses the OpenAI response and potentially replace it with a guardrails error."""
-
-        # these two request outputs are guaranteed to be available by the time we reach
-        # this point (after self.request() was executed)
-        # nevertheless, we check for them to avoid any potential issues
-        assert (
-            self.response is not None
-        ), "on_end called before 'self.response' was available"
-        assert (
-            self.response_json is not None
-        ), "on_end called before 'self.response_json' was available"
-
-        # extract original response status code
-        response_code = self.response.status_code
-
-        # if we have guardrails, check the response
-        if self.context.guardrails:
-            # run guardrails again, this time on request + response
-            self.guardrails_execution_result = await get_guardrails_check_result(
-                self.context,
-                action=GuardrailAction.BLOCK,
-                response_json=self.response_json,
-            )
-            if self.guardrails_execution_result.get("errors", []):
-                response_string = json.dumps(
-                    {
-                        "error": "[Invariant] The response did not pass the guardrails",
-                        "details": self.guardrails_execution_result,
-                    }
-                )
-                response_code = 400
-
-                # Push annotated trace to the explorer - don't block on its response
-                if self.context.dataset_name:
-                    asyncio.create_task(
-                        push_to_explorer(
-                            self.context,
-                            self.response_json,
-                            self.guardrails_execution_result,
-                        )
-                    )
-
-                # replace the response with the error message
-                return ExtraItem(
-                    Response(
-                        content=response_string,
-                        status_code=response_code,
-                        media_type=CONTENT_TYPE_JSON,
-                    ),
-                )
-
-        # Push annotated trace to the explorer in any case - don't block on its response
-        if self.context.dataset_name:
-            asyncio.create_task(
-                push_to_explorer(
-                    self.context,
-                    self.response_json,
-                    # include any guardrailing errors if available
-                    self.guardrails_execution_result,
-                )
-            )
-
-
-async def handle_non_stream_response(
-    context: RequestContext,
-    client: httpx.AsyncClient,
-    open_ai_request: httpx.Request,
-) -> Response:
-    """Handles non-streaming OpenAI responses"""
-
-    response = InstrumentedOpenAIResponse(
-        context,
-        client,
-        open_ai_request,
-    )
-
-    return await response.instrumented_request()
