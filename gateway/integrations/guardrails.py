@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from fastapi import HTTPException
 
-from gateway.common.constants import DEFAULT_API_URL
+from gateway.common.constants import CONTENT_TYPE_JSON, DEFAULT_API_URL
 from gateway.common.request_context import RequestContext
 from gateway.common.authorization import (
     INVARIANT_GUARDRAIL_SERVICE_AUTHORIZATION_HEADER,
@@ -79,7 +79,7 @@ async def _preload(guardrails: str, invariant_authorization: str) -> None:
             json={"policy": guardrails},
             headers={
                 "Authorization": invariant_authorization,
-                "Accept": "application/json",
+                "Accept": CONTENT_TYPE_JSON,
             },
         )
         result.raise_for_status()
@@ -146,7 +146,7 @@ async def check_guardrails(
                 },
                 headers={
                     "Authorization": context.get_guardrailing_authorization(),
-                    "Accept": "application/json",
+                    "Accept": CONTENT_TYPE_JSON,
                 },
                 timeout=5,
             )

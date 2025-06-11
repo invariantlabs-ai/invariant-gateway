@@ -26,7 +26,7 @@ from gateway.converters.gemini_to_invariant import (
     convert_response,
 )
 from gateway.integrations.explorer import fetch_guardrails_from_explorer
-from gateway.routes.base_provider import BaseProvider, Replacement
+from gateway.routes.base_provider import BaseProvider, ExtraItem, Replacement
 from gateway.routes.instrumentation import (
     InstrumentedResponse,
     InstrumentedStreamingResponse,
@@ -288,9 +288,9 @@ class GeminiProvider(BaseProvider):
         self,
         guardrails_execution_result: dict[str, Any],
         location: Literal["request", "response"] = "response",
-    ) -> bytes:
+    ) -> ExtraItem:
         """Gemini streaming error format"""
-        return json.dumps(make_refusal(location, guardrails_execution_result))
+        return ExtraItem(json.dumps(make_refusal(location, guardrails_execution_result)), end_of_stream=True)
 
     def should_push_trace(
         self, merged_response: dict[str, Any], has_errors: bool
@@ -337,7 +337,3 @@ class GeminiProvider(BaseProvider):
     def initialize_streaming_state(self) -> dict[str, Any]:
         """Gemini has no additional state"""
         return {}
-
-    def streaming_error_should_end_stream(self) -> bool:
-        """Gemini ENDS stream on error"""
-        return True

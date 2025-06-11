@@ -4,7 +4,6 @@ DEFAULT_API_URL = "https://explorer.invariantlabs.ai"
 
 IGNORED_HEADERS = [
     "accept-encoding",
-    "content-length",
     "host",
     "invariant-authorization",
     "x-forwarded-for",
