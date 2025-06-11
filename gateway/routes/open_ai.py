@@ -111,13 +111,8 @@ async def openai_chat_completions_gateway(
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),
     header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ) -> Response:
-    """
-    Proxy calls to the OpenAI APIs
+    """Proxy calls to the OpenAI chat completions endpoint"""
 
-    All OpenAI-specific cases handled by the provider and base classes
-    """
-
-    # Standard OpenAI request setup
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
@@ -156,12 +151,10 @@ async def openai_chat_completions_gateway(
         request=request,
     )
 
-    # Create OpenAI provider
     provider = OpenAIProvider()
 
-    # Handle streaming vs non-streaming
+    # Handle streaming and non-streaming
     if request_json.get("stream", False):
-        # Use the base class directly - it handles everything via the provider
         response = InstrumentedStreamingResponse(
             context=context,
             client=client,
@@ -182,7 +175,7 @@ async def openai_chat_completions_gateway(
 
 
 class OpenAIProvider(BaseProvider):
-    """Complete OpenAI provider covering all cases"""
+    """Concrete implementation of BaseProvider for OpenAI"""
 
     def get_provider_name(self) -> str:
         return "openai"
@@ -251,8 +244,6 @@ class OpenAIProvider(BaseProvider):
                 }
             }
         )
-        # return an extra error chunk (without preventing the original
-        # chunk to go through after)
         return ExtraItem(f"data: {error_chunk}\n\n".encode(), end_of_stream=True)
 
     def should_push_trace(

@@ -32,7 +32,6 @@ from gateway.routes.instrumentation import (
 )
 
 gateway = APIRouter()
-
 MISSING_ANTHROPIC_AUTH_HEADER = "Missing Anthropic authorization header"
 FAILED_TO_PUSH_TRACE = "Failed to push trace to the dataset: "
 END_REASONS = ["end_turn", "max_tokens", "stop_sequence"]
@@ -66,13 +65,7 @@ async def anthropic_v1_messages_gateway(
     config: GatewayConfig = Depends(GatewayConfigManager.get_config),
     header_guardrails: GuardrailRuleSet = Depends(extract_guardrails_from_header),
 ):
-    """
-    Proxy calls to the Anthropic APIs
-
-    All Anthropic-specific cases (SSE, message conversion) handled by provider
-    """
-
-    # Standard Anthropic request setup
+    """Proxy calls to the Anthropic APIs"""
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in IGNORED_HEADERS
     }
@@ -111,12 +104,10 @@ async def anthropic_v1_messages_gateway(
         request=request,
     )
 
-    # Create Anthropic provider
     provider = AnthropicProvider()
 
-    # Handle streaming vs non-streaming
+    # Handle streaming and non-streaming
     if request_json.get("stream"):
-        # Use the base class directly - it handles SSE processing via the provider
         response = InstrumentedStreamingResponse(
             context=context,
             client=client,
@@ -176,7 +167,7 @@ def update_merged_response(
 
 
 class AnthropicProvider(BaseProvider):
-    """Complete Anthropic provider covering all cases"""
+    """Concrete implementation of BaseProvider for Anthropic"""
 
     def get_provider_name(self) -> str:
         return "anthropic"
@@ -339,7 +330,7 @@ class AnthropicProvider(BaseProvider):
         return events, remaining
 
     def is_streaming_complete(self, _: dict[str, Any], chunk_text: str = "") -> bool:
-        """Anthropic completion detection"""
+        """Anthropic streaming completion detection"""
         return "message_stop" in chunk_text
 
     def initialize_streaming_response(self) -> dict[str, Any]:
