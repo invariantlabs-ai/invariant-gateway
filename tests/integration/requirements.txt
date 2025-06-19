@@ -9,4 +9,5 @@ pytest
 pytest-asyncio
 pytest-timeout
 tavily-python
+tenacity
 uv
