@@ -10,6 +10,7 @@ from utils import create_dataset, add_guardrail_to_dataset
 import httpx
 import pytest
 import requests
+from datetime import datetime
 
 # Taken from docker-compose.test.yml
 MCP_SSE_SERVER_HOST = "mcp-messenger-sse-server"
@@ -682,3 +683,60 @@ async def test_mcp_sse_post_endpoint_exceptions(gateway_url):
         e for e in exc_group.value.exceptions if isinstance(e, httpx.HTTPStatusError)
     ]
     assert http_errors[0].response.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(20)
+@pytest.mark.parametrize(
+    "transport",
+    [
+        "stdio",
+        "sse",
+        "streamable-json-stateless",
+        "streamable-json-stateful",
+        "streamable-sse-stateless",
+        "streamable-sse-stateful",
+    ],
+)
+async def test_mcp_message_timestamps(
+    explorer_api_url, invariant_gateway_package_whl_file, gateway_url, transport
+):
+    """Test that MCP messages include timestamps"""
+    project_name = "test-mcp-" + str(uuid.uuid4())
+
+
+    result = await _invoke_mcp_tool(
+        transport,
+        gateway_url,
+        project_name,
+        tool_name="get_last_message_from_user",
+        tool_args={"username": "Alice"},
+        whl=invariant_gateway_package_whl_file,
+        push=True,
+    )
+
+    assert result.isError is False
+
+    # Fetch the trace ids for the dataset
+    traces_response = requests.get(
+        f"{explorer_api_url}/api/v1/dataset/byuser/developer/{project_name}/traces",
+        timeout=5,
+    )
+    traces = traces_response.json()
+    assert len(traces) == 1
+    trace_id = traces[0]["id"]
+
+    # Fetch the trace
+    trace_response = requests.get(
+        f"{explorer_api_url}/api/v1/trace/{trace_id}",
+        timeout=5,
+    )
+    trace = trace_response.json()
+
+    # Verify all messages have timestamps AND that they are isoformat
+    for message in trace["messages"]:
+        assert "timestamp" in message, f"Message missing timestamp: {message}"
+        assert (
+            datetime.fromisoformat(message["timestamp"])
+            is not None
+        ), f"Message timestamp is not isoformat: {message['timestamp']}"

@@ -9,6 +9,7 @@ import re
 import uuid
 from abc import ABC, abstractmethod
 from typing import Any
+from datetime import datetime
 
 from fastapi import Request, HTTPException
 from gateway.common.guardrails import GuardrailAction
@@ -121,6 +122,40 @@ class McpTransportBase(ABC):
             )
 
         return interception_result, is_blocked
+    
+    @staticmethod
+    def generate_timestamp() -> str:
+        return datetime.now().isoformat()
+
+    @staticmethod
+    def generate_response_message(request_body: dict) -> dict:
+        message = {
+            "role": "tool",
+            "tool_call_id": f"call_{request_body.get('id')}",
+            "content": request_body.get(MCP_RESULT, {}).get("content"),
+            "error": request_body.get(MCP_RESULT, {}).get("error"),
+            "timestamp": McpTransportBase.generate_timestamp(),
+        }
+        
+        return message
+
+    @staticmethod
+    def generate_request_message(request_body: dict) -> dict:
+        tool_call = {
+            "id": f"call_{request_body.get('id')}",
+            "type": "function",
+            "function": {
+                "name": request_body.get(MCP_PARAMS).get("name"),
+                "arguments": request_body.get(MCP_PARAMS).get("arguments"),
+            },
+        }
+        message = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [tool_call],
+            "timestamp": McpTransportBase.generate_timestamp(),
+        }
+        return message
 
     @staticmethod
     def generate_session_id() -> str:
@@ -223,15 +258,7 @@ class McpTransportBase(ABC):
             indicating whether the request was blocked. If the request is blocked, the
             dict will contain an error message else it will contain the original request.
         """
-        tool_call = {
-            "id": f"call_{request_body.get('id')}",
-            "type": "function",
-            "function": {
-                "name": request_body.get(MCP_PARAMS).get("name"),
-                "arguments": request_body.get(MCP_PARAMS).get("arguments"),
-            },
-        }
-        message = {"role": "assistant", "content": "", "tool_calls": [tool_call]}
+        message = McpTransportBase.generate_request_message(request_body)
 
         # Check for blocking guardrails
         session = session_store.get_session(session_id)
@@ -288,12 +315,7 @@ class McpTransportBase(ABC):
         is_blocked = False
         result = response_body
 
-        message = {
-            "role": "tool",
-            "tool_call_id": f"call_{result.get('id')}",
-            "content": result.get(MCP_RESULT, {}).get("content"),
-            "error": result.get(MCP_RESULT, {}).get("error"),
-        }
+        message = McpTransportBase.generate_response_message(result)
 
         session = session_store.get_session(session_id)
         guardrails_result = await session.get_guardrails_check_result(
