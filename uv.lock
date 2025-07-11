@@ -249,7 +249,7 @@ wheels = [
 
 [[package]]
 name = "invariant-gateway"
-version = "0.0.5.2"
+version = "0.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

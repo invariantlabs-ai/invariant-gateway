@@ -1,3 +1,6 @@
+# Note:
+This branch is only for testing. Use the chatbot in `chatbot_testing_bundler.py` to test out the setup quickly.
+
 # Invariant Gateway
 
 **LLM proxy to observe and debug what your AI agents are doing.**
