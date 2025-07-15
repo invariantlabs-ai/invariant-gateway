@@ -17,10 +17,19 @@ from gateway.common.authorization import (
 )
 from gateway.common.guardrails import Guardrail
 
+import uuid
+
 # Timestamps of last API calls per guardrails string
 _guardrails_cache = {}
 # Locks per guardrails string
 _guardrails_locks = {}
+
+
+# Temporary session ID generation
+def generate_session_id():
+    return str(uuid.uuid4())
+
+session_id = generate_session_id()
 
 
 def rate_limit(expiration_time: int = 3600):
@@ -153,6 +162,7 @@ async def check_guardrails(
                 headers={
                     "Authorization": context.get_guardrailing_authorization(),
                     "Accept": CONTENT_TYPE_JSON,
+                    "X-Session-Id": session_id,
                 },
                 timeout=5,
             )
