@@ -148,6 +148,7 @@ async def check_guardrails(
                     "messages": messages[:-1] + [new_message],
                     "policies": [g.content for g in guardrails],
                     "parameters": context.guardrails_parameters or {},
+                    "dataset_name": context.dataset_name,
                 },
                 headers={
                     "Authorization": context.get_guardrailing_authorization(),
