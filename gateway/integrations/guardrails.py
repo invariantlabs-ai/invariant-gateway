@@ -147,14 +147,11 @@ async def check_guardrails(
     async with httpx.AsyncClient() as client:
         url = os.getenv("GUARDRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
 
-        # Note: This is probably not how we should implement this. For demonstration purposes only.
-        new_message = messages[-1].copy()
-        new_message["timestamp"] = datetime.now().isoformat()
         try:
             result = await client.post(
                 f"{url}/api/v1/policy/check/batch",
                 json={
-                    "messages": messages[:-1] + [new_message],
+                    "messages": messages,
                     "policies": [g.content for g in guardrails],
                     "parameters": context.guardrails_parameters or {},
                     "dataset_name": context.dataset_name,
