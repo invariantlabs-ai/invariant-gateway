@@ -5,6 +5,7 @@ import os
 import time
 from functools import wraps
 from typing import Any
+from datetime import datetime
 
 import httpx
 from fastapi import HTTPException
@@ -16,10 +17,19 @@ from gateway.common.authorization import (
 )
 from gateway.common.guardrails import Guardrail
 
+import uuid
+
 # Timestamps of last API calls per guardrails string
 _guardrails_cache = {}
 # Locks per guardrails string
 _guardrails_locks = {}
+
+
+# Temporary session ID generation
+def generate_session_id():
+    return str(uuid.uuid4())
+
+session_id = generate_session_id()
 
 
 def rate_limit(expiration_time: int = 3600):
@@ -136,6 +146,7 @@ async def check_guardrails(
     """
     async with httpx.AsyncClient() as client:
         url = os.getenv("GUARDRAILS_API_URL", DEFAULT_API_URL).rstrip("/")
+
         try:
             result = await client.post(
                 f"{url}/api/v1/policy/check/batch",
@@ -143,10 +154,12 @@ async def check_guardrails(
                     "messages": messages,
                     "policies": [g.content for g in guardrails],
                     "parameters": context.guardrails_parameters or {},
+                    "dataset_name": context.dataset_name,
                 },
                 headers={
                     "Authorization": context.get_guardrailing_authorization(),
                     "Accept": CONTENT_TYPE_JSON,
+                    "X-Session-Id": session_id,
                 },
                 timeout=5,
             )
