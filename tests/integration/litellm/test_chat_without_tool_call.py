@@ -10,7 +10,7 @@ from litellm import completion
 
 MODEL_API_KEYS = {
     "openai/gpt-4o": "OPENAI_API_KEY",
-    "gemini/gemini-2.5-flash": "GEMINI_API_KEY",
+    "gemini/gemini-2.5-flash-preview-09-2025": "GEMINI_API_KEY",
     "anthropic/claude-3-5-haiku-20241022": "ANTHROPIC_API_KEY",
 }
 
