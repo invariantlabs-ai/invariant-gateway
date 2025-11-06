@@ -1,6 +1,6 @@
 [project]
 name = "invariant-gateway"
-version = "0.0.8"
+version = "0.0.9"
 description = "LLM proxy to observe and debug what your AI agents are doing"
 readme = "README.md"
 requires-python = ">=3.12"
