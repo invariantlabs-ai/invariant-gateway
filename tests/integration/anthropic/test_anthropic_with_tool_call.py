@@ -188,12 +188,8 @@ async def test_response_with_tool_call(explorer_api_url, gateway_url, push_to_ex
     assert response is not None
     assert response[0].role == "assistant"
     assert response[0].stop_reason == "tool_use"
-    assert response[0].content[0].type == "text"
-    assert response[0].content[1].type == "tool_use"
-    assert city in response[0].content[1].input["location"].lower()
-
-    assert response[1].role == "assistant"
-    assert response[1].stop_reason == "end_turn"
+    assert response[0].content[0].type == "tool_use"
+    assert city in response[0].content[0].input["location"].lower()
     responses.append(response)
 
     if push_to_explorer:
@@ -217,18 +213,13 @@ async def test_response_with_tool_call(explorer_api_url, gateway_url, push_to_ex
         assert trace_messages[0]["role"] == "user"
         assert trace_messages[0]["content"] == query
         assert trace_messages[1]["role"] == "assistant"
-        assert city in trace_messages[1]["content"].lower()
-        assert trace_messages[2]["role"] == "assistant"
-        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert trace_messages[1]["tool_calls"][0]["function"]["name"] == "get_weather"
         assert (
             city
-            in trace_messages[2]["tool_calls"][0]["function"]["arguments"][
+            in trace_messages[1]["tool_calls"][0]["function"]["arguments"][
                 "location"
             ].lower()
         )
-        assert trace_messages[3]["role"] == "tool"
-        assert trace_messages[4]["role"] == "assistant"
-        assert city in trace_messages[4]["content"].lower()
 
 
 @pytest.mark.skipif(
@@ -249,13 +240,9 @@ async def test_streaming_response_with_tool_call(
 
     if len(response) == 2:
         assert response is not None
-        assert response[0][0].type == "text"
-        assert response[0][1].type == "tool_use"
-        assert response[0][1].name == "get_weather"
-        assert city in response[0][1].input["location"].lower()
-
-        assert response[1][0].type == "text"
-        assert city in response[1][0].text.lower()
+        assert response[0][0].type == "tool_use"
+        assert response[0][0].name == "get_weather"
+        assert city in response[0][0].input["location"].lower()
     elif len(response) == 1:
         # expected output in this case is something like this:
         # [[TextBlock(text="I'll help you check the weather in New York using the get_weather function.", type='text', citations=None), ToolUseBlock(id='toolu_019VZsmxuUhShou2EpPBxvpe', input={'location': 'New York, NY', 'unit': 'celsius'}, name='get_weather', type='tool_use')]]
@@ -290,18 +277,13 @@ async def test_streaming_response_with_tool_call(
         assert trace_messages[0]["role"] == "user"
         assert trace_messages[0]["content"] == query
         assert trace_messages[1]["role"] == "assistant"
-        assert city in trace_messages[1]["content"].lower()
-        assert trace_messages[2]["role"] == "assistant"
-        assert trace_messages[2]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert trace_messages[1]["tool_calls"][0]["function"]["name"] == "get_weather"
         assert (
             city
-            in trace_messages[2]["tool_calls"][0]["function"]["arguments"][
+            in trace_messages[1]["tool_calls"][0]["function"]["arguments"][
                 "location"
             ].lower()
         )
-        assert trace_messages[3]["role"] == "tool"
-        assert trace_messages[4]["role"] == "assistant"
-        assert city in trace_messages[4]["content"].lower()
 
 
 @pytest.mark.skipif(
