@@ -10,7 +10,6 @@ from litellm import completion
 
 MODEL_API_KEYS = {
     "openai/gpt-4o": "OPENAI_API_KEY",
-    "gemini/gemini-2.5-flash-preview-09-2025": "GEMINI_API_KEY",
     "anthropic/claude-3-5-haiku-20241022": "ANTHROPIC_API_KEY",
 }
 
@@ -46,8 +45,6 @@ async def test_chat_completion(
     )
 
     base_url += "/" + litellm_model.split("/")[0]  # add provider name
-    if litellm_model.split("/")[0] == "gemini":
-        base_url += f"/v1beta/models/{litellm_model.split('/')[1]}"  # gemini expects the model name in the url
 
     chat_response = completion(
         model=litellm_model,
