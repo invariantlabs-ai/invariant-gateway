@@ -37,7 +37,7 @@ async def test_gateway_with_invariant_key_in_anthropic_key_header(
             base_url=f"{gateway_url}/api/v1/gateway/{dataset_name}/anthropic",
         )
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=1024,
             messages=[
                 {

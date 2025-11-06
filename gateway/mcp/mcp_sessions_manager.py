@@ -32,6 +32,7 @@ def user_and_host() -> str:
 
     return f"{username}@{hostname}"
 
+
 class McpAttributes(BaseModel):
     """
     A Pydantic model to represent MCP attributes.
@@ -118,9 +119,9 @@ class McpAttributes(BaseModel):
         for arg in extra_args:
             assert "=" in arg, f"Invalid extra metadata argument: {arg}"
             key, value = arg.split("=")
-            assert key.startswith(
-                "--metadata-"
-            ), f"Invalid extra metadata argument: {arg}, must start with --metadata-"
+            assert key.startswith("--metadata-"), (
+                f"Invalid extra metadata argument: {arg}, must start with --metadata-"
+            )
             key = key[len("--metadata-") :]
             metadata[key] = value
 
@@ -185,8 +186,12 @@ class McpSession(BaseModel):
             self.attributes.explorer_dataset,
             self._get_invariant_authorization(),
             # pylint: disable=no-member
-            self.attributes.metadata.get("mcp_client"),
-            self.attributes.metadata.get("mcp_server"),
+            self.attributes.metadata.get(
+                "client", self.attributes.metadata.get("mcp_client")
+            ),
+            self.attributes.metadata.get(
+                "server", self.attributes.metadata.get("mcp_server")
+            ),
         )
 
     @contextlib.asynccontextmanager

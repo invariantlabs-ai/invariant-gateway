@@ -263,7 +263,7 @@ class AnthropicProvider(BaseProvider):
 
         b'event: message_start\ndata: {"type":"message_start","message":
         {"id":"msg_01LkayzAaw7b7QkUAw91psyx","type":"message","role":"assistant"
-        ,"model":"claude-3-5-sonnet-20241022","content":[],"stop_reason":null,
+        ,"model":"claude-sonnet-4-5-20250929","content":[],"stop_reason":null,
         "stop_sequence":null,"usage":{"input_tokens":20,"cache_creation_input_to'
 
         and

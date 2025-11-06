@@ -39,7 +39,7 @@ async def test_message_content_guardrail_from_file(
     )
 
     request = {
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5-20250929",
         "max_tokens": 100,
         "messages": [{"role": "user", "content": "What is the capital of Spain?"}],
     }
@@ -150,7 +150,7 @@ async def test_tool_call_guardrail_from_file(
         ],
         "tools": tools,
         "system": system_message,
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5-20250929",
         "max_tokens": 150,
     }
 
@@ -250,7 +250,7 @@ async def test_input_from_guardrail_from_file(
     )
 
     request = {
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5-20250929",
         "max_tokens": 100,
         "messages": [{"role": "user", "content": "Tell me more about Fight Club."}],
     }
@@ -352,7 +352,7 @@ async def test_with_guardrails_from_explorer(explorer_api_url, gateway_url, do_s
     # This should not be blocked by the guardrails from the explorer when we push to explorer
     # because the file based guardrails are overridden by the explorer guardrails
     spain_request = {
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5-20250929",
         "messages": [{"role": "user", "content": "What is the capital of Spain?"}],
         "max_tokens": 100,
     }
@@ -379,7 +379,7 @@ async def test_with_guardrails_from_explorer(explorer_api_url, gateway_url, do_s
     # This should be blocked by the guardrails from the explorer
     user_prompt = "What kind of a creature is Shrek? What is his Shrek's wife's name? Only answer these questions with single sentences, don't add any extra details."
     shrek_request = {
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5-20250929",
         "messages": [
             {
                 "role": "user",
@@ -497,7 +497,7 @@ async def test_preguardrailing_with_guardrails_from_explorer(
 
     user_prompt = "Tell me a one sentence pun."
     request = {
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5-20250929",
         "messages": [
             {
                 "role": "user",

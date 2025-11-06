@@ -42,7 +42,7 @@ async def test_response_without_tool_call(
     responses = []
     for query in queries:
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=1024,
             messages=[{"role": "user", "content": query}],
         )
@@ -100,7 +100,7 @@ async def test_streaming_response_without_tool_call(
         response_text = ""
 
         with client.messages.stream(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=200,
             messages=messages,
         ) as response:
