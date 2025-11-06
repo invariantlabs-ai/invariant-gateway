@@ -160,7 +160,7 @@ import random
 import os
 
 base_url = "/api/v1/gateway/litellm/{add-your-dataset-name-here}"
-EXAMPLE_MODELS = ["openai/gpt-4o", "gemini/gemini-2.0-flash", "anthropic/claude-3-5-haiku-20241022"]
+EXAMPLE_MODELS = ["openai/gpt-4o", "gemini/gemini-2.5-flash", "anthropic/claude-3-5-haiku-20241022"]
 model = random.choice(SAMPLE_MODELS)
 
 base_url += "/" + model.split("/")[0] # append /gemini /openai or /anthropic. 
